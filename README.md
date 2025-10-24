@@ -8,7 +8,7 @@
 
 | Task | Due Date | Status |
 |------|-----------|---------|
-| **Feladat specifikáció** | Monday, 20 October 2025, 11:59 PM | ⏳ Pending |
+| **Feladat specifikáció** | Monday, 20 October 2025, 11:59 PM | ✔️ Done |
 | **Feladat dokumentáció** | Monday, 1 December 2025, 11:59 PM | ⏳ Pending |
 | **Feladat szoftver** | Monday, 1 December 2025, 11:59 PM | ⏳ Pending |
 
@@ -57,6 +57,27 @@ The goal is to create a framework where users can integrate purchased (or self-m
 - 🔒 Users can only access their own devices
 - 🆔 Unambiguous device identification
 - 📡 Preferred protocols: MQTT, CoAP, or Matter
+
+---
+
+## 👷 Working on the project
+
+### ServerModule
+#### Specifications
+- 💻 Contains the python server, on which the business logic runs
+- 📁 Deals with Postgresql DB operations
+- 📡 Handles incoming MQTT message from sensors and controllers
+- 📱 Provides interfaces to the frontend applications
+- 🌲 Provides the Plant Monitoring System™️ business logic
+
+### Usage
+- 🐍 Create a virtual environment with Python 3.12.10 (e.g. with conda) and activate it
+- #️⃣ conda create -n plant_server python==3.12.4
+- #️⃣ conda activate plant_server
+- 📃 Install the requirements.txt
+- #️⃣ pip install -r requirements.txt
+- ✔️ Now you are all set to work on the ServerModule
+
 
 ---
 
