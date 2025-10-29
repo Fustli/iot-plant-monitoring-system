@@ -25,6 +25,7 @@ class Consumer(User):
         self.plants: list[Plant] = []
 
     def register_plant(self, plant: Plant):
+        """Attach Plant to User."""
         self.plants.append(plant)
 
     def get_plants(self) -> list[Plant]:

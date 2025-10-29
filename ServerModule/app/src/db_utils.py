@@ -4,7 +4,7 @@ import psycopg2
 from psycopg2._psycopg import cursor
 from contextlib import contextmanager
 
-from src.plants import Brightness
+from src.plants import Brightness, Moisture
 
 
 class DBInterface:
@@ -42,7 +42,7 @@ class DBInterface:
                 conn.close()
                 logging.info("Closed database connection.")
 
-    def get_plant_details(self, plant_type: str) -> tuple[Brightness, float, float, float, float]:
+    def get_plant_details(self, plant_type: str) -> tuple[Brightness, float, float, Moisture]:
         """Unfinished as we don't yet know the database structure."""
         with self.connect_to_db as (cur, conn):
             cur: cursor
