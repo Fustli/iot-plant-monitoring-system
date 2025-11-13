@@ -16,7 +16,7 @@ class Device(ABC):
         capabilities = set()
         if isinstance(self, MoistureSensor):
             capabilities.add("moisture:read")
-        if isinstance(self, Moisturizer):
+        if isinstance(self, MoisturizeActuator):
             capabilities.add("moisture:write")
         if isinstance(self, BrightnessSensor):
             capabilities.add("brightness:read")
@@ -50,7 +50,7 @@ class MoistureSensor(ABC):
         pass
 
 
-class Moisturizer(ABC):
+class MoistureActuator(ABC):
     def __init__(self, name: str):
         self._name = name
         self._moisture: Moisture = None
@@ -139,7 +139,7 @@ class SimpleMoisturizer(Device, MoistureSensor):
         return self._moisture
 
 
-class ComplexMoistureDevice(Device, MoistureSensor, Moisturizer):
+class ComplexMoistureDevice(Device, MoistureSensor, MoisturizeActuator):
     def __init__(self, name: str):
         super().__init__(name)
         self._moisture = None
