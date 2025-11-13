@@ -1,4 +1,3 @@
-
 FROM python:3.12.4-slim
 WORKDIR /app
 COPY requirements.txt /app

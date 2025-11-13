@@ -29,3 +29,6 @@ class MQTTSimulator:
                 "data_unit": "Moisture"
             }
         ]
+
+# TODO
+# Gyűlnek a messagek egy log fileban, amit időnként átmásolunk a db-be

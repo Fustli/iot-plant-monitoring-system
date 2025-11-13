@@ -4,7 +4,7 @@ import psycopg2
 from psycopg2._psycopg import cursor
 from contextlib import contextmanager
 
-from src.plants import Brightness, Moisture
+from measurements import Brightness, Moisture
 
 
 class DBInterface:

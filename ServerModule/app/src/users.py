@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from src.plants import Plant
-from src.devices import Device
+from plants import Plant
+from devices import Device
 
 
 class User(ABC):
