@@ -171,7 +171,6 @@ class DeviceCollection:
         method_name = f"change_{metric}"
         metric_msgs: MetricMessages = getattr(Textbook, metric)
     
-        # Find all devices that support this capability
         actuators = [d for d in self.devices if capability in d.capabilities]
 
         if not actuators:

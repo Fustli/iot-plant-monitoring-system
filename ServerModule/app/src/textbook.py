@@ -9,6 +9,7 @@ class MetricMessages:
     no_sensor: str
     no_actuator: str
 
+
 class Textbook:
     moisture = MetricMessages(
         low="Plant moisture has reached critically low levels! Commencing moisture increase...",

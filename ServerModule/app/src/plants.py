@@ -5,7 +5,7 @@ from devices import Device, DeviceCollection
 from db_utils import DBInterface
 from measurements import Brightness, Moisture, TEMPERATURE_THRESHOLD, HUMIDITY_THRESHOLD
 from textbook import Textbook, MetricMessages
-from logger import Logger, LogLevel
+from logger import Logger
 
 
 class Plant:
@@ -36,7 +36,7 @@ class Plant:
         self.act_temperature: float = None
         self.act_moisture: Moisture = None
 
-        self.logger = Logger(name=id, level=LogLevel.INFO)
+        self.logger = Logger(name=id)
         self.devices: DeviceCollection = DeviceCollection(self.id, self.logger)
 
         self.alert_address = alert_address
@@ -119,7 +119,7 @@ class Plant:
         else:
             msg = metric_msgs.low
 
-        self.logger.warning(msg)
+        self.logger.info(msg)
     
         if self.alert_address:
             self.send_alert(msg)
@@ -165,13 +165,14 @@ class PlantThreadManager:
     """
 
     def __init__(self, plants: list[Plant] = None, interval_seconds: int = 300):
-        # plants: optional initial iterable of Plant instances
         self._plants = list(plants) if plants is not None else []
         self._interval = interval_seconds
 
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._manager_thread: threading.Thread | None = None
+
+        self.logger = Logger(name="PlantThreadManager")
 
     def add_plant(self, plant: Plant):
         """Add a plant to be managed."""
@@ -237,8 +238,8 @@ class PlantThreadManager:
             if self._stop_event.wait(self._interval):
                 break
 
-    @staticmethod
-    def _run_keep_alive_once(plant: Plant):
+
+    def _run_keep_alive_once(self, plant: Plant):
         """
         Wrapper so that any exception in keep_alive is caught and doesn't kill
         the manager loop.
@@ -246,8 +247,7 @@ class PlantThreadManager:
         try:
             plant.keep_alive_cycle()
         except Exception as exc:
-            # TODO real logger
-            print(f"Error in keep_alive for plant {plant.id}: {exc}")
+            self.logger.error(f"Error in keep_alive for plant {plant.id}: {exc}")
 
 
 def test_threads():
@@ -266,11 +266,12 @@ def test_threads():
         req_brightness=Brightness.DIRECT_LIGHT,
         req_humidity=40.0,
         req_temperature=21.0,
-        req_moisture=Moisture.MOIST
+        req_moisture=Moisture.WET
     )
 
     plant1.act_humidity = 30
     plant2.act_temperature = 20
+    plant2.act_moisture = Moisture.DRY
 
     plant1.keep_alive = True
     plant2.keep_alive = True

@@ -23,7 +23,6 @@ class Logger:
         return f"[{timestamp}] [{self.name}] [{level_name}] {message}"
 
     def _write(self, formatted: str) -> None:
-        # Console
         print(formatted)
 
     def log(self, level: LogLevel, message: str) -> None:
@@ -32,7 +31,6 @@ class Logger:
         formatted = self._format(level, message)
         self._write(formatted)
 
-    # Convenience helpers
     def debug(self, message: str) -> None:
         self.log(LogLevel.DEBUG, message)
 
