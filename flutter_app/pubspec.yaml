@@ -1,0 +1,61 @@
+name: iot_plant_monitoring
+description: IoT Plant Monitoring System - Flutter Frontend (Dummy/Demo)
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  provider: ^6.0.0
+
+  # UI & Design
+  cupertino_icons: ^1.0.2
+  google_fonts: ^6.0.0
+
+  # HTTP & Networking (for future backend integration)
+  http: ^1.1.0
+
+  # Data Serialization
+  json_annotation: ^4.8.0
+
+  # Charts & Analytics
+  fl_chart: ^0.65.0
+
+  # Date & Time
+  intl: ^0.19.0
+
+  # Local Storage
+  shared_preferences: ^2.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^3.0.0
+
+  # For JSON serialization
+  build_runner: ^2.4.0
+  json_serializable: ^6.7.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600

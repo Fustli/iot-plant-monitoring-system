@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base href="$FLUTTER_BASE_HREF">
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta name="description" content="IoT Plant Monitoring System - Flutter Web">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- iOS meta tags & icons -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Plant Monitor">
+    <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Theme color -->
+    <meta name="theme-color" content="#2D6A4F">
+
+    <!-- PWA support -->
+    <link rel="manifest" href="manifest.json">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('flutter-first-frame', function () {
+                navigator.serviceWorker.register('flutter_service_worker.js');
+            });
+        }
+    </script>
+
+    <title>Plant Monitor</title>
+    <link rel="stylesheet" type="text/css" href="splash/style.css">
+    <meta name="darkreader-lock">
+    <script defer src="flutter.js"></script>
+</head>
+<body>
+    <picture id="splash">
+        <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x" media="(prefers-color-scheme: light) or (prefers-color-scheme: no-preference)">
+        <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x" media="(prefers-color-scheme: dark)">
+        <img class="center" src="splash/img/light-1x.png" />
+    </picture>
+    <script>
+        window.addEventListener('flutter-first-frame', function () {
+            document.getElementById("splash").remove();
+        });
+    </script>
+    <script>
+        _flutter.loader.loadEntrypoint({
+            serviceWorkerSettings: {
+                serviceWorkerVersion: null,
+            },
+            onEntrypointLoaded: function(engineInitializer) {
+                engineInitializer.initializeEngine().then(function(appRunner) {
+                    appRunner.runApp();
+                });
+            }
+        });
+    </script>
+</body>
+</html>
