@@ -78,6 +78,64 @@ The goal is to create a framework where users can integrate purchased (or self-m
 - #️⃣ pip install -r requirements.txt
 - ✔️ Now you are all set to work on the ServerModule
 
+## 🗄️ Database Module
+
+The database module (`db/`) contains the PostgreSQL ORM schema using SQLAlchemy, with support for both ORM and raw SQL queries.
+
+### Structure
+- `base.py` - Base class and enumerations
+- `*_models.py` - Modular entity definitions (user, device, plant, sensor, alert)
+- `db_utils.py` - Database interface supporting both ORM and raw SQL (psycopg2)
+- `requirements.txt` - Database dependencies
+- `.env.example` - Configuration template (matches ServerModule environment variables)
+- `scripts/db_manager.py` - Database initialization and management CLI
+- `scripts/examples.py` - Usage examples
+- `INTEGRATION.md` - ServerModule integration guide
+
+### Quick Start
+
+1. **Install dependencies:**
+   ```bash
+   pip install -r db/requirements.txt
+   ```
+
+2. **Create PostgreSQL database:**
+   ```bash
+   createdb iot_plant_db
+   createuser iot_user
+   psql -U postgres -d iot_plant_db -c "ALTER USER iot_user WITH PASSWORD 'iot_password';"
+   ```
+
+3. **Initialize database:**
+   ```bash
+   python db/scripts/db_manager.py init
+   ```
+
+4. **Seed demo data (optional):**
+   ```bash
+   python db/scripts/db_manager.py seed
+   ```
+
+### Usage in ServerModule
+
+The `db.DBInterface` class supports both ORM and raw SQL:
+
+```python
+# Raw SQL (what ServerModule needs)
+from db.db_utils import DBInterface
+
+db = DBInterface()
+results = db.get_plant_details('Monstera')
+db.insert_sensor_data(device_id=1, measurement_value=22.5, measurement_unit='°C')
+
+# Or ORM operations
+from db import get_session, User
+session = get_session()
+users = session.query(User).all()
+```
+
+See [`db/INTEGRATION.md`](db/INTEGRATION.md) for complete integration examples.
+
 
 ---
 

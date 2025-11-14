@@ -1,0 +1,75 @@
+# IoT Plant Monitoring System - Project Requirements
+# Install with: pip install -r requirements.txt
+
+# ============================================================================
+# DATABASE & ORM
+# ============================================================================
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.11  # PostgreSQL adapter for Python
+
+# Database utilities
+sqlparse==0.4.4  # SQL parsing and formatting
+
+# Database migrations
+alembic==1.13.0  # Schema migration tool for SQLAlchemy
+
+# ============================================================================
+# ENVIRONMENT & CONFIGURATION
+# ============================================================================
+python-dotenv==1.0.0  # Load environment variables from .env
+
+# ============================================================================
+# WEB FRAMEWORK (for backend server)
+# ============================================================================
+# Flask or FastAPI can be added here when ServerModule is ready
+# flask==2.3.0
+# fastapi==0.104.0
+# uvicorn==0.24.0
+
+# ============================================================================
+# MQTT & IoT COMMUNICATION
+# ============================================================================
+# paho-mqtt==1.6.1  # For MQTT device communication
+
+# ============================================================================
+# UTILITIES & HELPERS
+# ============================================================================
+typing-extensions==4.8.0  # Extended typing support
+
+# ============================================================================
+# SECURITY & AUTHENTICATION
+# ============================================================================
+# bcrypt==4.1.0  # For password hashing
+# python-jose==3.3.0  # JWT token handling
+# pydantic==2.5.0  # Data validation
+
+# ============================================================================
+# TESTING
+# ============================================================================
+pytest==7.4.3  # Testing framework
+pytest-postgresql==5.1.0  # PostgreSQL fixtures for pytest
+
+# ============================================================================
+# CODE QUALITY & LINTING
+# ============================================================================
+# pylint==3.0.0
+# black==23.11.0
+# flake8==6.1.0
+# isort==5.13.0
+
+# ============================================================================
+# LOGGING & MONITORING
+# ============================================================================
+# python-json-logger==2.0.7
+
+# ============================================================================
+# DEVELOPMENT TOOLS
+# ============================================================================
+# ipython==8.18.0  # Enhanced Python shell
+# jupyter==1.0.0   # Jupyter notebook support
+
+# ============================================================================
+# OPTIONAL: WEB SERVER & ASYNC
+# ============================================================================
+# aiohttp==3.9.0  # For async HTTP requests
+# asyncpg==0.29.0  # Async PostgreSQL driver
