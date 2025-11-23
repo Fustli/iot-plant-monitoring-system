@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  broker:
+    image: eclipse-mosquitto
+    container_name: iot_broker
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+    networks:
+      - iot_net
+
+  gateway:
+    build: ./gateway
+    container_name: iot_gateway
+    depends_on:
+      - broker
+    environment:
+      - MQTT_BROKER_HOST=broker
+      - HUB_ID=123456
+      - CLOUD_ENDPOINT=http://host.docker.internal:8000/telemetry
+      - CLOUD_COMMANDS_ENDPOINT=http://host.docker.internal:8000/commands
+      - MQTT_TOPICS=home/sensors/+,telemetry
+    networks:
+      - iot_net
+
+networks:
+  iot_net:
