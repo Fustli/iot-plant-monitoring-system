@@ -137,6 +137,31 @@ users = session.query(User).all()
 See [`db/INTEGRATION.md`](db/INTEGRATION.md) for complete integration examples.
 
 
+## Hub Subproject
+
+The `Hub` subproject provides the local gateway and MQTT broker used for development, testing, and bridging local devices to the cloud.
+
+### Purpose:
+- `Hub`: hosts a local MQTT broker and a gateway service that forwards device messages to cloud endpoints or other local services.
+
+### Structure:
+- `Hub/docker-compose.yml`: orchestration for the local stack (gateway + mosquitto broker).
+- `Hub/gateway/`: gateway service source and Dockerfile (`main.py`, `gateway.py`, `cloud_client.py`, `logging_config.py`, `requirements.txt`).
+- `Hub/mosquitto/config/mosquitto.conf`: MQTT broker configuration.
+- `Hub/test/`: utilities for testing (`mock_server.py`, `send_test_message.py`).
+- `Hub/util/`: small helper scripts such as `print-ip.py`.
+
+### Quick Start:
+Run the Hub stack with Docker Compose to start the broker and gateway:
+
+```bash
+cd Hub
+docker-compose up --build
+```
+
+The compose file will start the MQTT broker (Mosquitto) and the gateway service defined in `Hub/gateway/`.
+
+
 ---
 
 *BME-VIK Szoftver Architektúrák project - Making plant care less deadly since 2025* 🚀
