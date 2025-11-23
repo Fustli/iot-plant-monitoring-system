@@ -2,7 +2,7 @@ import time
 import threading
 
 from devices import Device, DeviceCollection
-from db_utils import DBInterface
+from db.db_utils import DBInterface
 from measurements import Brightness, Moisture, TEMPERATURE_THRESHOLD, HUMIDITY_THRESHOLD
 from textbook import Textbook, MetricMessages
 from logger import Logger
@@ -50,7 +50,8 @@ class Plant:
     def from_database(cls, id: str, plant_type: str):
         """Instantiate a new Plant object from existing plant types in the database."""
         db_interface = DBInterface()
-    
+
+        # TEST AND REWORK
         (
             req_brightness, 
             req_humidity, 
