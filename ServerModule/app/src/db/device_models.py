@@ -62,6 +62,7 @@ class Device(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    plant_id = Column(Integer, ForeignKey('plants.id', ondelete='SET NULL'), nullable=True, index=True)
     device_type_id = Column(Integer, ForeignKey('device_types.id', ondelete='RESTRICT'), nullable=False)
     unique_identifier = Column(String(255), unique=True, nullable=False, index=True)
     device_name = Column(String(255), nullable=False)
@@ -76,12 +77,14 @@ class Device(Base):
                        onupdate=func.now(), nullable=False)
 
     owner = relationship('User', back_populates='devices')
+    plant = relationship('Plant', foreign_keys=[plant_id])
     device_type = relationship('DeviceType', back_populates='devices')
     sensor_data = relationship('SensorData', back_populates='device', cascade='all, delete-orphan')
     plant_assignments = relationship('PlantDeviceAssignment', back_populates='device', cascade='all, delete-orphan')
 
     __table_args__ = (
         Index('idx_device_user', 'user_id'),
+        Index('idx_device_plant', 'plant_id'),
         Index('idx_device_unique_identifier', 'unique_identifier'),
         Index('idx_device_is_active', 'is_active'),
         Index('idx_device_type', 'device_type_id'),
