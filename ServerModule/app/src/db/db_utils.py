@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from db.base import Base
+from base import Base
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -124,15 +124,15 @@ class DBInterface:
                 cur.execute(query)
             return cur.rowcount
     
-    def get_plant_details(self, plant_type: str):
-        query = """
-            SELECT id, plant_name, min_temperature, max_temperature, 
-                   min_humidity, max_humidity, min_soil_moisture, max_soil_moisture, 
-                   min_light_intensity
-            FROM plants 
-            WHERE plant_type_id = (SELECT id FROM plant_types WHERE name = %s)
+    def get_plant_reqs(self, plant_type: str):
+        query = f"""
+            SELECT name, scientific_name, optimal_temperature, optimal_humidity, optimal_light, optimal_moisture
+            FROM plant_types
+            WHERE scientific_name = '{plant_type}'
         """
-        return self.execute_query(query, (plant_type,))
+        result = self.execute_query(query, (plant_type,))
+
+        return result
     
     def get_device_by_id(self, device_id: int):
         query = "SELECT * FROM devices WHERE id = %s"
@@ -176,3 +176,8 @@ def init_db():
 def drop_all_tables():
     return get_db_interface().drop_all_tables()
 
+
+if __name__ == "__main__":
+    db_interface = DBInterface()
+    plant_reqs = db_interface.get_plant_reqs('Monstera deliciosa')
+    print(plant_reqs)

@@ -158,7 +158,7 @@ def seed_demo_data(session):
             optimal_temperature=22.5,
             optimal_humidity=72.5,
             optimal_light=1000,
-            water_frequency_days=7
+            optimal_moisture=1
         )
         pothos = PlantType(
             name='Golden Pothos',
@@ -167,7 +167,7 @@ def seed_demo_data(session):
             optimal_temperature=20,
             optimal_humidity=65,
             optimal_light=500,
-            water_frequency_days=7
+            optimal_moisture=2
         )
         snake_plant = PlantType(
             name='Snake Plant',
@@ -176,7 +176,7 @@ def seed_demo_data(session):
             optimal_temperature=21.5,
             optimal_humidity=47.5,
             optimal_light=300,
-            water_frequency_days=14
+            optimal_moisture=3
         )
         session.add_all([monstera, pothos, snake_plant])
         session.flush()

@@ -115,7 +115,7 @@
          │   ├─ optimal_temperature               │
          │   ├─ optimal_humidity                  │
          │   ├─ optimal_light                     │
-         │   └─ water_frequency_days              │
+         │   └─ optimal_moisture                  │
          │        │ (1:N)                         │
          │        ▼                               │
          │ PLANTS (N)                             │

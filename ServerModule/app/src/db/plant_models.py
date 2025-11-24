@@ -17,7 +17,7 @@ class PlantType(Base):
     optimal_temperature = Column(Float)
     optimal_humidity = Column(Float)
     optimal_light = Column(Float)
-    water_frequency_days = Column(Integer)
+    optimal_moisture = Column(Float)
     care_instructions = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), 

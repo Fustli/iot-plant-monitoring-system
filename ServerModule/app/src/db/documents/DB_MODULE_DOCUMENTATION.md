@@ -247,7 +247,7 @@ device = Device(
 | `optimal_temperature` | Float | - | Ideal temperature in °C |
 | `optimal_humidity` | Float | - | Ideal humidity percentage (0-100) |
 | `optimal_light` | Float | - | Ideal light level in lux |
-| `water_frequency_days` | Integer | - | Recommended watering interval in days |
+| `optimal_moisture` | Float | - | Recommended moisture |
 | `care_instructions` | Text | - | General care guidelines |
 | `created_at` | DateTime | NOT NULL, DEFAULT=NOW() | Entry creation timestamp |
 | `updated_at` | DateTime | NOT NULL, DEFAULT=NOW() | Last update timestamp |
@@ -261,7 +261,7 @@ plant_type = PlantType(
     optimal_temperature=22.5,
     optimal_humidity=72.5,
     optimal_light=1000,
-    water_frequency_days=7,
+    optimal_moisture=2,
     care_instructions='Keep soil moist, provide bright indirect light'
 )
 ```

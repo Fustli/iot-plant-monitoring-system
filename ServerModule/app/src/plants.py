@@ -51,13 +51,12 @@ class Plant:
         """Instantiate a new Plant object from existing plant types in the database."""
         db_interface = DBInterface()
 
-        # TEST AND REWORK
-        (
+        (   _,_,
             req_brightness, 
             req_humidity, 
             req_temperature, 
             req_moisture
-        ) = db_interface.get_plant_details(plant_type)
+        ) = db_interface.get_plant_reqs(plant_type)
     
         return cls(
                 id, 
@@ -91,6 +90,7 @@ class Plant:
     def send_alert(self, subject: str):
         # TODO
         # Send email/notification
+        # Log alert in database
         print(subject)
 
     def start_plant_care(self):

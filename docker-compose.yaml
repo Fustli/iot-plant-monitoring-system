@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: iot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: iot_plant_db
+      POSTGRES_USER: iot_user
+      POSTGRES_PASSWORD: iot_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iot_user -d iot_plant_db || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:

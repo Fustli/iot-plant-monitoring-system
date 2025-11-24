@@ -15,7 +15,7 @@ class Manufacturer(User):
     def __init__(self, id: str, username: str):
         super().__init__(id, username)
 
-    def create_new_device():
+    def register_new_device():
         pass
 
 
