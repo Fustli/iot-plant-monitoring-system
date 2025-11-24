@@ -3,14 +3,7 @@ from enum import IntEnum
 # TODO make ENVs
 TEMPERATURE_THRESHOLD = 2.0
 HUMIDITY_THRESHOLD = 5.0
-
-class Brightness(IntEnum):
-    NO_LIGHT = 1
-    LOW_LIGHT = 2
-    MEDIUM_LIGHT = 3
-    BRIGHT_INDIRECT_LIGHT = 4
-    DIRECT_LIGHT = 5
-    
+BRIGHTNESS_THRESHOLD = 50.0    
 
 class Moisture(IntEnum):
     DRY = 1

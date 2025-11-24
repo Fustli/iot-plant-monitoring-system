@@ -19,8 +19,8 @@ class MQTTSimulator:
             {
                 "device_id": "id",
                 "data_type": "Brightness",
-                "data": "MEDIUM_LIGHT",
-                "data_unit": "Brightness"
+                "data": "500",
+                "data_unit": "lux"
             },
             {
                 "device_id": "id",

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from measurements import Moisture, Brightness
+from measurements import Moisture
 from textbook import Textbook, MetricMessages
 from logger import Logger
 
@@ -63,14 +63,14 @@ class MoistureActuator(ABC):
 class BrightnessSensor(ABC):
     def __init__(self, name: str):
         self._name = name
-        self._brightness: Brightness = None
+        self._brightness: float = None
 
     @abstractmethod
-    def read_brightness(self) -> Brightness:
+    def read_brightness(self) -> float:
         pass
 
     @abstractmethod
-    def update_brightness(self, brightness: Brightness):
+    def update_brightness(self, brightness: float):
         pass
 
 

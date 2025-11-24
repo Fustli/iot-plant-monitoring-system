@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from base import Base
+from db.base import Base
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -132,7 +132,7 @@ class DBInterface:
         """
         result = self.execute_query(query, (plant_type,))
 
-        return result
+        return result[0] if result else None
     
     def get_device_by_id(self, device_id: int):
         query = "SELECT * FROM devices WHERE id = %s"
@@ -145,6 +145,13 @@ class DBInterface:
             VALUES (%s, %s, %s, NOW())
         """
         return self.execute_update(query, (device_id, measurement_value, measurement_unit))
+
+    def register_new_device(self):
+        query = """
+            INSERT INTO sensor_data (device_id, measurement_value, measurement_unit, timestamp)
+            VALUES (%s, %s, %s, NOW())
+        """
+
 
 
 _db_interface = None

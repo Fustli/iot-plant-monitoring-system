@@ -3,7 +3,7 @@ import threading
 
 from devices import Device, DeviceCollection
 from db.db_utils import DBInterface
-from measurements import Brightness, Moisture, TEMPERATURE_THRESHOLD, HUMIDITY_THRESHOLD
+from measurements import Moisture, TEMPERATURE_THRESHOLD, HUMIDITY_THRESHOLD, BRIGHTNESS_THRESHOLD
 from textbook import Textbook, MetricMessages
 from logger import Logger
 
@@ -13,7 +13,7 @@ class Plant:
             self, 
             id: str, 
             plant_type: str,
-            req_brightness: Brightness,
+            req_brightness: float,
             req_humidity: float,
             req_temperature: float,
             req_moisture: Moisture,
@@ -31,7 +31,7 @@ class Plant:
         self._req_moisture = req_moisture
 
         # Actual values
-        self.act_brightness: Brightness = None
+        self.act_brightness: float = None
         self.act_humidity: float = None
         self.act_temperature: float = None
         self.act_moisture: Moisture = None
@@ -48,7 +48,10 @@ class Plant:
 
     @classmethod
     def from_database(cls, id: str, plant_type: str):
-        """Instantiate a new Plant object from existing plant types in the database."""
+        """
+        Instantiate a new Plant object from existing plant types in the database. 
+        plant_type: str = scientific name of the plant
+        """
         db_interface = DBInterface()
 
         (   _,_,
@@ -57,6 +60,8 @@ class Plant:
             req_temperature, 
             req_moisture
         ) = db_interface.get_plant_reqs(plant_type)
+
+        req_moisture = Moisture(req_moisture)
     
         return cls(
                 id, 
@@ -78,7 +83,7 @@ class Plant:
     def update_moisture(self, moisture: Moisture):
         self.act_moisture = moisture
 
-    def update_brightness(self, brightness: Brightness):
+    def update_brightness(self, brightness: int):
         self.act_brightness = brightness
 
     def update_temperature(self, temperature: float):
@@ -140,7 +145,7 @@ class Plant:
             "brightness",
             act_value=self.act_brightness,
             req_value=self._req_brightness,
-            threshold=0,
+            threshold=BRIGHTNESS_THRESHOLD,
         )
 
         self.check_metric(
@@ -255,24 +260,17 @@ def test_threads():
     plant1 = Plant(
         id='plant1',
         plant_type="low_maintenance",
-        req_brightness=Brightness.LOW_LIGHT,
+        req_brightness=500,
         req_humidity=20.0,
         req_temperature=21.0,
         req_moisture=Moisture.DRY
     )
 
-    plant2 = Plant(
-        id='plant2',
-        plant_type="high_maintenance",
-        req_brightness=Brightness.DIRECT_LIGHT,
-        req_humidity=40.0,
-        req_temperature=21.0,
-        req_moisture=Moisture.WET
-    )
+    plant2 = Plant.from_database('Monstera deliciosa', 'Monstera deliciosa')
 
     plant1.act_humidity = 30
     plant2.act_temperature = 20
-    plant2.act_moisture = Moisture.DRY
+    plant2.act_moisture = Moisture.WET
 
     plant1.keep_alive = True
     plant2.keep_alive = True
