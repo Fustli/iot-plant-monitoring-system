@@ -11,13 +11,13 @@ class PlantType(Base):
     __tablename__ = 'plant_types'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255), unique=True, nullable=False, index=True)
-    scientific_name = Column(String(255))
+    name = Column(String(255), nullable=False)
+    scientific_name = Column(String(255), nullable=False, unique=True, index=True)
     description = Column(Text)
-    optimal_temperature = Column(Float)
-    optimal_humidity = Column(Float)
-    optimal_light = Column(Float)
-    optimal_moisture = Column(Float)
+    optimal_temperature = Column(Float, nullable=False)
+    optimal_humidity = Column(Float, nullable=False)
+    optimal_light = Column(Float, nullable=False)
+    optimal_moisture = Column(Float, nullable=False)
     care_instructions = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), 
@@ -38,7 +38,6 @@ class Plant(Base):
     plant_name = Column(String(255), nullable=False)
     location = Column(String(255))
     planting_date = Column(DateTime(timezone=True))
-    last_watered = Column(DateTime(timezone=True))
     is_healthy = Column(Boolean, default=True, nullable=False, index=True)
     health_status = Column(String(50))
     notes = Column(Text)

@@ -58,9 +58,9 @@
           │ unique_id       │ │ plant_name   │ │ rule_name        │
           │ device_name     │ │ location     │ │ parameter_name   │
           │ is_active       │ │ is_healthy   │ │ condition_op     │
-          │ battery_level   │ │ last_watered │ │ threshold_value  │
-          │ rssi            │ │ created_at   │ │ severity (ENUM)  │
-          │ last_data_recv  │ │ updated_at   │ │ is_active        │
+          │ battery_level   │ │ created_at   │ │ threshold_value  │
+          │ rssi            │ │ updated_at   │ │ severity (ENUM)  │
+          │ last_data_recv  │ │              │ │ is_active        │
           │ created_at      │ │              │ │ created_at       │
           │ updated_at      │ └──────┬───────┘ │ updated_at       │
           └────────┬────────┘         │        └────────┬─────────┘

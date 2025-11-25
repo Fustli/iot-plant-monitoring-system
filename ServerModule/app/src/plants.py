@@ -1,5 +1,6 @@
 import time
 import threading
+import datetime
 
 from devices import Device, DeviceCollection
 from db.db_utils import DBInterface
@@ -11,18 +12,17 @@ from logger import Logger
 class Plant:
     def __init__(
             self, 
-            id: str, 
-            plant_type: str,
+            name: str,
+            user_id: int,
             req_brightness: float,
             req_humidity: float,
             req_temperature: float,
             req_moisture: Moisture,
-            alert_address: str | None = None
         ):
         """Instantiate a new Plant object with its type and required parameters."""
 
-        self.id = id
-        self.plant_type = plant_type
+        self.name = name
+        self.user_id = user_id
         
         # Required values
         self._req_brightness = req_brightness
@@ -36,41 +36,87 @@ class Plant:
         self.act_temperature: float = None
         self.act_moisture: Moisture = None
 
-        self.logger = Logger(name=id)
-        self.devices: DeviceCollection = DeviceCollection(self.id, self.logger)
-
-        self.alert_address = alert_address
+        self.logger = Logger(name=self.name)
+        self.devices: DeviceCollection = DeviceCollection(self.name, self.logger)
 
         self.keep_alive: bool = False
 
-        
-
 
     @classmethod
-    def from_database(cls, id: str, plant_type: str):
+    def from_scratch(cls,
+        name: str,
+        user_id: int,
+        scientific_name: str,
+        req_brightness: float,
+        req_humidity: float,
+        req_temperature: float,
+        req_moisture: int,
+        description: str | None = None,
+        care_instructions: str | None = None,
+        location: str | None = None,
+        is_healthy: bool = True,
+        health_status: str | None = None,
+        notes: str | None = None,
+    ):
+        db_interface = DBInterface()
+
+        plant_type_id = db_interface.register_new_plant_type(
+            name, scientific_name, req_temperature,
+            req_humidity, req_brightness, req_moisture,
+            description, care_instructions
+        )
+        db_interface.register_new_plant(
+            user_id, plant_type_id, name,
+            is_healthy, location,
+            datetime.datetime.utcnow(),
+            health_status, notes,
+        )
+
+        req_moisture = Moisture(req_moisture)
+
+        return cls(
+            name, user_id, 
+            req_brightness, req_humidity, 
+            req_temperature, req_moisture,
+        )
+        
+
+    @classmethod
+    def from_database(cls,
+        user_id: str,
+        name: str,
+        scientific_name: str,
+        is_healthy: bool = True,
+        location: str | None = None,
+        health_status: str | None = None,
+        notes: str | None = None,
+    ):
         """
         Instantiate a new Plant object from existing plant types in the database. 
         plant_type: str = scientific name of the plant
         """
         db_interface = DBInterface()
 
-        (   _,_,
-            req_brightness, 
-            req_humidity, 
-            req_temperature, 
-            req_moisture
-        ) = db_interface.get_plant_reqs(plant_type)
+        (   plant_type_id, name, scientific_name,
+            req_brightness, req_humidity, 
+            req_temperature, req_moisture,
+            desc, care,
+        ) = db_interface.get_plant_details(scientific_name)
+
+        db_interface.register_new_plant(
+            user_id, plant_type_id, 
+            name, is_healthy,
+            location, datetime.datetime.utcnow(),
+            health_status, notes
+        )
 
         req_moisture = Moisture(req_moisture)
     
         return cls(
-                id, 
-                plant_type, 
-                req_brightness, 
-                req_humidity, 
-                req_temperature, 
-                req_moisture
-            )
+            name, user_id, 
+            req_brightness, req_humidity, 
+            req_temperature, req_moisture,
+        )
     
     def register_device(self, device: Device):
         """Attach device to Plant."""
@@ -94,7 +140,7 @@ class Plant:
 
     def send_alert(self, subject: str):
         # TODO
-        # Send email/notification
+        # Send email/notification to user_id.alert_address
         # Log alert in database
         print(subject)
 
@@ -127,8 +173,7 @@ class Plant:
 
         self.logger.info(msg)
     
-        if self.alert_address:
-            self.send_alert(msg)
+        self.send_alert(msg)
 
         self.devices.send_command(metric, delta)
 
@@ -257,16 +302,17 @@ class PlantThreadManager:
 
 
 def test_threads():
-    plant1 = Plant(
-        id='plant1',
-        plant_type="low_maintenance",
+    plant1 = Plant.from_scratch(
+        name='plant1',
+        user_id=1,
+        scientific_name='test plant',
         req_brightness=500,
         req_humidity=20.0,
         req_temperature=21.0,
         req_moisture=Moisture.DRY
     )
 
-    plant2 = Plant.from_database('Monstera deliciosa', 'Monstera deliciosa')
+    plant2 = Plant.from_database(1, 'my monstera', 'Monstera deliciosa')
 
     plant1.act_humidity = 30
     plant2.act_temperature = 20

@@ -10,6 +10,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     username = Column(String(100), unique=True, nullable=False, index=True)
+    role = Column(String(100), nullable=False)
     password_hash = Column(String(255), nullable=False)
     first_name = Column(String(100))
     last_name = Column(String(100))

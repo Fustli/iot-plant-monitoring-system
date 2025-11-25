@@ -8,8 +8,19 @@ from logger import Logger
 # A növény az egyes azonos típusú eszközei által mért értékeket "átlagolja"
 
 class Device(ABC):
-    def __init__(self, name: str):
-        self.name = name
+    def __init__(
+        self, 
+        user_id: str, 
+        device_type_id: str, 
+        unique_identifier: str, 
+        device_name: str, 
+        is_active: bool = False
+    ):
+        self.user_id = user_id
+        self.device_type_id = device_type_id
+        self.unique_identifier = unique_identifier
+        self.device_name = device_name
+        self.is_active = is_active
 
     @property
     def capabilities(self) -> set[str]:
@@ -34,6 +45,12 @@ class Device(ABC):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name!r})"
+    
+    def activate(self):
+        self.is_active = True
+
+    def deactivate(self):
+        self.is_active = False
     
 
 class MoistureSensor(ABC):
@@ -129,30 +146,6 @@ class HumidityActuator(ABC):
         pass
 
 
-class SimpleMoisturizer(Device, MoistureSensor):
-    def __init__(self, name: str):
-        super().__init__(name)
-        self._moisture = None
-
-
-    def read_moisture(self) -> float:
-        return self._moisture
-
-
-class ComplexMoistureDevice(Device, MoistureSensor, MoistureActuator):
-    def __init__(self, name: str):
-        super().__init__(name)
-        self._moisture = None
-
-
-    def read_moisture(self) -> float:
-        return self._moisture
-
-
-    def change_moisture(self, delta: float) -> None:
-        self._moisture = self._moisture + delta
-
-
 class DeviceCollection:
     """The devices associated with one Plant object."""
     def __init__(self, plant_id: str, logger: Logger):
@@ -166,12 +159,18 @@ class DeviceCollection:
     def remove_device(self, device: Device):
         self.devices.remove(Device)
 
+    def get_device(self, unique_identifier: str):
+        for device in self.devices:
+            if device.unique_identifier == unique_identifier:
+                return device
+        self.logger(f"Unable to find device: {unique_identifier}")
+
     def send_command(self, metric: str, delta: float):
         capability = f"{metric}:write"
         method_name = f"change_{metric}"
         metric_msgs: MetricMessages = getattr(Textbook, metric)
     
-        actuators = [d for d in self.devices if capability in d.capabilities]
+        actuators = [d for d in self.devices if capability in d.capabilities and d.is_active]
 
         if not actuators:
             self.logger.warning(metric_msgs.no_actuator)
@@ -186,10 +185,4 @@ class DeviceCollection:
 
 
 if __name__ == "__main__":
-    pot = ComplexMoistureDevice("Smart Pot #1")
-    probe = SimpleMoisturizer("Soil Probe A")
-
-    print(pot, pot.capabilities)     # {'moisture:read', 'moisture:write'}
-    print(probe, probe.capabilities) # {'moisture:read'}
-
-    print(pot)
+    print("main")

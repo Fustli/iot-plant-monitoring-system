@@ -100,7 +100,6 @@
 - `plant_name` - User's name for plant
 - `is_healthy` - Overall health flag
 - `health_status` - Description (Excellent, Wilting, etc.)
-- `last_watered` - For watering reminders
 - Foreign keys: `user_id`, `plant_type_id`
 
 ### SensorData

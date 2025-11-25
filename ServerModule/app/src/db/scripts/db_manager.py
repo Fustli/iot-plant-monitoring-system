@@ -187,7 +187,6 @@ def seed_demo_data(session):
             plant_name='My Monstera',
             location='Living room corner',
             notes='Recently propagated',
-            last_watered=datetime.utcnow() - timedelta(days=3)
         )
         plant2 = Plant(
             user_id=user.id,
@@ -195,7 +194,6 @@ def seed_demo_data(session):
             plant_name='Golden Pothos #1',
             location='Bedroom shelf',
             notes='Climbing the trellis nicely',
-            last_watered=datetime.utcnow() - timedelta(days=5)
         )
         session.add_all([plant1, plant2])
         session.flush()

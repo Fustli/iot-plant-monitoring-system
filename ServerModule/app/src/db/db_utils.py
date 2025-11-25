@@ -124,9 +124,9 @@ class DBInterface:
                 cur.execute(query)
             return cur.rowcount
     
-    def get_plant_reqs(self, plant_type: str):
+    def get_plant_details(self, plant_type: str):
         query = f"""
-            SELECT name, scientific_name, optimal_temperature, optimal_humidity, optimal_light, optimal_moisture
+            SELECT id, name, scientific_name, optimal_temperature, optimal_humidity, optimal_light, optimal_moisture, description, care_instructions
             FROM plant_types
             WHERE scientific_name = '{plant_type}'
         """
@@ -139,6 +139,11 @@ class DBInterface:
         results = self.execute_query(query, (device_id,))
         return results[0] if results else None
     
+    def get_device_by_name(self, device_name: str):
+        query = "SELECT manufacturer_id, name, device_type, description, communication_interface, supported_functions, data_unit, min_value, max_value, is_active FROM device_types WHERE name = %s"
+        results = self.execute_query(query, (device_name,))
+        return results[0] if results else None
+    
     def insert_sensor_data(self, device_id: int, measurement_value: float, measurement_unit: str):
         query = """
             INSERT INTO sensor_data (device_id, measurement_value, measurement_unit, timestamp)
@@ -146,12 +151,130 @@ class DBInterface:
         """
         return self.execute_update(query, (device_id, measurement_value, measurement_unit))
 
-    def register_new_device(self):
+    def register_new_device_type(
+            self, 
+            manufacturer_id: str, 
+            name: str, 
+            device_type: str, 
+            communication_interface: str, 
+            supported_functions: str, 
+            data_unit: str, 
+            min_value: float, 
+            max_value: float, 
+            is_active: bool,
+            description: str | None = None, 
+        ):
         query = """
-            INSERT INTO sensor_data (device_id, measurement_value, measurement_unit, timestamp)
-            VALUES (%s, %s, %s, NOW())
+            INSERT INTO device_types (manufacturer_id, name, device_type, description, communication_interface, supported_functions, data_unit, min_value, max_value, is_active, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """
+        return self.execute_update(query, (
+            manufacturer_id, 
+            name, 
+            device_type, 
+            description, 
+            communication_interface, 
+            supported_functions, 
+            data_unit, 
+            min_value, 
+            max_value, 
+            is_active
+        ))
+    
+    def register_new_device(
+            self, 
+            user_id: str, 
+            plant_id: str,
+            device_type_id: str, 
+            unique_identfier: str, 
+            device_name: str, 
+            is_active: bool = False, 
+            last_data_received: str | None = None, 
+            last_heartbeat: str | None = None, 
+            location_description: str | None = None, 
+            battery_level: float | None = None, 
+            rssi: str | None = None
+        ):
+        query = """
+            INSERT INTO devices (user_id, device_type_id, plant_id,unique_identfier, device_name, is_active, last_data_received, last_heartbeat, location_description, battery_level, rssi, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """
+        return self.execute_update(query, (
+            user_id, 
+            device_type_id, 
+            plant_id,
+            unique_identfier, 
+            device_name, 
+            is_active, 
+            last_data_received, 
+            last_heartbeat, 
+            location_description, 
+            battery_level, 
+            rssi
+        ))
+    
+    def get_plant_id(self, scientific_name: str):
+        query = """
+            SELECT id FROM plant_types WHERE scientific_name = %s
         """
 
+        results = self.execute_query(query, (scientific_name, ))
+
+        return results[0][0] if results else None
+    
+    def register_new_plant_type(
+        self, 
+        name: str, 
+        scientific_name: str, 
+        optimal_temperature: float, 
+        optimal_humidity: float, 
+        optimal_light: float, 
+        optimal_moisture: float, 
+        description: str | None = None, 
+        care_instructions: str | None = None,
+    ):
+        query = """
+            INSERT INTO plant_types (name, scientific_name, optimal_temperature, optimal_humidity, optimal_light, optimal_moisture, description, care_instructions, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """
+        self.execute_update(query, (
+            name, 
+            scientific_name,
+            optimal_temperature,
+            optimal_humidity,
+            optimal_light,
+            optimal_moisture,
+            description,
+            care_instructions,
+        ))
+
+        return self.get_plant_id(scientific_name)
+    
+    def register_new_plant(
+        self,
+        user_id: int, 
+        plant_type_id: str, 
+        plant_name: str, 
+        is_healthy: bool, 
+        location: str | None = None, 
+        planting_date: str | None = None, 
+        health_status: str | None = None, 
+        notes: str | None = None,
+    ):
+        query = """
+            INSERT INTO plants (user_id, plant_type_id, plant_name, location, planting_date, is_healthy, health_status, notes, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """
+        return self.execute_update(query, (
+            user_id, 
+            plant_type_id, 
+            plant_name, 
+            location, 
+            planting_date, 
+            is_healthy, 
+            health_status, 
+            notes,
+        ))
 
 
 _db_interface = None
@@ -186,5 +309,12 @@ def drop_all_tables():
 
 if __name__ == "__main__":
     db_interface = DBInterface()
-    plant_reqs = db_interface.get_plant_reqs('Monstera deliciosa')
-    print(plant_reqs)
+    return_value = db_interface.register_new_plant_type(
+        'Fake plant',
+        'fakeus planticus',
+        20,
+        30,
+        300,
+        2,
+    )
+    print(return_value)

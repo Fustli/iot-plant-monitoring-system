@@ -280,7 +280,6 @@ plant_type = PlantType(
 | `plant_name` | String(255) | NOT NULL | User's custom name for the plant |
 | `location` | String(255) | - | Physical location in home |
 | `planting_date` | DateTime | - | When the plant was planted/acquired |
-| `last_watered` | DateTime | - | Last manual watering timestamp |
 | `is_healthy` | Boolean | NOT NULL, Default=True, INDEX | Health status (updated by alerts) |
 | `health_status` | String(50) | - | Status description (e.g., "Excellent", "Wilting") |
 | `notes` | Text | - | User notes and observations |

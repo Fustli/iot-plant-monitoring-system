@@ -40,7 +40,7 @@ def example_raw_sql_operations():
     db = DBInterface()
     
     try:
-        results = db.get_plant_reqs('Monstera Deliciosa')
+        results = db.get_plant_details('Monstera Deliciosa')
         if results:
             print(f"Found {len(results)} plant(s) of type 'Monstera Deliciosa'")
         
