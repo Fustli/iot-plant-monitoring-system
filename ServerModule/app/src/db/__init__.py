@@ -1,4 +1,4 @@
-from db.base import Base, DeviceTypeEnum, AlertSeverityEnum, AlertStatusEnum
+from db.base import Base, AlertSeverityEnum, AlertStatusEnum
 from db.user_models import User
 from db.device_models import Manufacturer, DeviceType, Device
 from db.plant_models import PlantType, Plant, PlantDeviceAssignment

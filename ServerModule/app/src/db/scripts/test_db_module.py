@@ -17,9 +17,9 @@ def test_imports():
     
     try:
         print("✓ Importing base...")
-        from db.base import Base, DeviceTypeEnum, AlertSeverityEnum, AlertStatusEnum
+        from db.base import Base, AlertSeverityEnum, AlertStatusEnum
         print("  - Base class imported")
-        print("  - DeviceTypeEnum: SENSOR, ACTUATOR, COMBINED")
+        print("  - DeviceType: SENSOR, ACTUATOR, COMBINED")
         print("  - AlertSeverityEnum: INFO, WARNING, CRITICAL")
         print("  - AlertStatusEnum: ACTIVE, ACKNOWLEDGED, RESOLVED")
         

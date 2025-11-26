@@ -11,16 +11,19 @@ from logger import Logger
 
 class Plant:
     def __init__(
-            self, 
+            self,
+            id: int, 
             name: str,
             user_id: int,
             req_brightness: float,
             req_humidity: float,
             req_temperature: float,
             req_moisture: Moisture,
+            health_status: str | None = None,
         ):
         """Instantiate a new Plant object with its type and required parameters."""
 
+        self.id = id
         self.name = name
         self.user_id = user_id
         
@@ -36,6 +39,13 @@ class Plant:
         self.act_temperature: float = None
         self.act_moisture: Moisture = None
 
+        if health_status:
+            brightness, humidity, temperature, moisture = (float(x) for x in health_status.split(","))
+            self.act_brightness = int(brightness)
+            self.act_humidity = humidity
+            self.act_temperature = temperature
+            self.act_moisture = Moisture(int(moisture))
+
         self.logger = Logger(name=self.name)
         self.devices: DeviceCollection = DeviceCollection(self.name, self.logger)
 
@@ -44,7 +54,7 @@ class Plant:
 
     @classmethod
     def from_scratch(cls,
-        name: str,
+        plant_name: str,
         user_id: int,
         scientific_name: str,
         req_brightness: float,
@@ -61,12 +71,12 @@ class Plant:
         db_interface = DBInterface()
 
         plant_type_id = db_interface.register_new_plant_type(
-            name, scientific_name, req_temperature,
+            scientific_name, scientific_name, req_temperature,
             req_humidity, req_brightness, req_moisture,
-            description, care_instructions
+            description, care_instructions            
         )
-        db_interface.register_new_plant(
-            user_id, plant_type_id, name,
+        plant_id = db_interface.register_new_plant(
+            user_id, plant_type_id, plant_name,
             is_healthy, location,
             datetime.datetime.utcnow(),
             health_status, notes,
@@ -75,16 +85,18 @@ class Plant:
         req_moisture = Moisture(req_moisture)
 
         return cls(
-            name, user_id, 
+            plant_id,
+            plant_name, user_id, 
             req_brightness, req_humidity, 
             req_temperature, req_moisture,
+            health_status,
         )
         
 
     @classmethod
     def from_database(cls,
         user_id: str,
-        name: str,
+        plant_name: str,
         scientific_name: str,
         is_healthy: bool = True,
         location: str | None = None,
@@ -98,14 +110,14 @@ class Plant:
         db_interface = DBInterface()
 
         (   plant_type_id, name, scientific_name,
-            req_brightness, req_humidity, 
-            req_temperature, req_moisture,
+            req_temperature, req_humidity, 
+            req_brightness, req_moisture,
             desc, care,
         ) = db_interface.get_plant_details(scientific_name)
 
-        db_interface.register_new_plant(
+        plant_id = db_interface.register_new_plant(
             user_id, plant_type_id, 
-            name, is_healthy,
+            plant_name, is_healthy,
             location, datetime.datetime.utcnow(),
             health_status, notes
         )
@@ -113,9 +125,11 @@ class Plant:
         req_moisture = Moisture(req_moisture)
     
         return cls(
-            name, user_id, 
+            plant_id,
+            plant_name, user_id, 
             req_brightness, req_humidity, 
             req_temperature, req_moisture,
+            health_status,
         )
     
     def register_device(self, device: Device):
@@ -207,125 +221,3 @@ class Plant:
             threshold=HUMIDITY_THRESHOLD,
         )
 
-
-class PlantThreadManager:
-    """
-    Manages the threads for the registered plants.
-    Every 'interval_seconds' it wakes up and spawns worker threads for every plant
-    which has 
-    """
-
-    def __init__(self, plants: list[Plant] = None, interval_seconds: int = 300):
-        self._plants = list(plants) if plants is not None else []
-        self._interval = interval_seconds
-
-        self._lock = threading.Lock()
-        self._stop_event = threading.Event()
-        self._manager_thread: threading.Thread | None = None
-
-        self.logger = Logger(name="PlantThreadManager")
-
-    def add_plant(self, plant: Plant):
-        """Add a plant to be managed."""
-        with self._lock:
-            self._plants.append(plant)
-
-    def remove_plant(self, plant: Plant):
-        """Remove a plant from being managed."""
-        with self._lock:
-            self._plants = [p for p in self._plants if p is not plant]
-
-    def start(self):
-        """
-        Start the background manager thread (if not already running).
-        """
-        if self._manager_thread and self._manager_thread.is_alive():
-            # Main thread already running
-            return
-
-        self._stop_event.clear()
-        self._manager_thread = threading.Thread(
-            target=self._run_loop,
-            daemon=True,
-        )
-        self._manager_thread.start()
-
-    def stop(self):
-        """
-        Signal the manager thread to stop and wait for it to finish.
-        """
-        self._stop_event.set()
-        if self._manager_thread:
-            self._manager_thread.join()
-
-    def _run_loop(self):
-        """
-        Internal loop that wakes up every interval, spawns worker threads for
-        all plants that have keep_alive == True, waits for those workers
-        to finish, then sleeps again.
-        """
-        while not self._stop_event.is_set():
-            # Take a snapshot of the plants under a lock
-            with self._lock:
-                plants_snapshot = list(self._plants)
-
-            worker_threads: list[threading.Thread] = []
-
-            for plant in plants_snapshot:
-                if getattr(plant, "keep_alive", False):
-                    t = threading.Thread(
-                        target=self._run_keep_alive_once,
-                        args=(plant,),
-                        daemon=True,
-                    )
-                    t.start()
-                    worker_threads.append(t)
-
-            # Wait for all keep_alive calls of this cycle to complete
-            for t in worker_threads:
-                t.join()
-
-            # Sleep until the next cycle, but wake up early if stopping
-            if self._stop_event.wait(self._interval):
-                break
-
-
-    def _run_keep_alive_once(self, plant: Plant):
-        """
-        Wrapper so that any exception in keep_alive is caught and doesn't kill
-        the manager loop.
-        """
-        try:
-            plant.keep_alive_cycle()
-        except Exception as exc:
-            self.logger.error(f"Error in keep_alive for plant {plant.id}: {exc}")
-
-
-def test_threads():
-    plant1 = Plant.from_scratch(
-        name='plant1',
-        user_id=1,
-        scientific_name='test plant',
-        req_brightness=500,
-        req_humidity=20.0,
-        req_temperature=21.0,
-        req_moisture=Moisture.DRY
-    )
-
-    plant2 = Plant.from_database(1, 'my monstera', 'Monstera deliciosa')
-
-    plant1.act_humidity = 30
-    plant2.act_temperature = 20
-    plant2.act_moisture = Moisture.WET
-
-    plant1.keep_alive = True
-    plant2.keep_alive = True
-
-    manager = PlantThreadManager([plant1, plant2], interval_seconds=60)
-    manager.start()
-
-    time.sleep(300)
-
-
-if __name__ == "__main__":
-    test_threads()

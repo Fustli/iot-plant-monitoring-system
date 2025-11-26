@@ -1,4 +1,7 @@
+import requests
 from abc import ABC, abstractmethod
+from types import MappingProxyType
+from db.db_utils import DBInterface
 from measurements import Moisture
 from textbook import Textbook, MetricMessages
 from logger import Logger
@@ -7,143 +10,97 @@ from logger import Logger
 # Le tudjuk kérni az eszköz által mért értéket
 # A növény az egyes azonos típusú eszközei által mért értékeket "átlagolja"
 
+# The metrics and operations we support
+_METRICS = ("temperature", "moisture", "brightness", "humidity")
+_VALID_OPERATIONS = ("read", "write")
+_ALLOWED_CAPABILITIES = frozenset(
+    f"{m}:{op}" for m in _METRICS for op in _VALID_OPERATIONS
+)
+_ALLOWED_CAPABILITIES_RO = MappingProxyType(
+    {c: True for c in _ALLOWED_CAPABILITIES}
+)
+
+def parse_supported_functions(supported_functions: str) -> set[str]:
+    """
+    Parse the supported_functions string from the database into a set of
+    canonical capability strings like 'moisture:read', 'temperature:write'.
+    Unknown/invalid entries are silently ignored.
+    """
+    if not supported_functions:
+        return set()
+
+    capabilities: set[str] = set()
+    for raw in supported_functions.split(","):
+        token = raw.strip()
+        if not token:
+            continue
+        # normalize case
+        token = token.lower()
+        if token in _ALLOWED_CAPABILITIES_RO:
+            capabilities.add(token)
+    return capabilities
+
+
 class Device(ABC):
     def __init__(
-        self, 
-        user_id: str, 
-        device_type_id: str, 
+        self,
+        id: int,
+        user_id: int, 
+        device_type_id: int, 
         unique_identifier: str, 
         device_name: str, 
-        is_active: bool = False
+        is_active: bool = False,
+        capabilities: set[str] | None = None,
     ):
+        self.id = id
         self.user_id = user_id
         self.device_type_id = device_type_id
         self.unique_identifier = unique_identifier
         self.device_name = device_name
         self.is_active = is_active
+        self._capabilities = set(capabilities or [])
+        self.logger = Logger(name=self.device_name)
 
     @property
     def capabilities(self) -> set[str]:
-        capabilities = set()
-        if isinstance(self, MoistureSensor):
-            capabilities.add("moisture:read")
-        if isinstance(self, MoistureActuator):
-            capabilities.add("moisture:write")
-        if isinstance(self, BrightnessSensor):
-            capabilities.add("brightness:read")
-        if isinstance(self, BrightnessActuator):
-            capabilities.add("brightness:write")
-        if isinstance(self, TemperatureSensor):
-            capabilities.add("temperature:read")
-        if isinstance(self, TemperatureActuator):
-            capabilities.add("temperature:write")
-        if isinstance(self, HumiditySensor):
-            capabilities.add("humidity:read")
-        if isinstance(self, HumidityActuator):
-            capabilities.add("humidity:write")
-        return capabilities
+        return self._capabilities
+    
+    def has_capability(self, capability: str) -> bool:
+        return capability in self._capabilities
+
+    def supported_metrics(self) -> set[str]:
+        """Return the metrics this device knows anything about."""
+        return {cap.split(":", 1)[0] for cap in self._capabilities}
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.name!r})"
+        return f"{self.__class__.__name__}(name={self.device_name!r})"
     
     def activate(self):
         self.is_active = True
 
     def deactivate(self):
         self.is_active = False
-    
 
-class MoistureSensor(ABC):
-    def __init__(self, name: str):
-        self._name = name
-        self._moisture: Moisture = None
+    def _send_actuator_command(self, metric: str, delta: float) -> None:
+        """
+        Placeholder for the real actuator command.
+        Intentionally *does not* talk to hardware yet.
+        """
+        self.logger.info(
+            f"Pretend sending actuator command: metric={metric} delta={delta} "
+            f"to device={self.unique_identifier}"
+        )
 
-    @abstractmethod
-    def read_moisture(self) -> Moisture:
-        pass
+    def _read_sensor_value(self, metric: str):
+        """
+        Placeholder for the real sensor read.
+        Intentionally *does not* talk to hardware yet.
+        """
+        self.logger.info(
+            f"Pretend reading sensor: metric={metric} from device={self.unique_identifier}"
+        )
+        return None
 
-    @abstractmethod
-    def update_moisture(self, moisture: Moisture):
-        pass
-
-
-class MoistureActuator(ABC):
-    def __init__(self, name: str):
-        self._name = name
-        self._moisture: Moisture = None
-
-    @abstractmethod
-    def change_moisture(self, delta: int):
-        pass
-
-
-class BrightnessSensor(ABC):
-    def __init__(self, name: str):
-        self._name = name
-        self._brightness: float = None
-
-    @abstractmethod
-    def read_brightness(self) -> float:
-        pass
-
-    @abstractmethod
-    def update_brightness(self, brightness: float):
-        pass
-
-
-class BrightnessActuator(ABC):
-    def __init__(self, name: str):
-        self._name = name
-
-    @abstractmethod
-    def change_brightness(self, delta: int):
-        pass
-
-
-class TemperatureSensor(ABC):
-    def __init__(self, name: str):
-        self._name = name
-        self._temperature: float = None
-
-    @abstractmethod
-    def read_temperature(self) -> float:
-        pass
-
-    @abstractmethod
-    def update_temperature(self, temperature: float):
-        pass
-
-
-class TemperatureActuator(ABC):
-    def __init__(self, name: str):
-        self._name = name
-
-    @abstractmethod
-    def change_temperature(self, delta: float):
-        pass
-
-
-class HumiditySensor(ABC):
-    def __init__(self, name: str):
-        self._name = name
-        self._humidity: float = None
-
-    @abstractmethod
-    def read_humidity(self) -> float:
-        pass
-
-    @abstractmethod
-    def update_humidity(self, humidity: float):
-        pass
-
-
-class HumidityActuator(ABC):
-    def __init__(self, name: str):
-        self._name = name
-
-    @abstractmethod
-    def change_humidity(self, humidity: float):
-        pass
 
 
 class DeviceCollection:
@@ -157,13 +114,13 @@ class DeviceCollection:
         self.devices.append(device)
 
     def remove_device(self, device: Device):
-        self.devices.remove(Device)
+        self.devices.remove(device)
 
     def get_device(self, unique_identifier: str):
         for device in self.devices:
             if device.unique_identifier == unique_identifier:
                 return device
-        self.logger(f"Unable to find device: {unique_identifier}")
+        self.logger.error(f"Unable to find device: {unique_identifier}")
 
     def send_command(self, metric: str, delta: float):
         capability = f"{metric}:write"
@@ -182,6 +139,61 @@ class DeviceCollection:
             method = getattr(device, method_name)
             method(delta_fragment)
 
+
+def _attach_dynamic_methods(device: Device) -> None:
+    """
+    Attach read_<metric> / change_<metric> methods to a device instance
+    based on its capabilities, e.g. 'moisture:read', 'moisture:write'.
+    The methods are small closures around the generic stub methods.
+    """
+    for metric in _METRICS:
+        cap_read = f"{metric}:read"
+        cap_write = f"{metric}:write"
+
+        if cap_read in device.capabilities:
+            def make_read(m: str, dev: Device):
+                def read():
+                    return dev._read_sensor_value(m)
+                return read
+            setattr(device, f"read_{metric}", make_read(metric, device))
+
+        if cap_write in device.capabilities:
+            def make_change(m: str, dev: Device):
+                def change(delta: float):
+                    dev._send_actuator_command(m, delta)
+                return change
+            setattr(device, f"change_{metric}", make_change(metric, device))
+
+
+def create_device_from_type(
+    device_id: int,
+    user_id: int,
+    device_type_id: int,
+    unique_identifier: str,
+    device_name: str,
+    is_active: bool = False,
+) -> Device:
+    """
+    Factory: look up the device_type in the database, parse its supported_functions
+    into capabilities, create a Device, and attach dynamic metric methods.
+    """
+    db_interface = DBInterface()
+    supported_functions = db_interface.get_device_capabilities(device_type_id)
+    
+    capabilities = parse_supported_functions(supported_functions)
+
+    device = Device(
+        id=device_id,
+        user_id=user_id,
+        device_type_id=device_type_id,
+        unique_identifier=unique_identifier,
+        device_name=device_name,
+        is_active=is_active,
+        capabilities=capabilities,
+    )
+
+    _attach_dynamic_methods(device)
+    return device
 
 
 if __name__ == "__main__":

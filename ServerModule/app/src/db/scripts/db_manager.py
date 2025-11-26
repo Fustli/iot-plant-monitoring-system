@@ -7,7 +7,7 @@ import argparse
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from db.base import DeviceTypeEnum, AlertSeverityEnum, AlertStatusEnum
+from db.base import AlertSeverityEnum, AlertStatusEnum
 from db.user_models import User
 from db.device_models import Manufacturer, DeviceType, Device
 from db.plant_models import PlantType, Plant, PlantDeviceAssignment
@@ -23,6 +23,7 @@ def seed_demo_data(session):
         user = User(
             email='demo@example.com',
             username='demo_user',
+            role='consumer',
             password_hash='$2b$12$demo_hashed_password',
             first_name='Demo',
             last_name='User',
@@ -52,7 +53,7 @@ def seed_demo_data(session):
         thermometer = DeviceType(
             manufacturer_id=mfg_xiaomi.id,
             name='Smart Thermometer',
-            device_type=DeviceTypeEnum.SENSOR,
+            device_type="sensor",
             communication_interface='MQTT',
             supported_functions='read_temperature',
             data_unit='°C',
@@ -63,7 +64,7 @@ def seed_demo_data(session):
         humidity_sensor = DeviceType(
             manufacturer_id=mfg_xiaomi.id,
             name='Humidity Sensor',
-            device_type=DeviceTypeEnum.SENSOR,
+            device_type="sensor",
             communication_interface='MQTT',
             supported_functions='read_humidity',
             data_unit='%',
@@ -74,7 +75,7 @@ def seed_demo_data(session):
         soil_moisture = DeviceType(
             manufacturer_id=mfg_sonoff.id,
             name='Soil Moisture Sensor',
-            device_type=DeviceTypeEnum.SENSOR,
+            device_type="sensor",
             communication_interface='MQTT',
             supported_functions='read_moisture',
             data_unit='%',
@@ -85,7 +86,7 @@ def seed_demo_data(session):
         light_meter = DeviceType(
             manufacturer_id=mfg_xiaomi.id,
             name='Light Meter',
-            device_type=DeviceTypeEnum.SENSOR,
+            device_type="sensor",
             communication_interface='MQTT',
             supported_functions='read_light_intensity',
             data_unit='lux',
@@ -93,15 +94,7 @@ def seed_demo_data(session):
             max_value=150000,
             is_active=True
         )
-        pump = DeviceType(
-            manufacturer_id=mfg_sonoff.id,
-            name='Smart Pump',
-            device_type=DeviceTypeEnum.ACTUATOR,
-            communication_interface='MQTT',
-            supported_functions='turn_on,turn_off,set_flow_rate',
-            is_active=True
-        )
-        session.add_all([thermometer, humidity_sensor, soil_moisture, light_meter, pump])
+        session.add_all([thermometer, humidity_sensor, soil_moisture, light_meter])
         session.flush()
         
         device_temp = Device(
@@ -140,15 +133,7 @@ def seed_demo_data(session):
             location_description='Window sill',
             battery_level=98
         )
-        device_pump = Device(
-            user_id=user.id,
-            device_type_id=pump.id,
-            unique_identifier='sonoff_pump_001',
-            device_name='Plant Watering Pump',
-            is_active=True,
-            location_description='Under sink',
-        )
-        session.add_all([device_temp, device_humidity, device_moisture, device_light, device_pump])
+        session.add_all([device_temp, device_humidity, device_moisture, device_light])
         session.flush()
         
         monstera = PlantType(
@@ -203,7 +188,6 @@ def seed_demo_data(session):
             (device_temp, 'temperature'),
             (device_humidity, 'humidity'),
             (device_light, 'light'),
-            (device_pump, 'pump')
         ]:
             assignment = PlantDeviceAssignment(
                 plant_id=plant1.id,

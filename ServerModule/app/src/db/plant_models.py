@@ -35,7 +35,7 @@ class Plant(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     plant_type_id = Column(Integer, ForeignKey('plant_types.id', ondelete='RESTRICT'), nullable=False)
-    plant_name = Column(String(255), nullable=False)
+    plant_name = Column(String(255), unique=True, nullable=False)
     location = Column(String(255))
     planting_date = Column(DateTime(timezone=True))
     is_healthy = Column(Boolean, default=True, nullable=False, index=True)

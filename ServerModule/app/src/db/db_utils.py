@@ -164,11 +164,12 @@ class DBInterface:
             is_active: bool,
             description: str | None = None, 
         ):
+
         query = """
             INSERT INTO device_types (manufacturer_id, name, device_type, description, communication_interface, supported_functions, data_unit, min_value, max_value, is_active, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         """
-        return self.execute_update(query, (
+        self.execute_update(query, (
             manufacturer_id, 
             name, 
             device_type, 
@@ -180,13 +181,15 @@ class DBInterface:
             max_value, 
             is_active
         ))
+
+        return self.get_device_type_id(name)
     
     def register_new_device(
             self, 
-            user_id: str, 
-            plant_id: str,
-            device_type_id: str, 
-            unique_identfier: str, 
+            user_id: int,   
+            plant_id: int,
+            device_type_id: int, 
+            unique_identifier: str, 
             device_name: str, 
             is_active: bool = False, 
             last_data_received: str | None = None, 
@@ -196,14 +199,14 @@ class DBInterface:
             rssi: str | None = None
         ):
         query = """
-            INSERT INTO devices (user_id, device_type_id, plant_id,unique_identfier, device_name, is_active, last_data_received, last_heartbeat, location_description, battery_level, rssi, created_at, updated_at)
+            INSERT INTO devices (user_id, plant_id, device_type_id, unique_identifier, device_name, is_active, last_data_received, last_heartbeat, location_description, battery_level, rssi, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         """
-        return self.execute_update(query, (
+        self.execute_update(query, (
             user_id, 
-            device_type_id, 
             plant_id,
-            unique_identfier, 
+            device_type_id, 
+            unique_identifier, 
             device_name, 
             is_active, 
             last_data_received, 
@@ -212,13 +215,24 @@ class DBInterface:
             battery_level, 
             rssi
         ))
+
+        return self.get_device_id(unique_identifier)
     
-    def get_plant_id(self, scientific_name: str):
+    def get_plant_type_id(self, scientific_name: str):
         query = """
             SELECT id FROM plant_types WHERE scientific_name = %s
         """
 
         results = self.execute_query(query, (scientific_name, ))
+
+        return results[0][0] if results else None
+    
+    def get_plant_id(self, plant_name: str):
+        query = """
+            SELECT id FROM plants WHERE plant_name = %s
+        """
+
+        results = self.execute_query(query, (plant_name, ))
 
         return results[0][0] if results else None
     
@@ -248,7 +262,7 @@ class DBInterface:
             care_instructions,
         ))
 
-        return self.get_plant_id(scientific_name)
+        return self.get_plant_type_id(scientific_name)
     
     def register_new_plant(
         self,
@@ -265,7 +279,7 @@ class DBInterface:
             INSERT INTO plants (user_id, plant_type_id, plant_name, location, planting_date, is_healthy, health_status, notes, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         """
-        return self.execute_update(query, (
+        self.execute_update(query, (
             user_id, 
             plant_type_id, 
             plant_name, 
@@ -275,6 +289,35 @@ class DBInterface:
             health_status, 
             notes,
         ))
+
+        return self.get_plant_id(plant_name)
+    
+    def get_device_capabilities(self, device_type_id: str):
+        query = """
+            SELECT supported_functions FROM device_types WHERE id = %s
+        """
+
+        results = self.execute_query(query, (device_type_id, ))
+
+        return results[0][0] if results else None
+    
+    def get_device_id(self, unique_identifier: str):
+        query = """
+            SELECT id FROM devices WHERE unique_identifier = %s
+        """
+
+        results = self.execute_query(query, (unique_identifier, ))
+
+        return results[0][0] if results else None
+    
+    def get_device_type_id(self, name: str):
+        query = """
+            SELECT id FROM device_types WHERE name = %s
+        """
+
+        results = self.execute_query(query, (name, ))
+
+        return results[0][0] if results else None
 
 
 _db_interface = None
@@ -309,12 +352,17 @@ def drop_all_tables():
 
 if __name__ == "__main__":
     db_interface = DBInterface()
-    return_value = db_interface.register_new_plant_type(
-        'Fake plant',
-        'fakeus planticus',
-        20,
-        30,
-        300,
-        2,
+    db_interface.register_new_device_type(
+        1,
+        "Xiaomi Moisture Deluxe",
+        "combined",
+        "MQTT",
+        "moisture:read,moisture:write",
+        "number",
+        1,
+        3,
+        True,
+        "Can moisturize the plant and provide accurate moisture sensor data."
     )
+    return_value = db_interface.get_device_capabilities("Xiaomi Moisture Deluxe")
     print(return_value)

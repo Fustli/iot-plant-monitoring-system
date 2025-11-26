@@ -73,3 +73,4 @@ pytest-postgresql==5.1.0  # PostgreSQL fixtures for pytest
 # ============================================================================
 # aiohttp==3.9.0  # For async HTTP requests
 # asyncpg==0.29.0  # Async PostgreSQL driver
+requests==2.32.5

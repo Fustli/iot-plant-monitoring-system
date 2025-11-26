@@ -4,7 +4,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from db.base import Base, DeviceTypeEnum
+from db.base import Base
 
 
 class Manufacturer(Base):
@@ -32,7 +32,7 @@ class DeviceType(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     manufacturer_id = Column(Integer, ForeignKey('manufacturers.id', ondelete='CASCADE'), nullable=False)
     name = Column(String(255), nullable=False, unique=True)
-    device_type = Column(Enum(DeviceTypeEnum), nullable=False)
+    device_type = Column(String(255), nullable=False)
     description = Column(Text)
     communication_interface = Column(String(100), nullable=False)
     supported_functions = Column(Text, nullable=False)
