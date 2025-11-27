@@ -106,8 +106,8 @@ class Device(ABC):
 
 class DeviceCollection:
     """The devices associated with one Plant object."""
-    def __init__(self, plant_id: str, logger: Logger):
-        self.plant_id = plant_id
+    def __init__(self, plant_name: str, logger: Logger):
+        self.plant_name = plant_name
         self.devices: list[Device] = []
         self.logger = logger
 
@@ -132,10 +132,10 @@ class DeviceCollection:
 
         if not actuators:
             self.logger.warning(metric_msgs.no_actuator)
-            send_alert(self.plant_id, metric, delta, msg, no_actuator=True)
+            send_alert(self.plant_name, metric, delta, msg, metric_msgs.no_actuator)
             return
 
-        send_alert(self.plant_id, metric, delta, msg)
+        send_alert(self.plant_name, metric, delta, msg)
 
         delta_fragment = delta / len(actuators)
 
