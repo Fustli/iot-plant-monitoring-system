@@ -4,7 +4,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from db.base import Base, AlertSeverityEnum, AlertStatusEnum
+from src.db.base import Base, AlertSeverityEnum, AlertStatusEnum
 
 
 class AlertRule(Base):
