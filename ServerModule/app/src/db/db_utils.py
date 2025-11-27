@@ -85,11 +85,11 @@ class DBInterface:
             )
             
             if conn.closed == 0:
-                logger.info("✓ Successfully connected to database")
+                # logger.info("✓ Successfully connected to database")
                 cur = conn.cursor()
                 yield cur, conn
                 conn.commit()
-                logger.info("✓ Committed changes to database")
+                # logger.info("✓ Committed changes to database")
         
         except psycopg2.DatabaseError as e:
             logger.error(f"✗ Database error: {e}")
@@ -106,7 +106,7 @@ class DBInterface:
                 cur.close()
             if conn and conn.closed == 0:
                 conn.close()
-                logger.info("✓ Closed database connection")
+                # logger.info("✓ Closed database connection")
     
     def execute_query(self, query: str, params=None):
         with self.connect_to_db() as (cur, conn):
@@ -352,17 +352,5 @@ def drop_all_tables():
 
 if __name__ == "__main__":
     db_interface = DBInterface()
-    db_interface.register_new_device_type(
-        1,
-        "Xiaomi Moisture Deluxe",
-        "combined",
-        "MQTT",
-        "moisture:read,moisture:write",
-        "number",
-        1,
-        3,
-        True,
-        "Can moisturize the plant and provide accurate moisture sensor data."
-    )
     return_value = db_interface.get_device_capabilities("Xiaomi Moisture Deluxe")
     print(return_value)

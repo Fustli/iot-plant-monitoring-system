@@ -6,6 +6,7 @@ from db.db_utils import DBInterface
 from logger import Logger
 from measurements import Moisture
 from thread_manager import PlantThreadManager
+from textbook import Textbook
 
 class User(ABC):
     def __init__(self, id: str, username: str):
@@ -95,7 +96,9 @@ class Consumer(User):
         self.plants.append(plant)
         self.thread_manager.add_plant(plant)
 
-        return db_interface.get_plant_id(scientific_name)
+        self.logger.info(Textbook.attach_plant_to_consumer + name)
+
+        return db_interface.get_plant_id(name)
 
     def register_plant_from_database(
         self, 
@@ -116,6 +119,8 @@ class Consumer(User):
         self.plants.append(plant)
         self.thread_manager.add_plant(plant)
 
+        self.logger.info(Textbook.attach_plant_to_consumer + name)
+
         return db_interface.get_plant_id(name)
 
     def get_plants(self) -> list[Plant]:
@@ -124,7 +129,7 @@ class Consumer(User):
     def register_new_device(
             self,
             plant_id: int,
-            device_type: str,
+            device_type_name: str,
             unique_identifier: str, 
             device_name: str,
             is_active: bool = False,
@@ -135,7 +140,7 @@ class Consumer(User):
             rssi = None
     ):
         db_interface = DBInterface()
-        device_type_id = db_interface.get_device_type_id(device_type)
+        device_type_id = db_interface.get_device_type_id(device_type_name)
         # 1) Persist device into DB (correct argument order)
         device_id = db_interface.register_new_device(
             user_id=self.id,
@@ -165,6 +170,7 @@ class Consumer(User):
         for plant in self.plants:
             if getattr(plant, "id", None) == plant_id:
                 plant.register_device(new_device)
+                self.logger.info(Textbook.attach_device_to_plant + f"Plant: {plant.name} - Device: {unique_identifier}")
                 return unique_identifier
             
         self.logger.error(f"Unable to attach {unique_identifier} device to plant {plant_id}.")

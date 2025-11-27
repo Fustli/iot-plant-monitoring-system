@@ -1,5 +1,3 @@
-import time
-import threading
 import datetime
 
 from devices import Device, DeviceCollection
@@ -51,6 +49,8 @@ class Plant:
 
         self.keep_alive: bool = False
 
+        self.logger.info(Textbook.plant_object_creation + self.name)
+
 
     @classmethod
     def from_scratch(cls,
@@ -68,6 +68,7 @@ class Plant:
         health_status: str | None = None,
         notes: str | None = None,
     ):
+        logger = Logger(name="Plant.from_scratch")
         db_interface = DBInterface()
 
         plant_type_id = db_interface.register_new_plant_type(
@@ -75,12 +76,15 @@ class Plant:
             req_humidity, req_brightness, req_moisture,
             description, care_instructions            
         )
+        logger.info(Textbook.plant_type_creation_in_db + scientific_name)
+        
         plant_id = db_interface.register_new_plant(
             user_id, plant_type_id, plant_name,
             is_healthy, location,
             datetime.datetime.utcnow(),
             health_status, notes,
         )
+        logger.info(Textbook.plant_creation_in_db + plant_name)
 
         req_moisture = Moisture(req_moisture)
 
@@ -108,6 +112,7 @@ class Plant:
         plant_type: str = scientific name of the plant
         """
         db_interface = DBInterface()
+        logger = Logger(name="Plant.from_database")
 
         (   plant_type_id, name, scientific_name,
             req_temperature, req_humidity, 
@@ -121,6 +126,7 @@ class Plant:
             location, datetime.datetime.utcnow(),
             health_status, notes
         )
+        logger.info(Textbook.plant_creation_in_db + plant_name)
 
         req_moisture = Moisture(req_moisture)
     
@@ -152,11 +158,11 @@ class Plant:
     def update_humidity(self, humidity: float):
         self.act_humidity = humidity
 
-    def send_alert(self, subject: str):
+    def send_alert(self, metric: str):
         # TODO
         # Send email/notification to user_id.alert_address
         # Log alert in database
-        print(subject)
+        self.logger.info(f"Sent alert regarding {metric}")
 
     def start_plant_care(self):
         self.keep_alive = True
@@ -177,7 +183,7 @@ class Plant:
         
         delta = req_value - act_value
 
-        if abs(delta) < threshold:
+        if abs(delta) <= threshold:
             self.logger.info(metric_msgs.ok)
             return
         elif delta < 0:
@@ -185,9 +191,9 @@ class Plant:
         else:
             msg = metric_msgs.low
 
-        self.logger.info(msg)
+        self.logger.warning(msg)
     
-        self.send_alert(msg)
+        self.send_alert(metric)
 
         self.devices.send_command(metric, delta)
 
