@@ -83,7 +83,7 @@ class Device(ABC):
 
     def _send_actuator_command(self, metric: str, delta: float) -> None:
         """
-        Placeholder for the real actuator command.
+        TODO Placeholder for the real actuator command.
         Intentionally *does not* talk to hardware yet.
         """
         self.logger.info(
@@ -93,7 +93,7 @@ class Device(ABC):
 
     def _read_sensor_value(self, metric: str):
         """
-        Placeholder for the real sensor read.
+        TODO Placeholder for the real sensor read.
         Intentionally *does not* talk to hardware yet.
         """
         self.logger.info(

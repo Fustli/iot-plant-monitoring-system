@@ -105,7 +105,18 @@ def seed_demo_data(session):
             max_value=3,
             is_active=True
         )
-        session.add_all([thermometer, humidity_sensor, soil_moisture, light_meter, deluxe_moisture])
+        smart_lamp = DeviceType(
+            manufacturer_id=mfg_xiaomi.id,
+            name='Xiaomi Temperature Deluxe',
+            device_type="combined",
+            communication_interface='MQTT',
+            supported_functions='temperature:read,temperature:write',
+            data_unit='°C',
+            min_value=0,
+            max_value=50,
+            is_active=True
+        )
+        session.add_all([thermometer, humidity_sensor, soil_moisture, light_meter, deluxe_moisture, smart_lamp])
         session.flush()
         
         device_temp = Device(

@@ -5,21 +5,74 @@ from plants import Plant
 from thread_manager import PlantThreadManager
 
 
-def test():
+def test1():
     """Tests a user adding a plant and a device to that plant."""
     thread_manager = PlantThreadManager(interval_seconds=5)
     thread_manager.start()
 
     consumer = Consumer(1, "demo_user", "demo@example.com", thread_manager)
     plant_id = consumer.register_plant_from_database(
-        name='my monstera', 
+        name='test1 plant', 
         scientific_name='Monstera deliciosa', 
         location='my ass',
         health_status="1000,70,22,3"
     )
-    unique_identifier = consumer.register_new_device(plant_id, 'Xiaomi Moisture Deluxe', 'my deluxe', 'Deluxe Moisture Machine by the window')
+    unique_identifier = consumer.register_new_device(plant_id, 'Xiaomi Moisture Deluxe', 'test1 device', 'Deluxe Moisture Machine by the window')
     consumer.activate_device(plant_id, unique_identifier)
     consumer.activate_plant_care(plant_id)
+
+    time.sleep(300)
+
+
+def test2():
+    """Tests a user adding a plant and different devices to that plant."""
+    thread_manager = PlantThreadManager(interval_seconds=10)
+    thread_manager.start()
+
+    consumer = Consumer(1, "demo_user", "demo@example.com", thread_manager)
+    plant_id = consumer.register_plant_from_database(
+        name='test2 plant', 
+        scientific_name='Monstera deliciosa', 
+        location='my ass',
+        health_status="1000,70,22,3"
+    )
+    unique_identifier1 = consumer.register_new_device(plant_id, 'Xiaomi Moisture Deluxe', 'test2 device 1', '1st Deluxe Moisture Machine by the window')
+    consumer.activate_device(plant_id, unique_identifier1)
+    unique_identifier2 = consumer.register_new_device(plant_id, 'Xiaomi Moisture Deluxe', 'test2 device 2', '2nd Deluxe Moisture Machine by the window')
+    consumer.activate_device(plant_id, unique_identifier2)
+    consumer.activate_plant_care(plant_id)
+
+    time.sleep(300)
+
+
+def test3():
+    """Tests a user adding two plants and one device to each plant."""
+    thread_manager = PlantThreadManager(interval_seconds=10)
+    thread_manager.start()
+
+    consumer = Consumer(1, "demo_user", "demo@example.com", thread_manager)
+    plant_id1 = consumer.register_plant_from_database(
+        name='test3 plant1', 
+        scientific_name='Monstera deliciosa', 
+        location='my ass',
+        health_status="1000,70,22,3"
+    )
+    plant_id2 = consumer.register_plant(
+        name='test3 plant2',
+        scientific_name='Cacti Maximus',
+        req_brightness=1000,
+        req_humidity=10,
+        req_temperature=25,
+        req_moisture=1,
+        health_status="1000, 11, 20, 1"
+    )
+    unique_identifier1 = consumer.register_new_device(plant_id1, 'Xiaomi Moisture Deluxe', 'test3 moisture', 'Deluxe Moisture Machine by the window')
+    consumer.activate_device(plant_id1, unique_identifier1)
+
+    unique_identifier2 = consumer.register_new_device(plant_id2, 'Xiaomi Temperature Deluxe', 'test3 temperature', 'Deluxe Temperature Machine on the floor')
+    consumer.activate_device(plant_id2, unique_identifier2)
+    
+    consumer.activate_plant_care()
 
     time.sleep(300)
 
@@ -52,4 +105,4 @@ def test_threads():
 
 
 if __name__ == "__main__":
-    test()
+    test3()
