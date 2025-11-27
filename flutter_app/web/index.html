@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base href="$FLUTTER_BASE_HREF">
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta name="description" content="IoT Plant Monitoring System - Flutter Web">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- iOS meta tags & icons -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Plant Monitor">
+
+    <!-- Theme color -->
+    <meta name="theme-color" content="#2D6A4F">
+
+    <title>Plant Monitor</title>
+    <script defer src="flutter.js"></script>
+</head>
+<body>
+    <div id="loading" style="
+        position: fixed; 
+        top: 0; left: 0; 
+        width: 100%; height: 100%; 
+        background: linear-gradient(135deg, #2D6A4F, #40916C); 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        flex-direction: column;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        color: white;
+    ">
+        <div style="
+            width: 60px; 
+            height: 60px; 
+            border: 4px solid rgba(255,255,255,0.3); 
+            border-top: 4px solid white; 
+            border-radius: 50%; 
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        "></div>
+        <p style="margin: 0; font-size: 18px; font-weight: 500;">Loading Plant Monitor...</p>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    </div>
+
+    <script>
+        window.addEventListener('load', function(ev) {
+            var loading = document.querySelector('#loading');
+            
+            // Set the build config that Flutter expects
+            _flutter.buildConfig = {
+                builds: [
+                    {
+                        compileTarget: 'dart2js',
+                        renderer: 'canvaskit'
+                    }
+                ]
+            };
+            
+            // Download main.dart.js
+            _flutter.loader.loadEntrypoint({
+                entrypointUrl: "./main.dart.js",
+                onEntrypointLoaded: function(engineInitializer) {
+                    engineInitializer.initializeEngine().then(function(appRunner) {
+                        // Remove loading screen when Flutter app starts
+                        if (loading) loading.remove();
+                        appRunner.runApp();
+                    }).catch(function(error) {
+                        console.error('Failed to initialize Flutter:', error);
+                        if (loading) {
+                            loading.innerHTML = '<p style="color: #ff6b6b; text-align: center;">Failed to load app. Please refresh the page.</p>';
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

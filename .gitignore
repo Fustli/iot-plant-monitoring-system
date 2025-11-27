@@ -14,7 +14,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -205,3 +204,90 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ============================================================================
+# Flutter / Dart
+# ============================================================================
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# Keep Flutter lib/ and test/ directories (intentionally not ignored)
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be committed to version control.
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# iOS/macOS
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+**/ios/**/*.xcconfig
+**/ios/**/*.xcworkspace
+**/ios/**/*Lock.json
+**/ios/**/Flutter/Flutter.podspec
+**/ios/**/Flutter/Flutter.xcframework
+**/ios/**/Flutter/Flutter.xcframework/*
+**/ios/**/Flutter/flutter_assets/
+**/ios/**/GeneratedPluginRegistrant.h
+**/ios/**/GeneratedPluginRegistrant.m
+**/ios/**/Runner.xcarchive
+**/ios/Flutter/GeneratedPluginRegistrant.swift
+**/ios/Podfile.lock
+
+# macOS
+**/mac/Flutter/GeneratedPluginRegistrant.swift
+
+# Windows
+windows/flutter/generated_plugins.cmake
+
+# Android
+**/android/**/GeneratedPluginRegistrant.java
+**/android/key.properties
+**/android/local.properties
+
+# Coverage
+coverage/
+
+# ============================================================================
+# Project specific
+# ============================================================================
+.env.local
+.env.*.local
+*.swp
+*~
+
+```
