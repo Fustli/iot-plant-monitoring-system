@@ -318,6 +318,15 @@ class DBInterface:
         results = self.execute_query(query, (name, ))
 
         return results[0][0] if results else None
+    
+    def get_plant_details_by_id(self, plant_id: int):
+        query = """
+            SELECT user_id, plant_name FROM plants WHERE id = %s
+        """
+
+        results = self.execute_query(query, (plant_id, ))
+
+        return results[0][0] if results else None
 
 
 _db_interface = None

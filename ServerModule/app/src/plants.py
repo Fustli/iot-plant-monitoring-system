@@ -158,12 +158,6 @@ class Plant:
     def update_humidity(self, humidity: float):
         self.act_humidity = humidity
 
-    def send_alert(self, metric: str):
-        # TODO
-        # Send email/notification to user_id.alert_address
-        # Log alert in database
-        self.logger.info(f"Sent alert regarding {metric}")
-
     def start_plant_care(self):
         self.keep_alive = True
 
@@ -192,10 +186,8 @@ class Plant:
             msg = metric_msgs.low
 
         self.logger.warning(msg)
-    
-        self.send_alert(metric)
 
-        self.devices.send_command(metric, delta)
+        self.devices.send_command(metric, delta, msg)
 
         
     def keep_alive_cycle(self):

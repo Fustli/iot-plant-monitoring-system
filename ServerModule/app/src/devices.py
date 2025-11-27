@@ -5,6 +5,7 @@ from db.db_utils import DBInterface
 from measurements import Moisture
 from textbook import Textbook, MetricMessages
 from logger import Logger
+from alert_sender import send_alert
 
 # Bejön az üzenet egy adott eszköztől -> frissítjük annak az eszköznek az adatát
 # Le tudjuk kérni az eszköz által mért értéket
@@ -122,7 +123,7 @@ class DeviceCollection:
                 return device
         self.logger.error(f"Unable to find device: {unique_identifier}")
 
-    def send_command(self, metric: str, delta: float):
+    def send_command(self, metric: str, delta: float, msg: str):
         capability = f"{metric}:write"
         method_name = f"change_{metric}"
         metric_msgs: MetricMessages = getattr(Textbook, metric)
@@ -131,7 +132,10 @@ class DeviceCollection:
 
         if not actuators:
             self.logger.warning(metric_msgs.no_actuator)
+            send_alert(self.plant_id, metric, delta, msg, no_actuator=True)
             return
+
+        send_alert(self.plant_id, metric, delta, msg)
 
         delta_fragment = delta / len(actuators)
 
