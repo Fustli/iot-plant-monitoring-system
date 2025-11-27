@@ -352,17 +352,5 @@ def drop_all_tables():
 
 if __name__ == "__main__":
     db_interface = DBInterface()
-    db_interface.register_new_device_type(
-        1,
-        "Xiaomi Moisture Deluxe",
-        "combined",
-        "MQTT",
-        "moisture:read,moisture:write",
-        "number",
-        1,
-        3,
-        True,
-        "Can moisturize the plant and provide accurate moisture sensor data."
-    )
     return_value = db_interface.get_device_capabilities("Xiaomi Moisture Deluxe")
     print(return_value)

@@ -55,7 +55,7 @@ def seed_demo_data(session):
             name='Smart Thermometer',
             device_type="sensor",
             communication_interface='MQTT',
-            supported_functions='read_temperature',
+            supported_functions='temperature:read',
             data_unit='°C',
             min_value=-20,
             max_value=60,
@@ -66,7 +66,7 @@ def seed_demo_data(session):
             name='Humidity Sensor',
             device_type="sensor",
             communication_interface='MQTT',
-            supported_functions='read_humidity',
+            supported_functions='humidity:read',
             data_unit='%',
             min_value=0,
             max_value=100,
@@ -77,7 +77,7 @@ def seed_demo_data(session):
             name='Soil Moisture Sensor',
             device_type="sensor",
             communication_interface='MQTT',
-            supported_functions='read_moisture',
+            supported_functions='moisture:read',
             data_unit='%',
             min_value=0,
             max_value=100,
@@ -88,13 +88,24 @@ def seed_demo_data(session):
             name='Light Meter',
             device_type="sensor",
             communication_interface='MQTT',
-            supported_functions='read_light_intensity',
+            supported_functions='brightness:read',
             data_unit='lux',
             min_value=0,
             max_value=150000,
             is_active=True
         )
-        session.add_all([thermometer, humidity_sensor, soil_moisture, light_meter])
+        deluxe_moisture = DeviceType(
+            manufacturer_id=mfg_xiaomi.id,
+            name='Xiaomi Moisture Deluxe',
+            device_type="combined",
+            communication_interface='MQTT',
+            supported_functions='moisture:read,moisture:write',
+            data_unit='number',
+            min_value=1,
+            max_value=3,
+            is_active=True
+        )
+        session.add_all([thermometer, humidity_sensor, soil_moisture, light_meter, deluxe_moisture])
         session.flush()
         
         device_temp = Device(
