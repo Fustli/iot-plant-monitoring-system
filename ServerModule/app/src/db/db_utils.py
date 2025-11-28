@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from src.db.base import Base
+from base import Base
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -124,13 +124,23 @@ class DBInterface:
                 cur.execute(query)
             return cur.rowcount
     
-    def get_plant_details(self, plant_type: str):
-        query = f"""
+    def get_plant_details_by_sci_name(self, scientific_name: str):
+        query = """
             SELECT id, name, scientific_name, optimal_temperature, optimal_humidity, optimal_light, optimal_moisture, description, care_instructions
             FROM plant_types
-            WHERE scientific_name = '{plant_type}'
+            WHERE scientific_name = %s
         """
-        result = self.execute_query(query, (plant_type,))
+        result = self.execute_query(query, (scientific_name,))
+
+        return result[0] if result else None
+    
+    def get_plant_details_by_name(self, name: str):
+        query = """
+            SELECT id, name, scientific_name, optimal_temperature, optimal_humidity, optimal_light, optimal_moisture, description, care_instructions
+            FROM plant_types
+            WHERE name = %s
+        """
+        result = self.execute_query(query, (name,))
 
         return result[0] if result else None
     
@@ -319,6 +329,15 @@ class DBInterface:
 
         return results[0][0] if results else None
     
+    def get_plant_by_id(self, plant_id: int):
+        query = """
+            SELECT * FROM plants WHERE id = %s
+        """
+
+        results = self.execute_query(query, (plant_id, ))
+
+        return results[0] if results else None
+
     def get_plant_details_by_id(self, plant_id: int):
         query = """
             SELECT user_id, plant_name FROM plants WHERE id = %s
@@ -345,6 +364,129 @@ class DBInterface:
         results = self.execute_query(query, (user_id, ))
 
         return results[0] if results else None
+    
+    def list_device_types(self, manufacturer_id: int = None):
+        constraint = ""
+        if manufacturer_id:
+            constraint = "WHERE manufacturer_id = %s"
+        query = f"""
+            SELECT * FROM device_types {constraint}
+        """
+
+        results = self.execute_query(query, (manufacturer_id, ))
+
+        return results if results else None
+
+    def list_devices(self, user_id: int = None):
+        constraint = ""
+        if user_id:
+            constraint = "WHERE user_id = %s"
+        query = f"""
+            SELECT * FROM devices {constraint}
+        """
+
+        results = self.execute_query(query, (user_id, ))
+
+        return results if results else None
+
+    def list_plant_types(self):
+        query = """
+            SELECT * FROM plant_types
+        """
+
+        results = self.execute_query(query)
+
+        return results if results else None
+
+    def list_plants(self, user_id: int = None):
+        constraint = ""
+        if user_id:
+            constraint = "WHERE user_id = %s"
+        query = f"""
+            SELECT * FROM plants {constraint}
+        """
+
+        results = self.execute_query(query, (user_id, ))
+
+        return results if results else None
+
+    def list_users(self, user_id: int = None):
+        constraint = ""
+        if user_id:
+            constraint = "WHERE id = %s"
+        query = f"""
+            SELECT * FROM users {constraint}
+        """
+
+        results = self.execute_query(query, (user_id, ))
+
+        return results if results else None
+    
+    def list_consumers(self):
+        query = f"""
+            SELECT * FROM users WHERE role = 'consumer'
+        """
+
+        results = self.execute_query(query)
+
+        return results if results else None
+
+    def list_manufacturers(self, manufacturer_id: int = None):
+        constraint = ""
+        if manufacturer_id:
+            constraint = "WHERE id = %s"
+        query = f"""
+            SELECT * FROM manufacturers {constraint}
+        """
+
+        results = self.execute_query(query, (manufacturer_id, ))
+
+        return results if results else None
+
+    def remove_user(self, user_id: int):
+        query = """
+            DELETE FROM users WHERE id = %s
+        """
+
+        results = self.execute_query(query, (user_id, ))
+
+        return results if results else None
+
+    def remove_manufacturer(self, maunfacturer_id: int):
+        query = """
+            DELETE FROM maunfacturers WHERE id = %s
+        """
+
+        results = self.execute_query(query, (maunfacturer_id, ))
+
+        return results if results else None
+
+    def remove_plant_type(self, plant_type_id: int):
+        query = """
+            DELETE FROM plant_types WHERE id = %s
+        """
+
+        results = self.execute_query(query, (plant_type_id, ))
+
+        return results if results else None
+
+    def remove_plant(self, plant_id: int):
+        query = """
+            DELETE FROM users WHERE id = %s
+        """
+
+        results = self.execute_query(query, (plant_id, ))
+
+        return results if results else None
+    
+    def remove_device(self, device_id: int):
+        query = """
+            DELETE FROM devices WHERE id = %s
+        """
+
+        results = self.execute_query(query, (device_id, ))
+
+        return results if results else None
 
 
 _db_interface = None
@@ -379,5 +521,5 @@ def drop_all_tables():
 
 if __name__ == "__main__":
     db_interface = DBInterface()
-    return_value = db_interface.get_device_capabilities("Xiaomi Moisture Deluxe")
+    return_value = db_interface.list_manufacturers(1)
     print(return_value)

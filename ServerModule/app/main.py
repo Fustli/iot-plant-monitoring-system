@@ -24,7 +24,7 @@ from schemas import (
 from security import verify_password
 from auth_jwt import create_access_token, decode_access_token
 from src.db.user_models import User
-from src.db.db_utils import get_session
+from src.db.db_utils import get_session, DBInterface
 
 load_dotenv()
 
@@ -133,6 +133,7 @@ async def register(
     """Registers a new user account."""
     pass
 
+
 @app.post("/api/auth/register/consumer")
 async def register_consumer(
     payload: UserDetails
@@ -151,7 +152,9 @@ async def get_user_profile(
     ),
 ):
     """Returns current user details and preferences."""
-    pass
+    db_interface = DBInterface()
+    user_details = db_interface.list_users(current_user.id)
+    return user_details
 
 
 @app.put("/api/user/profile")
@@ -207,7 +210,9 @@ async def list_admin_users(
     current_admin: User = Depends(require_roles(["admin"])),
 ):
     """Lists all registered users for database maintenance."""
-    pass
+    db_interface = DBInterface()
+    users = db_interface.list_users()
+    return users
 
 
 @app.delete("/api/admin/users/{user_id}")
@@ -216,7 +221,17 @@ async def delete_user(
     current_admin: User = Depends(require_roles(["admin"])),
 ):
     """Deletes a user account or bans a user."""
-    pass
+    db_interface = DBInterface()
+    return db_interface.remove_user(user_id)
+
+@app.delete("/api/admin/manufacturers/{manufacturer_id}")
+async def delete_user(
+    manufacturer_id: int,
+    current_admin: User = Depends(require_roles(["admin"])),
+):
+    """Deletes a user account or bans a user."""
+    db_interface = DBInterface()
+    return db_interface.remove_manufacturer(manufacturer_id)
 
 
 @app.get("/api/admin/devices")
@@ -224,7 +239,27 @@ async def list_all_devices_admin(
     current_admin: User = Depends(require_roles(["admin"])),
 ):
     """Lists all devices in the system for administrative oversight."""
-    pass
+    db_interface = DBInterface()
+    devices = db_interface.list_devices()
+    return devices
+
+@app.get("/api/admin/device_types")
+async def list_all_devices_admin(
+    current_admin: User = Depends(require_roles(["admin"])),
+):
+    """Lists all devices in the system for administrative oversight."""
+    db_interface = DBInterface()
+    device_types = db_interface.list_device_types()
+    return device_types
+
+@app.get("/api/admin/plants")
+async def list_all_devices_admin(
+    current_admin: User = Depends(require_roles(["admin"])),
+):
+    """Lists all devices in the system for administrative oversight."""
+    db_interface = DBInterface()
+    plants = db_interface.list_plants()
+    return plants
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +284,9 @@ async def list_device_types(
     ),
 ):
     """Lists device types created by this manufacturer."""
-    pass
+    db_interface = DBInterface()
+    device_types = db_interface.list_device_types(current_manufacturer.id)
+    return device_types
 
 
 @app.put("/api/manufacturer/device-types/{device_type_id}")
@@ -277,9 +314,9 @@ async def add_new_plant_type(
     pass
 
 
-@app.put("/api/plant-species/{species_id}")
+@app.put("/api/plant-types/{species_id}")
 async def update_plant_species(
-    species_id: int,
+    plant_type_id: int,
     payload: NewPlantType,
     current_admin: User = Depends(require_roles(["admin"])),
 ):
@@ -287,13 +324,14 @@ async def update_plant_species(
     pass
 
 
-@app.delete("/api/plant-species/{species_id}")
+@app.delete("/api/plant-type/{species_id}")
 async def delete_plant_species(
-    species_id: int,
+    plant_type_id: int,
     current_admin: User = Depends(require_roles(["admin"])),
 ):
     """Removes a species from the catalog."""
-    pass
+    db_interface = DBInterface()
+    return db_interface.remove_plant_type(plant_type_id)
 
 
 @app.get("/api/consumer/plant-types")
@@ -301,7 +339,9 @@ async def list_plant_types(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """Lists available plant types for the user to select from when adding a new plant."""
-    pass
+    db_interface = DBInterface()
+    plant_types = db_interface.list_plant_types()
+    return plant_types
 
 
 @app.get("/api/consumer/plant-types/search")
@@ -310,7 +350,15 @@ async def search_plant_types(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """Search plant types by name or scientific name."""
-    pass
+    db_interface = DBInterface()
+    if payload.scientific_name:
+        plant_type = db_interface.get_plant_details_by_sci_name(payload.scientific_name)
+        return plant_type
+    elif payload.name:
+        plant_type = db_interface.get_plant_details_by_name(payload.name)
+        return plant_type
+    else:
+        return "No name or scientific name was given. Could not return plant type."
 
 
 @app.get("/api/consumer/my-plants")
@@ -318,7 +366,9 @@ async def list_user_plants(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """Lists the user's registered plants with their status."""
-    pass
+    db_interface = DBInterface()
+    plant_types = db_interface.list_plants(current_user.id)
+    return plant_types
 
 
 @app.post("/api/consumer/plant-from-scratch")
@@ -345,7 +395,10 @@ async def get_my_plant(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """Gets details of a plant."""
-    pass
+    db_interface = DBInterface()
+    plant = db_interface.get_plant_by_id(plant_id)
+    return plant
+
 
 @app.post("/api/consumer/my-plants/activation")
 async def plant_activation(
@@ -372,7 +425,8 @@ async def delete_my_plant(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """Removes an existing plant from the database and from the system."""
-    pass
+    db_interface = DBInterface()
+    return db_interface.remove_plant(plant_id)
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +446,9 @@ async def list_available_device_types(
     current_user: User = Depends(require_roles(["consumer", "admin", "manufacturer"])),
 ):
     """Lists device types."""
-    pass
+    db_interface = DBInterface()
+    device_types = db_interface.list_device_types()
+    return device_types
 
 
 @app.get("/api/consumer/my-devices")
@@ -400,7 +456,9 @@ async def list_my_devices(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """Lists all devices owned by the user."""
-    pass
+    db_interface = DBInterface()
+    devices = db_interface.list_devices(current_user.id)
+    return devices
 
 
 @app.post("/api/consumer/my-devices/activation")
@@ -418,7 +476,8 @@ async def remove_my_device(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """Removes a device from the user's account."""
-    pass
+    db_interface = DBInterface()
+    return db_interface.remove_device(device_id)
 
 
 # ---------------------------------------------------------------------------

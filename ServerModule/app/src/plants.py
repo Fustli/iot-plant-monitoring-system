@@ -118,7 +118,7 @@ class Plant:
             req_temperature, req_humidity, 
             req_brightness, req_moisture,
             desc, care,
-        ) = db_interface.get_plant_details(scientific_name)
+        ) = db_interface.get_plant_details_by_sci_name(scientific_name)
 
         plant_id = db_interface.register_new_plant(
             user_id, plant_type_id, 
