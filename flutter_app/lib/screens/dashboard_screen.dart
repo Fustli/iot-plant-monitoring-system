@@ -464,8 +464,7 @@ class _SettingsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final role = authProvider.currentRole;
-    final username = authProvider.username ?? 'Felhasználó';
-    final isDemoMode = authProvider.isDemoMode;
+    final username = authProvider.username ?? 'Felhasznalo';
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -506,7 +505,7 @@ class _SettingsView extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          role?.displayNameHu ?? 'Felhasználó',
+                          role?.displayNameHu ?? 'Felhasznalo',
                           style: TextStyle(
                             fontSize: 12,
                             color: _getRoleColor(role),
@@ -514,16 +513,6 @@ class _SettingsView extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (isDemoMode) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Demó mód',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -539,7 +528,7 @@ class _SettingsView extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              'Adminisztráció',
+              'Adminisztracio',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -654,25 +643,10 @@ class _SettingsView extends StatelessWidget {
                     applicationName: AppStrings.appName,
                     applicationVersion: AppStrings.appVersion,
                     applicationLegalese:
-                        '© 2025 Szobanövény életben tartó keretrendszer',
+                        '(c) 2025 Szobanöveny eletben tarto keretrendszer',
                   );
                 },
               ),
-              if (isDemoMode) ...[
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.refresh),
-                  title: const Text('Demó adatok visszaállítása'),
-                  onTap: () {
-                    context.read<PlantProvider>().loadPlants();
-                    context.read<AlertProvider>().loadAlerts();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Demó adatok visszaállítva')),
-                    );
-                  },
-                ),
-              ],
             ],
           ),
         ),

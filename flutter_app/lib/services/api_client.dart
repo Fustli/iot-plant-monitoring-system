@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/auth_models.dart';
@@ -20,11 +20,13 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  // Base URL configuration - use 10.0.2.2 for Android emulator, localhost for others
+  // Base URL configuration
+  // Web uses localhost, Android emulator uses 10.0.2.2, others use localhost
   static String get _baseUrl {
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8000/api';
+    if (kIsWeb) {
+      return 'http://localhost:8000/api';
     }
+    // For mobile, would need platform-specific check, but for now default to localhost
     return 'http://localhost:8000/api';
   }
 
@@ -122,11 +124,11 @@ class ApiService {
           .timeout(timeout ?? _timeout);
 
       return _handleResponse(response);
-    } on SocketException catch (e) {
-      throw ServerUnreachableException(originalError: e);
     } on TimeoutException catch (e) {
       throw TimeoutException(originalError: e);
     } on http.ClientException catch (e) {
+      throw ServerUnreachableException(originalError: e);
+    } catch (e) {
       throw NetworkException(originalError: e);
     }
   }
@@ -144,11 +146,11 @@ class ApiService {
           .timeout(_timeout);
 
       return _handleResponse(response);
-    } on SocketException catch (e) {
-      throw ServerUnreachableException(originalError: e);
     } on TimeoutException catch (e) {
       throw TimeoutException(originalError: e);
     } on http.ClientException catch (e) {
+      throw ServerUnreachableException(originalError: e);
+    } catch (e) {
       throw NetworkException(originalError: e);
     }
   }
@@ -166,11 +168,11 @@ class ApiService {
           .timeout(_timeout);
 
       return _handleResponse(response);
-    } on SocketException catch (e) {
-      throw ServerUnreachableException(originalError: e);
     } on TimeoutException catch (e) {
       throw TimeoutException(originalError: e);
     } on http.ClientException catch (e) {
+      throw ServerUnreachableException(originalError: e);
+    } catch (e) {
       throw NetworkException(originalError: e);
     }
   }
@@ -186,11 +188,11 @@ class ApiService {
           .timeout(_timeout);
 
       return _handleResponse(response);
-    } on SocketException catch (e) {
-      throw ServerUnreachableException(originalError: e);
     } on TimeoutException catch (e) {
       throw TimeoutException(originalError: e);
     } on http.ClientException catch (e) {
+      throw ServerUnreachableException(originalError: e);
+    } catch (e) {
       throw NetworkException(originalError: e);
     }
   }
@@ -217,18 +219,41 @@ class ApiService {
     return tokenResponse;
   }
 
-  /// Register a new user (public registration for consumers)
-  /// Note: Backend currently requires admin role - this is tracked in Missing API Report
-  Future<void> registerUser({
-    required String name,
+  /// Register a new consumer user (public endpoint - no auth required)
+  Future<void> registerConsumer({
+    required String username,
     required String email,
     required String password,
+    String? firstName,
+    String? lastName,
+  }) async {
+    await _post('/auth/register/consumer',
+        body: {
+          'username': username,
+          'email': email,
+          'password': password,
+          if (firstName != null) 'first_name': firstName,
+          if (lastName != null) 'last_name': lastName,
+        },
+        requireAuth: false);
+  }
+
+  /// Register a new user (admin only - for creating manufacturers/admins)
+  Future<void> registerUser({
+    required String username,
+    required String email,
+    required String password,
+    required String role,
+    String? firstName,
+    String? lastName,
   }) async {
     await _post('/auth/register', body: {
-      'username': name,
+      'username': username,
       'email': email,
       'password': password,
-      'role': 'consumer', // Public registration is consumer-only
+      'role': role,
+      if (firstName != null) 'first_name': firstName,
+      if (lastName != null) 'last_name': lastName,
     });
   }
 
@@ -241,6 +266,39 @@ class ApiService {
   /// Update user profile
   Future<void> updateUserProfile(Map<String, dynamic> updates) async {
     await _put('/user/profile', body: updates);
+  }
+
+  /// Change password
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    await _post('/user/change-password', body: {
+      'old_password': oldPassword,
+      'new_password': newPassword,
+    });
+  }
+
+  /// Initiate password reset flow (forgot password)
+  Future<void> forgotPassword(String email) async {
+    await _post('/auth/forgot-password',
+        body: {
+          'email': email,
+        },
+        requireAuth: false);
+  }
+
+  /// Reset password with token
+  Future<void> resetPassword({
+    required String token,
+    required String newPassword,
+  }) async {
+    await _post('/auth/reset-password',
+        body: {
+          'token': token,
+          'new_password': newPassword,
+        },
+        requireAuth: false);
   }
 
   // ===========================================================================
@@ -264,10 +322,27 @@ class ApiService {
     await _delete('/admin/users/$userId');
   }
 
+  /// Delete a manufacturer (admin only)
+  Future<void> deleteManufacturer(int manufacturerId) async {
+    await _delete('/admin/manufacturers/$manufacturerId');
+  }
+
   /// List all devices in system (admin only)
   Future<List<Device>> listAllDevicesAdmin() async {
     final response = await _get('/admin/devices');
     return (response as List).map((json) => Device.fromJson(json)).toList();
+  }
+
+  /// List all device types in system (admin only)
+  Future<List<Map<String, dynamic>>> listAllDeviceTypesAdmin() async {
+    final response = await _get('/admin/device_types');
+    return (response as List).cast<Map<String, dynamic>>();
+  }
+
+  /// List all plants in system (admin only)
+  Future<List<Plant>> listAllPlantsAdmin() async {
+    final response = await _get('/admin/plants');
+    return (response as List).map((json) => Plant.fromJson(json)).toList();
   }
 
   // ===========================================================================
@@ -325,6 +400,14 @@ class ApiService {
     return (response as List).map((json) => PlantType.fromJson(json)).toList();
   }
 
+  /// Search plant types by name or scientific name
+  Future<List<PlantType>> searchPlantTypes(String query) async {
+    final response = await _post('/consumer/plant-types/search', body: {
+      'query': query,
+    });
+    return (response as List).map((json) => PlantType.fromJson(json)).toList();
+  }
+
   /// Get all plants for current user
   Future<List<Plant>> getMyPlants() async {
     final response = await _get('/consumer/my-plants');
@@ -376,6 +459,12 @@ class ApiService {
     await _post('/consumer/devices/register', body: deviceData);
   }
 
+  /// List available device types (for consumers to see compatible devices)
+  Future<List<Map<String, dynamic>>> listAvailableDeviceTypes() async {
+    final response = await _get('/consumer/device-types');
+    return (response as List).cast<Map<String, dynamic>>();
+  }
+
   /// List user's devices
   Future<List<Device>> getMyDevices() async {
     final response = await _get('/consumer/my-devices');
@@ -419,6 +508,16 @@ class ApiService {
   Future<List<Alert>> getAlerts(int userId) async {
     final response = await _get('/consumer/alerts/$userId');
     return (response as List).map((json) => Alert.fromJson(json)).toList();
+  }
+
+  /// Acknowledge an alert
+  Future<void> acknowledgeAlert(int alertId) async {
+    await _put('/consumer/alerts/$alertId/acknowledge');
+  }
+
+  /// Resolve an alert
+  Future<void> resolveAlert(int alertId) async {
+    await _put('/consumer/alerts/$alertId/resolve');
   }
 
   // ===========================================================================

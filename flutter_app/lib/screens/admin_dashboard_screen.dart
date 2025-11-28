@@ -514,7 +514,6 @@ class _SettingsView extends StatelessWidget {
     final localization = context.watch<LocalizationProvider>();
     final authProvider = context.watch<AuthProvider>();
     final username = authProvider.username ?? 'Admin';
-    final isDemoMode = authProvider.isDemoMode;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -552,7 +551,7 @@ class _SettingsView extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          localization.tr('demo_admin'),
+                          localization.tr('admin'),
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.purple[700],
@@ -560,14 +559,6 @@ class _SettingsView extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (isDemoMode) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          localization.tr('demo_title'),
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                      ],
                     ],
                   ),
                 ),

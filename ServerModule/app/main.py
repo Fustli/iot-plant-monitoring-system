@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import HTTPException, status, FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError
 from dotenv import load_dotenv
 from fastapi.security import OAuth2PasswordBearer
@@ -29,6 +30,20 @@ from src.db.db_utils import get_session, DBInterface
 load_dotenv()
 
 app = FastAPI()
+
+# CORS middleware - allow frontend to access the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://0.0.0.0:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 

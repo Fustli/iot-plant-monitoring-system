@@ -414,8 +414,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
 
     try {
       final apiService = ApiService();
-      await apiService.registerUser(
-        name: _nameController.text.trim(),
+      await apiService.registerConsumer(
+        username: _nameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
@@ -448,7 +448,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Ismeretlen hiba történt: $e';
+        _errorMessage = 'Ismeretlen hiba tortent: $e';
       });
     } finally {
       if (mounted) {

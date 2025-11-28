@@ -2,237 +2,157 @@
 
 ## Overview
 
-This document identifies backend API endpoints that are **required by the Flutter frontend** but are either:
-1. **Not implemented** (stub with `pass`)
-2. **Missing entirely** from the backend
-3. **Have incorrect permissions** for the intended use case
+This document identifies backend API endpoints that are **NOT YET IMPLEMENTED** (stub-only or missing) for the Flutter frontend.
+
+**Last Updated:** November 28, 2025
 
 ---
 
-## 🔴 Critical - Blocking Features
+## Status Summary
 
-### 1. Public User Registration
-
-**Current State:**  
-```python
-@app.post("/api/auth/register")
-async def register(
-    payload: UserDetails,
-    current_user: User = Depends(require_roles(["admin"])),  # ❌ Requires admin
-):
-```
-
-**Problem:** Registration endpoint requires admin authentication. New users cannot self-register.
-
-**Required:** A public registration endpoint for consumer users:
-```python
-@app.post("/api/auth/register/consumer")  # No auth required
-async def register_consumer(payload: ConsumerRegistration):
-    """
-    Public registration for consumer users only.
-    Manufacturers and admins must be created by existing admins.
-    """
-```
-
-**Frontend Impact:** `RegistrationScreen` cannot function without this.
+| Category | Stub/Missing |
+|----------|--------------|
+| Authentication | 6 |
+| User Profile | 2 |
+| Admin | 1 |
+| Manufacturer | 3 |
+| Plant Catalog (Admin) | 2 |
+| Consumer Plants | 3 |
+| Consumer Devices | 2 |
+| Monitoring & Alerts | 5 |
+| **Total Missing** | **24** |
 
 ---
 
-### 2. All Consumer Endpoints (Stub Only)
+## ⚠️ Stub-Only Endpoints (Defined but return `pass`)
 
-The following endpoints exist but contain only `pass`:
+### Authentication (6 stubs)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/consumer/plant-types` | GET | List available plant types |
-| `/api/consumer/my-plants` | GET | List user's plants |
-| `/api/consumer/plant-from-scratch` | POST | Create custom plant |
-| `/api/consumer/plant-from-database` | POST | Create plant from catalog |
-| `/api/consumer/my-plants/{id}` | GET | Get single plant details |
-| `/api/consumer/my-plants/{id}` | PUT | Update plant |
-| `/api/consumer/my-plants/{id}` | DELETE | Delete plant |
-| `/api/consumer/my-plants/activation` | POST | Toggle plant active state |
-| `/api/consumer/devices/register` | POST | Register device by unique ID |
-| `/api/consumer/my-devices` | GET | List user's devices |
-| `/api/consumer/my-devices/activation` | POST | Toggle device active state |
-| `/api/consumer/my-devices/{id}` | DELETE | Remove device |
-| `/api/consumer/devices/{id}/history` | GET | Get sensor history |
-| `/api/consumer/devices/{id}/command` | POST | Send device command |
-| `/api/consumer/alerts/{user_id}` | GET | Get user alerts |
+| Endpoint | Method | Frontend Usage | Priority |
+|----------|--------|----------------|----------|
+| `/api/auth/register` | POST | Admin creates users | Medium |
+| `/api/auth/register/consumer` | POST | Public signup | 🔴 **HIGH** |
+| `/api/auth/forgot-password` | POST | Password reset | Low |
+| `/api/auth/reset-password` | POST | Password reset | Low |
 
-**Frontend Impact:** `UserDashboardScreen` cannot display real data.
+### User Profile (2 stubs)
 
----
+| Endpoint | Method | Frontend Usage | Priority |
+|----------|--------|----------------|----------|
+| `/api/user/profile` | PUT | Update user info | Medium |
+| `/api/user/change-password` | POST | Change password | Medium |
 
-### 3. All Manufacturer Endpoints (Stub Only)
+### Admin (1 stub)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/manufacturer/device-types` | GET | List manufacturer's device types |
-| `/api/manufacturer/device-types` | POST | Register new device type |
-| `/api/manufacturer/device-types/{id}` | PUT | Update device type |
-| `/api/manufacturer/devices` | POST | Register device instance |
+| Endpoint | Method | Frontend Usage | Priority |
+|----------|--------|----------------|----------|
+| `/api/admin/system/status` | GET | System health dashboard | Low |
 
-**Frontend Impact:** `ManufacturerDashboardScreen` cannot function.
+### Manufacturer (3 stubs)
 
----
+| Endpoint | Method | Frontend Usage | Priority |
+|----------|--------|----------------|----------|
+| `/api/manufacturer/device-types` | POST | Register new device type | Medium |
+| `/api/manufacturer/device-types/{id}` | PUT | Update device type | Low |
+| `/api/manufacturer/devices` | POST | Register device instance | Medium |
 
-### 4. Admin Endpoints (Stub Only)
+### Plant Catalog Admin (2 stubs)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/admin/system/status` | GET | System health info |
-| `/api/admin/users` | GET | List all users |
-| `/api/admin/users/{id}` | DELETE | Delete user |
-| `/api/admin/devices` | GET | List all devices |
-| `/api/plant-type` | POST | Add new plant type |
-| `/api/plant-species/{id}` | PUT | Update plant type |
-| `/api/plant-species/{id}` | DELETE | Delete plant type |
+| Endpoint | Method | Frontend Usage | Priority |
+|----------|--------|----------------|----------|
+| `/api/plant-type` | POST | Add species to catalog | Medium |
+| `/api/plant-types/{id}` | PUT | Edit species | Low |
 
-**Frontend Impact:** `AdminDashboardScreen` cannot manage users or catalog.
+### Consumer Plants (3 stubs)
 
----
+| Endpoint | Method | Frontend Usage | Priority |
+|----------|--------|----------------|----------|
+| `/api/consumer/plant-from-database` | POST | Add plant from catalog | 🔴 **HIGH** |
+| `/api/consumer/plant-from-scratch` | POST | Add custom plant | 🔴 **HIGH** |
+| `/api/consumer/my-plants/activation` | POST | Toggle plant care | Medium |
+| `/api/consumer/my-plants/{id}` | PUT | Update plant details | Medium |
 
-### 5. User Profile Endpoints (Stub Only)
+### Consumer Devices (2 stubs)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/user/profile` | GET | Get current user profile |
-| `/api/user/profile` | PUT | Update profile or delete account |
+| Endpoint | Method | Frontend Usage | Priority |
+|----------|--------|----------------|----------|
+| `/api/consumer/devices/register` | POST | Claim device by UID | 🔴 **HIGH** |
+| `/api/consumer/my-devices/activation` | POST | Toggle device active | Medium |
 
-**Frontend Impact:** Profile editing unavailable.
+### Monitoring & Alerts (5 stubs) - **ALL BLOCKING**
 
----
-
-## 🟡 Missing Endpoints
-
-### 1. Plant Type Search
-
-**Need:**
-```python
-@app.get("/api/consumer/plant-types/search")
-async def search_plant_types(query: str, ...):
-    """Search plant types by name or scientific name."""
-```
-
-**Frontend Use:** When adding a plant, users should be able to search the catalog.
+| Endpoint | Method | Frontend Usage | Priority |
+|----------|--------|----------------|----------|
+| `/api/consumer/devices/{id}/history` | GET | Sensor charts | 🔴 **HIGH** |
+| `/api/consumer/devices/{id}/command` | POST | Manual control | 🔴 **HIGH** |
+| `/api/consumer/alerts/{user_id}` | GET | Alert list | 🔴 **HIGH** |
+| `/api/consumer/alerts/{id}/acknowledge` | PUT | Mark alert seen | Medium |
+| `/api/consumer/alerts/{id}/resolve` | PUT | Dismiss alert | Medium |
 
 ---
 
-### 2. Device Types List (Consumer View)
+## ❌ Missing Endpoints (Not defined in backend)
 
-**Need:**
-```python
-@app.get("/api/consumer/available-device-types")
-async def list_available_device_types(...):
-    """List device types available for registration by consumers."""
-```
-
-**Current:** Only manufacturers can see device types. Consumers need this to understand what devices are compatible.
+| Endpoint | Method | Frontend Usage | Notes |
+|----------|--------|----------------|-------|
+| `/api/manufacturer/devices` | POST | Register device instance | Frontend expects this but backend doesn't have it |
 
 ---
 
-### 3. Password Change
+## URL Mismatches to Fix
 
-**Need:**
-```python
-@app.post("/api/user/change-password")
-async def change_password(old_password: str, new_password: str, ...):
-    """Change user password."""
-```
-
----
-
-### 4. Forgot Password Flow
-
-**Need:**
-```python
-@app.post("/api/auth/forgot-password")
-async def forgot_password(email: str):
-    """Initiate password reset flow."""
-
-@app.post("/api/auth/reset-password")
-async def reset_password(token: str, new_password: str):
-    """Reset password with token."""
-```
-
----
-
-### 5. Alert Management
-
-**Need:**
-```python
-@app.put("/api/consumer/alerts/{alert_id}/acknowledge")
-async def acknowledge_alert(...):
-    """Mark alert as acknowledged."""
-
-@app.put("/api/consumer/alerts/{alert_id}/resolve")
-async def resolve_alert(...):
-    """Mark alert as resolved."""
-```
-
----
-
-## 🟢 Working Endpoints
-
-| Endpoint | Status |
-|----------|--------|
-| `POST /api/auth/login` | ✅ Implemented |
+| Frontend URL | Backend URL | Action Needed |
+|--------------|-------------|---------------|
+| `/plant-species/{id}` (PUT) | `/plant-types/{id}` | Update frontend or backend |
+| `/plant-species/{id}` (DELETE) | `/plant-type/{id}` | Update frontend or backend |
 
 ---
 
 ## Implementation Priority
 
-### Phase 1 - Core Functionality
-1. **Public consumer registration** - Enable new user signups
-2. **Consumer plant CRUD** - Full plant management
-3. **Consumer device registration** - Device claiming
+### 🔴 Phase 1 - Critical (Blocking Core Features)
 
-### Phase 2 - Data & Monitoring  
-4. **Sensor history endpoint** - Charts and analytics
-5. **Alert retrieval** - User notification
+1. `POST /api/auth/register/consumer` - Enable public signups
+2. `POST /api/consumer/plant-from-database` - Add plants from catalog
+3. `POST /api/consumer/plant-from-scratch` - Add custom plants
+4. `POST /api/consumer/devices/register` - Claim devices
 
-### Phase 3 - Administration
-6. **Admin user management** - CRUD operations
-7. **Admin plant catalog** - Species management
-8. **System status** - Health monitoring
+### 🟡 Phase 2 - High (Monitoring Features)
 
-### Phase 4 - Manufacturer Portal
-9. **Device type management** - Full CRUD
-10. **Device instance registration** - Serial number tracking
+5. `GET /api/consumer/devices/{id}/history` - Sensor time-series data
+6. `GET /api/consumer/alerts/{user_id}` - Alert notifications
+7. `POST /api/consumer/devices/{id}/command` - Manual device control
 
----
+### 🟢 Phase 3 - Medium (CRUD Completion)
 
-## Schema Requirements
+8. `PUT /api/consumer/my-plants/{id}` - Update plants
+9. `POST /api/consumer/my-plants/activation` - Toggle plant care
+10. `POST /api/consumer/my-devices/activation` - Toggle devices
+11. `PUT /api/user/profile` - Update profile
+12. `POST /api/user/change-password` - Password change
+13. `POST /api/manufacturer/devices` - Register device instances
 
-### ConsumerRegistration (Missing)
-```python
-class ConsumerRegistration(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-```
+### ⚪ Phase 4 - Low (Admin/Manufacturer Features)
 
-### PlantTypeSearchParams (Missing)
-```python
-class PlantTypeSearchParams(BaseModel):
-    query: Optional[str] = None
-    page: int = 1
-    per_page: int = 20
-```
+14. `POST /api/auth/register` - Admin user creation
+15. `POST /api/plant-type` - Add to plant catalog
+16. `POST /api/manufacturer/device-types` - Register device types
+17. Password reset flow endpoints
+18. System status endpoint
 
 ---
 
-## Notes
+## Notes for Backend Developer
 
-- All endpoints returning lists should support pagination
-- Consider adding rate limiting for public endpoints
-- Add proper validation error responses (422) with i18n support
-- Device registration should validate unique_id format
+- Frontend expects JSON responses matching schemas in `schemas.py`
+- Time-series data for `/history` should support date range filtering (query params)
+- Alert `severity` should be: `info`, `warning`, `critical`
+- Alert `status` should be: `active`, `acknowledged`, `resolved`
+- Consider pagination for large lists (add `skip`, `limit` query params)
+- Frontend handles auth via `Bearer` token in `Authorization` header
+- All endpoints return proper HTTP status codes (200, 201, 400, 401, 403, 404, 422, 500)
+- **CORS is now enabled** for `localhost:3000`
 
 ---
 
-*Generated: $(date)*  
-*Frontend Version: 1.0.0*
+*Report generated for Flutter frontend integration - November 28, 2025*

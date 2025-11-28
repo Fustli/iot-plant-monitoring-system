@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 load_dotenv()
 
 # Import database utilities and models
-from src.db.db_utils import get_session, engine
+from src.db.db_utils import get_session, create_engine_instance, get_db_interface
 from src.db.base import Base
 from src.db.user_models import User
 from src.db.plant_models import PlantType, Plant
@@ -214,14 +214,14 @@ def get_fallback_plant_types() -> list:
 
 def seed_admin_user(session: Session) -> User:
     """Create admin user if not exists."""
-    admin = session.query(User).filter(User.email == "admin@plantmonitor.local").first()
+    admin = session.query(User).filter(User.email == "admin@plantmonitor.com").first()
     
     if admin:
         print("[INFO] Admin user already exists")
         return admin
     
     admin = User(
-        email="admin@plantmonitor.local",
+        email="admin@plantmonitor.com",
         username="admin",
         role="admin",
         password_hash=hash_password(DEFAULT_PASSWORD),
@@ -232,14 +232,14 @@ def seed_admin_user(session: Session) -> User:
     )
     session.add(admin)
     session.commit()
-    print("[SUCCESS] Created admin user (admin@plantmonitor.local)")
+    print(f"[SUCCESS] Created admin user (admin@plantmonitor.com)")
     return admin
 
 
 def seed_manufacturer_user(session: Session) -> User:
     """Create test manufacturer user if not exists."""
     manufacturer = session.query(User).filter(
-        User.email == "manufacturer@plantmonitor.local"
+        User.email == "manufacturer@plantmonitor.com"
     ).first()
     
     if manufacturer:
@@ -247,7 +247,7 @@ def seed_manufacturer_user(session: Session) -> User:
         return manufacturer
     
     manufacturer = User(
-        email="manufacturer@plantmonitor.local",
+        email="manufacturer@plantmonitor.com",
         username="test_manufacturer",
         role="manufacturer",
         password_hash=hash_password(DEFAULT_PASSWORD),
@@ -258,7 +258,7 @@ def seed_manufacturer_user(session: Session) -> User:
     )
     session.add(manufacturer)
     session.commit()
-    print("[SUCCESS] Created manufacturer user (manufacturer@plantmonitor.local)")
+    print("[SUCCESS] Created manufacturer user (manufacturer@plantmonitor.com)")
     return manufacturer
 
 
@@ -376,6 +376,7 @@ def seed_sample_plants(session: Session, users: list, plant_types: list) -> list
 
 def reset_database():
     """Drop all tables and recreate them."""
+    engine = create_engine_instance()
     print("[WARNING] Resetting database - dropping all tables...")
     Base.metadata.drop_all(bind=engine)
     print("[SUCCESS] Tables dropped")
@@ -388,6 +389,13 @@ def reset_database():
 # =============================================================================
 # MAIN
 # =============================================================================
+
+def ensure_tables_exist():
+    """Create tables if they don't exist."""
+    engine = create_engine_instance()
+    Base.metadata.create_all(bind=engine)
+    print("[INFO] Database tables ensured")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Seed the database with initial data")
@@ -404,6 +412,9 @@ def main():
     
     if args.reset:
         reset_database()
+    else:
+        # Ensure tables exist even without reset
+        ensure_tables_exist()
     
     session = get_session()
     
@@ -426,8 +437,8 @@ def main():
         print("[SUCCESS] Database seeding complete!")
         print("=" * 60)
         print("\n[INFO] Login credentials (password for all: " + DEFAULT_PASSWORD + "):")
-        print(f"   Admin:        admin@plantmonitor.local")
-        print(f"   Manufacturer: manufacturer@plantmonitor.local")
+        print(f"   Admin:        admin@plantmonitor.com")
+        print(f"   Manufacturer: manufacturer@plantmonitor.com")
         print(f"   Consumers:    user1@example.com ... user5@example.com")
         print()
         

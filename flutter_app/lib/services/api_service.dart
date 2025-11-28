@@ -1,15 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import '../models/plant_model.dart';
 
 /// A service class for handling all API interactions with the backend.
 class ApiService {
-  // Use localhost for Android emulator, 127.0.0.1 for iOS simulator/desktop
-  static final String _baseUrl = Platform.isAndroid
-      ? 'http://10.0.2.2:8000/api'
-      : 'http://localhost:8000/api';
+  // Base URL - use localhost for web, would need platform check for mobile
+  static const String _baseUrl = 'http://localhost:8000/api';
 
   /// Fetches all plants associated with a given user ID.
   ///

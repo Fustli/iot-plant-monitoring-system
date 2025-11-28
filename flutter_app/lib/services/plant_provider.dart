@@ -4,21 +4,17 @@ import '../models/plant_model.dart';
 import '../models/plant_type_model.dart';
 import 'api_client.dart';
 import 'api_exceptions.dart';
-import 'mock_data.dart';
-import 'hybrid_data_service.dart';
 
 /// Plant state management provider
-/// Handles plant data, API calls, and mock fallback
+/// Handles plant data and API calls
 class PlantProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
-  final HybridDataService _hybridService = HybridDataService();
 
   List<Plant> _plants = [];
   List<PlantType> _plantTypes = [];
   bool _isLoading = false;
   String? _error;
   Plant? _selectedPlant;
-  bool _useMockData = true; // Fallback to mock when API fails
 
   // Getters
   List<Plant> get plants => _plants;
@@ -26,7 +22,6 @@ class PlantProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   Plant? get selectedPlant => _selectedPlant;
-  bool get useMockData => _useMockData;
 
   // Statistics
   int get totalPlants => _plants.length;
@@ -34,30 +29,25 @@ class PlantProvider with ChangeNotifier {
   int get plantsNeedingCare =>
       _plants.where((plant) => !plant.isHealthy).length;
 
-  /// Load all plants from the API or mock data
+  /// Load all plants from the API
   Future<void> loadPlants() async {
     _setLoading(true);
     _error = null;
 
     try {
-      // Try API first
       _plants = await _apiService.getMyPlants();
-      _useMockData = false;
     } on ServerUnreachableException catch (e) {
-      debugPrint('Server unreachable, falling back to mock data: ${e.message}');
-      _plants = MockData.plants;
-      _useMockData = true;
+      _error = e.messageHu;
+      debugPrint('Server unreachable: ${e.message}');
     } on UnauthorizedException catch (e) {
       _error = e.messageHu;
       _plants = [];
     } on ApiException catch (e) {
+      _error = e.messageHu;
       debugPrint('API error loading plants: ${e.message}');
-      _plants = MockData.plants;
-      _useMockData = true;
     } catch (e) {
+      _error = 'Ismeretlen hiba tortent';
       debugPrint('Unexpected error loading plants: $e');
-      _plants = MockData.plants;
-      _useMockData = true;
     } finally {
       _setLoading(false);
     }
@@ -76,6 +66,19 @@ class PlantProvider with ChangeNotifier {
     }
   }
 
+  /// Search plant types by name
+  Future<List<PlantType>> searchPlantTypes(String query) async {
+    try {
+      return await _apiService.searchPlantTypes(query);
+    } on ApiException catch (e) {
+      debugPrint('Failed to search plant types: ${e.message}');
+      return [];
+    } catch (e) {
+      debugPrint('Unexpected error searching plant types: $e');
+      return [];
+    }
+  }
+
   /// Select a plant for detailed view
   void selectPlant(Plant plant) {
     _selectedPlant = plant;
@@ -85,26 +88,16 @@ class PlantProvider with ChangeNotifier {
   /// Load detailed plant information
   Future<void> loadPlantDetails(String plantId) async {
     try {
-      if (!_useMockData) {
-        final plant = await _apiService.getPlantDetails(int.parse(plantId));
-        _selectedPlant = plant;
-        // Update plant in the list as well
-        final index = _plants.indexWhere((p) => p.id == plantId);
-        if (index != -1) {
-          _plants[index] = plant;
-        }
-        notifyListeners();
-      } else {
-        // Use hybrid service for mock fallback
-        final plant = await _hybridService.getPlant(plantId);
-        if (plant != null) {
-          _selectedPlant = plant;
-          notifyListeners();
-        }
+      final plant = await _apiService.getPlantDetails(int.parse(plantId));
+      _selectedPlant = plant;
+      // Update plant in the list as well
+      final index = _plants.indexWhere((p) => p.id == plantId);
+      if (index != -1) {
+        _plants[index] = plant;
       }
+      notifyListeners();
     } catch (e) {
       debugPrint('Failed to load plant details: $e');
-      // Fallback to existing data
     }
   }
 
@@ -119,7 +112,7 @@ class PlantProvider with ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = 'Ismeretlen hiba történt';
+      _error = 'Ismeretlen hiba tortent';
       notifyListeners();
       return false;
     }
@@ -136,7 +129,7 @@ class PlantProvider with ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = 'Ismeretlen hiba történt';
+      _error = 'Ismeretlen hiba tortent';
       notifyListeners();
       return false;
     }
@@ -145,9 +138,7 @@ class PlantProvider with ChangeNotifier {
   /// Delete a plant
   Future<bool> deletePlant(int plantId) async {
     try {
-      if (!_useMockData) {
-        await _apiService.deletePlant(plantId);
-      }
+      await _apiService.deletePlant(plantId);
 
       // Remove from local list
       _plants.removeWhere((p) => p.id == plantId.toString());
@@ -164,7 +155,7 @@ class PlantProvider with ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = 'Nem sikerült törölni a növényt';
+      _error = 'Nem sikerult torolni a novenyt';
       notifyListeners();
       return false;
     }
@@ -187,85 +178,90 @@ class PlantProvider with ChangeNotifier {
   }
 
   /// Water a plant (send command to actuator)
-  Future<bool> waterPlant(String plantId) async {
+  Future<bool> waterPlant(String plantId, int deviceId) async {
     try {
-      final success = await _hybridService.waterPlant(plantId);
-      if (success) {
-        // Update plant moisture optimistically
-        final plantIndex = _plants.indexWhere((p) => p.id == plantId);
-        if (plantIndex != -1) {
-          final plant = _plants[plantIndex];
-          final newMoisture = (plant.currentMoisture + 20).clamp(0, 100);
-          plant.updateMoisture(newMoisture);
+      await _apiService.sendDeviceCommand(
+        deviceId,
+        metric: 'water',
+        delta: 1.0,
+      );
 
-          // Update health status if moisture improved
-          if (newMoisture >= 50 &&
-              plant.healthStatus != HealthStatus.excellent) {
-            _plants[plantIndex] = plant.copyWith(
-              healthStatus: HealthStatus.excellent,
-              isHealthy: true,
-              lastWatered: DateTime.now(),
-            );
-          }
+      // Optimistically update moisture
+      final plantIndex = _plants.indexWhere((p) => p.id == plantId);
+      if (plantIndex != -1) {
+        final plant = _plants[plantIndex];
+        final newMoisture = (plant.currentMoisture + 20).clamp(0, 100);
+        plant.updateMoisture(newMoisture);
 
-          // Update selected plant if it's the same
-          if (_selectedPlant?.id == plantId) {
-            _selectedPlant = _plants[plantIndex];
-          }
-
-          notifyListeners();
+        if (_selectedPlant?.id == plantId) {
+          _selectedPlant = plant;
         }
-
-        // Also update mock data for consistency
-        MockData.simulateWatering(plantId);
-        return true;
+        notifyListeners();
       }
+
+      return true;
+    } on ApiException catch (e) {
+      _error = e.messageHu;
+      notifyListeners();
+      return false;
     } catch (e) {
       debugPrint('Failed to water plant: $e');
+      return false;
     }
-    return false;
   }
 
   /// Control device (light, fan, etc.)
   Future<bool> controlDevice(
-      String plantId, String action, dynamic value) async {
+      String plantId, int deviceId, String metric, double value) async {
     try {
-      final success =
-          await _hybridService.controlDevice(plantId, action, value);
-      if (success) {
-        // Update plant data based on action
-        final plantIndex = _plants.indexWhere((p) => p.id == plantId);
-        if (plantIndex != -1) {
-          final plant = _plants[plantIndex];
+      await _apiService.sendDeviceCommand(
+        deviceId,
+        metric: metric,
+        delta: value,
+      );
 
-          switch (action) {
-            case 'light':
-              plant.updateLight(
-                  value is int ? value : (value as double).round());
-              break;
-            case 'temperature':
-              plant.updateTemperature(
-                  value is double ? value : (value as int).toDouble());
-              break;
-          }
+      // Update plant data based on action
+      final plantIndex = _plants.indexWhere((p) => p.id == plantId);
+      if (plantIndex != -1) {
+        final plant = _plants[plantIndex];
 
-          if (_selectedPlant?.id == plantId) {
-            _selectedPlant = plant;
-          }
-
-          notifyListeners();
+        switch (metric) {
+          case 'light':
+            plant.updateLight(value.round());
+            break;
+          case 'temperature':
+            plant.updateTemperature(value);
+            break;
         }
-        return true;
+
+        if (_selectedPlant?.id == plantId) {
+          _selectedPlant = plant;
+        }
+
+        notifyListeners();
       }
+      return true;
+    } on ApiException catch (e) {
+      _error = e.messageHu;
+      notifyListeners();
+      return false;
     } catch (e) {
       debugPrint('Failed to control device: $e');
+      return false;
     }
-    return false;
   }
 
   /// Get sensor history for charts
-  Future<List<SensorReading>> getSensorHistory(String plantId, int days) async {
-    return await _hybridService.getSensorHistory(plantId, days);
+  Future<List<Map<String, dynamic>>> getSensorHistory(int deviceId) async {
+    try {
+      return await _apiService.getDeviceHistory(deviceId);
+    } on ApiException catch (e) {
+      debugPrint('Failed to get sensor history: ${e.message}');
+      return [];
+    } catch (e) {
+      debugPrint('Unexpected error getting sensor history: $e');
+      return [];
+    }
   }
 
   /// Get plant by ID
@@ -350,7 +346,7 @@ class PlantProvider with ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = 'Nem sikerült hozzáadni a növényfajt';
+      _error = 'Nem sikerult hozzaadni a novenyfajt';
       notifyListeners();
       return false;
     }
@@ -367,7 +363,7 @@ class PlantProvider with ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = 'Nem sikerült frissíteni a növényfajt';
+      _error = 'Nem sikerult frissiteni a novenyfajt';
       notifyListeners();
       return false;
     }
@@ -384,7 +380,7 @@ class PlantProvider with ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = 'Nem sikerült törölni a növényfajt';
+      _error = 'Nem sikerult torolni a novenyfajt';
       notifyListeners();
       return false;
     }

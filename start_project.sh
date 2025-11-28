@@ -12,6 +12,7 @@
 #   ./start_project.sh --seed       # Start all services and seed database
 #   ./start_project.sh --reset      # Reset database and seed before starting
 #   ./start_project.sh --stop       # Stop all running services
+#   ./start_project.sh --debug      # Start in debug mode (foreground, verbose)
 #
 # Requirements:
 #   - Docker and docker-compose
@@ -41,6 +42,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=iot_plant_db
 DB_USER=iot_user
+DEBUG_MODE=false
 
 # PID file locations
 PID_DIR="$PROJECT_ROOT/.pids"
@@ -189,23 +191,32 @@ start_backend() {
         return 1
     fi
     
-    # Start uvicorn in background
-    nohup $UVICORN_CMD main:app --host 0.0.0.0 --port $BACKEND_PORT --reload > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
-    local pid=$!
-    
-    ensure_pid_dir
-    echo $pid > "$BACKEND_PID_FILE"
-    
-    # Wait a moment and check if it started
-    sleep 2
-    if kill -0 $pid 2>/dev/null; then
-        log_success "Backend started (PID: $pid)"
-        log_info "Backend logs: $PROJECT_ROOT/logs/backend.log"
+    if [ "$DEBUG_MODE" = true ]; then
+        # Debug mode: run in foreground with verbose output
+        log_info "Starting backend in DEBUG mode (foreground)..."
+        log_info "Press Ctrl+C to stop"
         log_info "API available at: http://localhost:$BACKEND_PORT"
         log_info "API docs at: http://localhost:$BACKEND_PORT/docs"
+        $UVICORN_CMD main:app --host 0.0.0.0 --port $BACKEND_PORT --reload --log-level debug
     else
-        log_error "Backend failed to start. Check logs at $PROJECT_ROOT/logs/backend.log"
-        return 1
+        # Normal mode: run in background
+        nohup $UVICORN_CMD main:app --host 0.0.0.0 --port $BACKEND_PORT --reload > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
+        local pid=$!
+        
+        ensure_pid_dir
+        echo $pid > "$BACKEND_PID_FILE"
+        
+        # Wait a moment and check if it started
+        sleep 2
+        if kill -0 $pid 2>/dev/null; then
+            log_success "Backend started (PID: $pid)"
+            log_info "Backend logs: $PROJECT_ROOT/logs/backend.log"
+            log_info "API available at: http://localhost:$BACKEND_PORT"
+            log_info "API docs at: http://localhost:$BACKEND_PORT/docs"
+        else
+            log_error "Backend failed to start. Check logs at $PROJECT_ROOT/logs/backend.log"
+            return 1
+        fi
     fi
 }
 
@@ -224,24 +235,32 @@ start_flutter() {
     log_info "Getting Flutter dependencies..."
     flutter pub get
     
-    # Start Flutter web server in background
-    nohup flutter run -d web-server --web-port $FLUTTER_PORT --web-hostname 0.0.0.0 > "$PROJECT_ROOT/logs/flutter.log" 2>&1 &
-    local pid=$!
-    
-    ensure_pid_dir
-    echo $pid > "$FLUTTER_PID_FILE"
-    
-    # Wait for Flutter to compile and start
-    log_info "Waiting for Flutter to compile..."
-    sleep 10
-    
-    if kill -0 $pid 2>/dev/null; then
-        log_success "Flutter started (PID: $pid)"
-        log_info "Flutter logs: $PROJECT_ROOT/logs/flutter.log"
-        log_info "Frontend available at: http://localhost:$FLUTTER_PORT"
+    if [ "$DEBUG_MODE" = true ]; then
+        # Debug mode: run in foreground with verbose output
+        log_info "Starting Flutter in DEBUG mode (foreground)..."
+        log_info "Press Ctrl+C to stop"
+        log_info "Frontend will be available at: http://localhost:$FLUTTER_PORT"
+        flutter run -d web-server --web-port $FLUTTER_PORT --web-hostname 0.0.0.0
     else
-        log_error "Flutter failed to start. Check logs at $PROJECT_ROOT/logs/flutter.log"
-        return 1
+        # Normal mode: run in background
+        nohup flutter run -d web-server --web-port $FLUTTER_PORT --web-hostname 0.0.0.0 > "$PROJECT_ROOT/logs/flutter.log" 2>&1 &
+        local pid=$!
+        
+        ensure_pid_dir
+        echo $pid > "$FLUTTER_PID_FILE"
+        
+        # Wait for Flutter to compile and start
+        log_info "Waiting for Flutter to compile..."
+        sleep 10
+        
+        if kill -0 $pid 2>/dev/null; then
+            log_success "Flutter started (PID: $pid)"
+            log_info "Flutter logs: $PROJECT_ROOT/logs/flutter.log"
+            log_info "Frontend available at: http://localhost:$FLUTTER_PORT"
+        else
+            log_error "Flutter failed to start. Check logs at $PROJECT_ROOT/logs/flutter.log"
+            return 1
+        fi
     fi
 }
 
@@ -351,6 +370,9 @@ main() {
                 stop_all
                 exit 0
                 ;;
+            --debug)
+                DEBUG_MODE=true
+                ;;
             --help|-h)
                 echo "Usage: $0 [OPTIONS]"
                 echo
@@ -358,6 +380,7 @@ main() {
                 echo "  --seed    Seed the database after starting"
                 echo "  --reset   Reset and reseed the database"
                 echo "  --stop    Stop all running services"
+                echo "  --debug   Run in debug mode (foreground, verbose output)"
                 echo "  --help    Show this help message"
                 exit 0
                 ;;
@@ -379,6 +402,14 @@ main() {
     fi
     
     start_backend
+    
+    # In debug mode, backend runs in foreground, so we won't reach here
+    # unless user stops it. Skip Flutter in debug mode (run separately)
+    if [ "$DEBUG_MODE" = true ]; then
+        log_info "Debug mode: Backend stopped. Run Flutter separately if needed."
+        exit 0
+    fi
+    
     start_flutter
     
     echo

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from base import Base
+from .base import Base
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

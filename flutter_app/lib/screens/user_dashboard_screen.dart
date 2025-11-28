@@ -537,7 +537,6 @@ class _SettingsView extends StatelessWidget {
     final authProvider = context.watch<AuthProvider>();
     final role = authProvider.currentRole;
     final username = authProvider.username ?? 'User';
-    final isDemoMode = authProvider.isDemoMode;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -575,8 +574,7 @@ class _SettingsView extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          role?.displayNameHu ??
-                              localization.tr('demo_consumer'),
+                          role?.displayNameHu ?? localization.tr('consumer'),
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.primary,
@@ -584,14 +582,6 @@ class _SettingsView extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (isDemoMode) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          localization.tr('demo_title'),
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -662,24 +652,10 @@ class _SettingsView extends StatelessWidget {
                     applicationName: localization.tr('app_name'),
                     applicationVersion: '1.0.0',
                     applicationLegalese:
-                        '© 2025 ${localization.tr('app_subtitle')}',
+                        '(c) 2025 ${localization.tr('app_subtitle')}',
                   );
                 },
               ),
-              if (isDemoMode) ...[
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.refresh),
-                  title: const Text('Reset Demo Data'),
-                  onTap: () {
-                    context.read<PlantProvider>().loadPlants();
-                    context.read<AlertProvider>().loadAlerts();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Demo data reset')),
-                    );
-                  },
-                ),
-              ],
             ],
           ),
         ),

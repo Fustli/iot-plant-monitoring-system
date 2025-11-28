@@ -60,9 +60,23 @@ pytest-postgresql==5.1.0      # PostgreSQL fixtures for pytest
 # jupyter==1.0.0   # Jupyter notebook support
 
 # ============================================================================
-# OPTIONAL: WEB SERVER & ASYNC
+# WEB FRAMEWORK & API
 # ============================================================================
-# aiohttp==3.9.0  # For async HTTP requests
-# asyncpg==0.29.0  # Async PostgreSQL driver
-requests==2.32.5
-fastapi==0.115.12
+fastapi==0.115.12            # Web framework for building APIs
+uvicorn==0.34.3              # ASGI server for FastAPI
+pydantic[email]==2.11.7      # Data validation (with email support)
+email-validator==2.3.0       # Email validation for pydantic
+python-multipart==0.0.20     # Form data parsing for FastAPI
+
+# ============================================================================
+# AUTHENTICATION & SECURITY
+# ============================================================================
+python-jose[cryptography]==3.4.0  # JWT token handling
+passlib[bcrypt]==1.7.4            # Password hashing
+
+# ============================================================================
+# HTTP & ASYNC
+# ============================================================================
+requests==2.32.5             # HTTP client
+# aiohttp==3.9.0             # For async HTTP requests
+# asyncpg==0.29.0            # Async PostgreSQL driver

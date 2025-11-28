@@ -41,11 +41,11 @@ class DeviceCreation(BaseModel):
     unique_identifier: str
     device_name: str
     is_active: bool = False
-    last_data_received = None
-    last_heartbeat = None
-    location_description = None
-    battery_level = None
-    rssi = None
+    last_data_received: str | None = None
+    last_heartbeat: str | None = None
+    location_description: str | None = None
+    battery_level: float | None = None
+    rssi: float | None = None
 
 class PlantActivation(BaseModel):
     """

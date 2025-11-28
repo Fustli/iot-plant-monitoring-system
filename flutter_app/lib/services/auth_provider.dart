@@ -180,37 +180,4 @@ class AuthProvider with ChangeNotifier {
 
   /// Get authorization header for API calls
   String? get authorizationHeader => _authState.authorizationHeader;
-
-  // ==========================================================================
-  // Demo/Development Mode
-  // ==========================================================================
-
-  /// Demo login (bypasses API for testing)
-  Future<bool> demoLogin({UserRole role = UserRole.consumer}) async {
-    _authState = const AuthState.authenticating();
-    notifyListeners();
-
-    // Simulate network delay
-    await Future.delayed(const Duration(seconds: 1));
-
-    final tokenResponse = TokenResponse(
-      accessToken: 'demo_token_${role.name}',
-      role: role,
-      username: 'Demo ${role.displayNameHu}',
-    );
-
-    final expiry = DateTime.now().add(const Duration(hours: 24));
-    await _storeCredentials(tokenResponse, expiry);
-
-    // Set token in API service (even though it's demo, for consistency)
-    _apiService.setToken(tokenResponse.accessToken);
-    _apiService.setRole(role);
-
-    _authState = AuthState.authenticated(tokenResponse, expiry: expiry);
-    notifyListeners();
-    return true;
-  }
-
-  /// Check if currently in demo mode
-  bool get isDemoMode => accessToken?.startsWith('demo_token') ?? false;
 }

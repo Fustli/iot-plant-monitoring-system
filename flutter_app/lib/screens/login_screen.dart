@@ -6,8 +6,7 @@ import '../models/auth_models.dart';
 import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
 
-/// Login screen with real authentication and role-based demo mode
-/// Hungarian UI text with English code
+/// Login screen with real authentication
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -26,7 +25,6 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _showLoginForm = false;
 
   @override
   void initState() {
@@ -132,61 +130,36 @@ class _LoginScreenState extends State<LoginScreen>
                               authProvider.authState.errorMessage ??
                                   localization.tr('error_unknown')),
 
-                        // Login form or demo buttons
-                        if (_showLoginForm)
-                          _buildLoginForm(authProvider, localization)
-                        else
-                          _buildDemoButtons(authProvider, localization),
+                        // Login form
+                        _buildLoginForm(authProvider, localization),
 
                         const SizedBox(height: 24),
 
-                        // Toggle between login and demo
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _showLoginForm = !_showLoginForm;
-                            });
-                            authProvider.clearError();
-                          },
-                          child: Text(
-                            _showLoginForm
-                                ? localization.tr('login_back_to_demo')
-                                : localization.tr('login_real_account'),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              decoration: TextDecoration.underline,
+                        // Register link
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              localization.tr('login_no_account'),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                              ),
                             ),
-                          ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pushNamed('/register');
+                              },
+                              child: Text(
+                                localization.tr('login_register'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-
-                        // Register link (only shown in login form mode)
-                        if (_showLoginForm) ...[
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                localization.tr('login_no_account'),
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pushNamed('/register');
-                                },
-                                child: Text(
-                                  localization.tr('login_register'),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
 
                         const SizedBox(height: 32),
 
@@ -463,137 +436,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildDemoButtons(
-      AuthProvider authProvider, LocalizationProvider localization) {
-    final isLoading =
-        authProvider.authState.status == AuthStatus.authenticating;
-
-    return Column(
-      children: [
-        // Demo mode info
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
-          ),
-          child: Column(
-            children: [
-              const Icon(Icons.info_outline, color: Colors.white, size: 24),
-              const SizedBox(height: 8),
-              Text(
-                localization.tr('demo_title'),
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                localization.tr('demo_info'),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        // Consumer (User) demo button
-        _buildDemoRoleButton(
-          role: UserRole.consumer,
-          icon: Icons.person,
-          label: localization.tr('demo_consumer'),
-          description: localization.tr('demo_consumer_desc'),
-          isLoading: isLoading,
-          onPressed: () => _handleDemoLogin(UserRole.consumer),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Manufacturer demo button
-        _buildDemoRoleButton(
-          role: UserRole.manufacturer,
-          icon: Icons.precision_manufacturing,
-          label: localization.tr('demo_manufacturer'),
-          description: localization.tr('demo_manufacturer_desc'),
-          isLoading: isLoading,
-          onPressed: () => _handleDemoLogin(UserRole.manufacturer),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Admin demo button
-        _buildDemoRoleButton(
-          role: UserRole.admin,
-          icon: Icons.admin_panel_settings,
-          label: localization.tr('demo_admin'),
-          description: localization.tr('demo_admin_desc'),
-          isLoading: isLoading,
-          onPressed: () => _handleDemoLogin(UserRole.admin),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDemoRoleButton({
-    required UserRole role,
-    required IconData icon,
-    required String label,
-    required String description,
-    required bool isLoading,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.2),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.white.withOpacity(0.3)),
-          ),
-          elevation: 0,
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 28),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -602,15 +444,6 @@ class _LoginScreenState extends State<LoginScreen>
       _emailController.text.trim(),
       _passwordController.text,
     );
-
-    if (success && mounted) {
-      _navigateToDashboard();
-    }
-  }
-
-  Future<void> _handleDemoLogin(UserRole role) async {
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.demoLogin(role: role);
 
     if (success && mounted) {
       _navigateToDashboard();
