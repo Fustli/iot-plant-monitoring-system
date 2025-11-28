@@ -19,7 +19,7 @@ def test1():
     )
     unique_identifier = consumer.register_new_device(plant_id, 'Xiaomi Moisture Deluxe', 'test1 device', 'Deluxe Moisture Machine by the window')
     consumer.activate_device(plant_id, unique_identifier)
-    consumer.activate_plant_care(plant_id)
+    consumer.plant_care_activation(plant_id)
 
     time.sleep(300)
 
@@ -40,7 +40,7 @@ def test2():
     consumer.activate_device(plant_id, unique_identifier1)
     unique_identifier2 = consumer.register_new_device(plant_id, 'Xiaomi Moisture Deluxe', 'test2 device 2', '2nd Deluxe Moisture Machine by the window')
     consumer.activate_device(plant_id, unique_identifier2)
-    consumer.activate_plant_care(plant_id)
+    consumer.plant_care_activation(plant_id)
 
     time.sleep(300)
 
@@ -72,7 +72,7 @@ def test3():
     unique_identifier2 = consumer.register_new_device(plant_id2, 'Xiaomi Temperature Deluxe', 'test3 temperature', 'Deluxe Temperature Machine on the floor')
     consumer.activate_device(plant_id2, unique_identifier2)
     
-    consumer.activate_plant_care()
+    consumer.plant_care_activation()
 
     time.sleep(300)
 

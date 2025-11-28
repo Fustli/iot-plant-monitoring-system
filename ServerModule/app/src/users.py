@@ -180,32 +180,44 @@ class Consumer(User):
             if plant.id == plant_id:
                 device = plant.devices.get_device(unique_identfier)
                 device.activate()
-    
-    def deactivate_device(self, plant_id: str, unique_identfier: str):
+
+    def device_activation(self, device_id: int | None = None, command: bool = True):
+        """
+        Activate/deactivate a single device or all devices owned by this consumer.
+
+        :param device_id: if None, affect all devices; otherwise only the given device id.
+        :param command: True -> activate, False -> deactivate.
+        """
+        db_interface = DBInterface()
+
         for plant in self.plants:
-            if plant.id == plant_id:
-                device = plant.devices.get_device(unique_identfier)
-                device.deactivate()
+            for device in plant.devices.devices:
+                if device_id is not None and device.id != device_id:
+                    continue
 
-    def activate_plant_care(self, plant_id: int | None = None):
+                if command:
+                    device.activate()
+                else:
+                    device.deactivate()
+
+                db_interface.set_device_active_state(device.id, command)
+
+    def plant_care_activation(self, plant_id: int | None = None, command: bool = True):
+        db_interface = DBInterface()
         if plant_id:
             for plant in self.plants:
                 if getattr(plant, "id", None) == plant_id:
+                    if command:
+                        plant.start_plant_care()
+                    else:
+                        plant.stop_plant_care()
+                    return
+        else:
+            for plant in self.plants:
+                if command:
                     plant.start_plant_care()
-                    return
-        else:
-            for plant in self.plants:
-                plant.start_plant_care()
-
-    def deactivate_plant_care(self, plant_id: int | None = None):
-        if plant_id:
-            for plant in self.plants:
-                if getattr(plant, "id", None) == plant_id:
+                else:
                     plant.stop_plant_care()
-                    return
-        else:
-            for plant in self.plants:
-                plant.stop_plant_care()
 
     def manually_control_device():
         pass

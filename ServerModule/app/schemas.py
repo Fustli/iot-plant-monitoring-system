@@ -106,3 +106,7 @@ class RegisterDevice(BaseModel):
     max_value: float
     is_active: bool = True
     description: str | None = None
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
