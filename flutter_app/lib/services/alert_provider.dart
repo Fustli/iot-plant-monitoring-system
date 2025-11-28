@@ -105,9 +105,7 @@ class AlertProvider with ChangeNotifier {
   }
 
   /// Get alerts for a specific plant
-  List<Alert> getAlertsForPlant(String plantId) {
-    return _alerts.where((alert) => alert.plantId == plantId).toList();
-  }
+  List<Alert> getAlertsForPlant(String plantId) => _alerts.where((alert) => alert.plantId == plantId).toList();
 
   /// Get the most recent alert for a plant
   Alert? getMostRecentAlertForPlant(String plantId) {
@@ -119,16 +117,12 @@ class AlertProvider with ChangeNotifier {
   }
 
   /// Check if plant has active alerts
-  bool hasActiveAlertsForPlant(String plantId) {
-    return _alerts.any((alert) => 
+  bool hasActiveAlertsForPlant(String plantId) => _alerts.any((alert) => 
         alert.plantId == plantId && alert.status == AlertStatusEnum.active);
-  }
 
   /// Get count of active alerts for a plant
-  int getActiveAlertsCountForPlant(String plantId) {
-    return _alerts.where((alert) => 
+  int getActiveAlertsCountForPlant(String plantId) => _alerts.where((alert) => 
         alert.plantId == plantId && alert.status == AlertStatusEnum.active).length;
-  }
 
   /// Refresh alerts data
   Future<void> refresh() async {
@@ -154,8 +148,6 @@ class AlertProvider with ChangeNotifier {
       severity: severity,
       status: AlertStatusEnum.active,
       triggeredAt: DateTime.now(),
-      acknowledgedAt: null,
-      resolvedAt: null,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );

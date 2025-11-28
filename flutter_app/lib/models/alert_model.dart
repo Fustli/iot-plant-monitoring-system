@@ -3,19 +3,6 @@ enum AlertSeverityEnum { info, warning, critical }
 enum AlertStatusEnum { active, acknowledged, resolved }
 
 class Alert {
-  final String id;
-  final int userId;
-  final String plantId;
-  final int alertRuleId;
-  final String title;
-  final String message;
-  final AlertSeverityEnum severity;
-  final AlertStatusEnum status;
-  final DateTime triggeredAt;
-  final DateTime? acknowledgedAt;
-  final DateTime? resolvedAt;
-  final DateTime createdAt;
-  final DateTime updatedAt;
 
   Alert({
     required this.id,
@@ -32,19 +19,6 @@ class Alert {
     required this.createdAt,
     required this.updatedAt,
   });
-
-  bool get isActive => status == AlertStatusEnum.active;
-
-  String get severityText {
-    switch (severity) {
-      case AlertSeverityEnum.info:
-        return 'Info';
-      case AlertSeverityEnum.warning:
-        return 'Warning';
-      case AlertSeverityEnum.critical:
-        return 'Critical';
-    }
-  }
 
   factory Alert.fromJson(Map<String, dynamic> json) {
     return Alert(
@@ -72,6 +46,32 @@ class Alert {
           ? DateTime.parse(json['updated_at'])
           : DateTime.now(),
     );
+  }
+  final String id;
+  final int userId;
+  final String plantId;
+  final int alertRuleId;
+  final String title;
+  final String message;
+  final AlertSeverityEnum severity;
+  final AlertStatusEnum status;
+  final DateTime triggeredAt;
+  final DateTime? acknowledgedAt;
+  final DateTime? resolvedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  bool get isActive => status == AlertStatusEnum.active;
+
+  String get severityText {
+    switch (severity) {
+      case AlertSeverityEnum.info:
+        return 'Info';
+      case AlertSeverityEnum.warning:
+        return 'Warning';
+      case AlertSeverityEnum.critical:
+        return 'Critical';
+    }
   }
 
   static AlertSeverityEnum _parseSeverity(dynamic severity) {
@@ -120,8 +120,7 @@ class Alert {
     DateTime? resolvedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) {
-    return Alert(
+  }) => Alert(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       plantId: plantId ?? this.plantId,
@@ -136,5 +135,4 @@ class Alert {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
-  }
 }

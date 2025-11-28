@@ -4,9 +4,6 @@ import '../services/hybrid_data_service.dart';
 import '../constants/app_colors.dart';
 
 class PlantCard extends StatefulWidget {
-  final Plant plant;
-  final VoidCallback? onTap;
-  final Function(String)? onWaterSuccess;
 
   const PlantCard({
     Key? key,
@@ -14,6 +11,9 @@ class PlantCard extends StatefulWidget {
     this.onTap,
     this.onWaterSuccess,
   }) : super(key: key);
+  final Plant plant;
+  final VoidCallback? onTap;
+  final Function(String)? onWaterSuccess;
 
   @override
   State<PlantCard> createState() => _PlantCardState();
@@ -33,7 +33,7 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
       duration: const Duration(seconds: 1),
       vsync: this,
     );
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
+    _pulseAnimation = Tween<double>(begin: 1, end: 1.1).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
@@ -45,8 +45,7 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
+  Widget build(BuildContext context) => AnimatedBuilder(
       animation: _pulseAnimation,
       builder: (context, child) {
         return Transform.scale(
@@ -251,15 +250,13 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
         );
       },
     );
-  }
 
   Widget _buildSensorTile({
     required IconData icon,
     required String label,
     required String value,
     required Color color,
-  }) {
-    return Container(
+  }) => Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
@@ -290,7 +287,6 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
         ],
       ),
     );
-  }
 
   Color _getHealthColor(HealthStatus status) {
     switch (status) {

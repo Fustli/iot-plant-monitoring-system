@@ -5,13 +5,13 @@ import '../models/alert_model.dart';
 import 'mock_data.dart';
 
 class HybridDataService {
+  factory HybridDataService() => _instance;
+  HybridDataService._internal();
   static const Duration _timeout = Duration(seconds: 2);
   static const String _baseUrl = 'http://localhost:8000/api'; // Backend URL
 
   // Singleton pattern for consistent service usage
   static final HybridDataService _instance = HybridDataService._internal();
-  factory HybridDataService() => _instance;
-  HybridDataService._internal();
 
   /// Get all plants - tries real API, falls back to mock data
   Future<List<Plant>> getPlants() async {
@@ -180,10 +180,6 @@ class HybridDataService {
 
 /// Sensor reading data structure for charts
 class SensorReading {
-  final DateTime timestamp;
-  final double moisture;
-  final double temperature;
-  final int light;
 
   SensorReading({
     required this.timestamp,
@@ -200,14 +196,14 @@ class SensorReading {
       light: json['light'] ?? 0,
     );
   }
+  final DateTime timestamp;
+  final double moisture;
+  final double temperature;
+  final int light;
 }
 
 /// Dashboard statistics
 class DashboardStats {
-  final int totalPlants;
-  final int healthyPlants;
-  final int activeAlerts;
-  final int onlineDevices;
 
   DashboardStats({
     required this.totalPlants,
@@ -224,4 +220,8 @@ class DashboardStats {
       onlineDevices: json['online_devices'] ?? 0,
     );
   }
+  final int totalPlants;
+  final int healthyPlants;
+  final int activeAlerts;
+  final int onlineDevices;
 }

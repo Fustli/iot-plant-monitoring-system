@@ -6,7 +6,7 @@ import '../constants/app_colors.dart';
 import '../models/plant_model.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({Key? key}) : super(key: key);
+  const HistoryScreen({super.key});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -59,8 +59,7 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+  Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(
         title: const Text('Plant History & Analytics'),
         backgroundColor: AppColors.primary,
@@ -190,7 +189,6 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
         ],
       ),
     );
-  }
 
   Widget _buildChartsTab() {
     if (_selectedPlantId == null) {
@@ -298,7 +296,7 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
                         ),
                         const SizedBox(height: 12),
                         Text('Total data points: ${_sensorHistory.length}'),
-                        Text('Date range: ${_selectedDays} days'),
+                        Text('Date range: $_selectedDays days'),
                         Text('Average moisture: ${_calculateAverageMoisture().toStringAsFixed(1)}%'),
                         Text('Average temperature: ${_calculateAverageTemperature().toStringAsFixed(1)}°C'),
                         Text('Average light: ${_calculateAverageLight().toStringAsFixed(1)}%'),
@@ -313,8 +311,7 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildCurrentReading(String label, String value, IconData icon, Color color) {
-    return Column(
+  Widget _buildCurrentReading(String label, String value, IconData icon, Color color) => Column(
       children: [
         CircleAvatar(
           backgroundColor: color.withOpacity(0.1),
@@ -335,10 +332,8 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
         ),
       ],
     );
-  }
 
-  Widget _buildChartCard(String title, IconData icon, Color color) {
-    return Card(
+  Widget _buildChartCard(String title, IconData icon, Color color) => Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -391,10 +386,8 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
         ),
       ),
     );
-  }
 
-  Widget _buildLogsTab() {
-    return ListView(
+  Widget _buildLogsTab() => ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _buildLogEntry('Plant watered', 'Manual watering completed', DateTime.now().subtract(const Duration(hours: 2)), Icons.water_drop, AppColors.info),
@@ -404,10 +397,8 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
         _buildLogEntry('Temperature spike', 'High temperature recorded - 28°C', DateTime.now().subtract(const Duration(days: 1)), Icons.thermostat, AppColors.error),
       ],
     );
-  }
 
-  Widget _buildLogEntry(String title, String description, DateTime timestamp, IconData icon, Color color) {
-    return Card(
+  Widget _buildLogEntry(String title, String description, DateTime timestamp, IconData icon, Color color) => Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
@@ -432,10 +423,8 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
         isThreeLine: true,
       ),
     );
-  }
 
-  Widget _buildInsightsTab() {
-    return Consumer<PlantProvider>(
+  Widget _buildInsightsTab() => Consumer<PlantProvider>(
       builder: (context, plantProvider, child) {
         final selectedPlant = plantProvider.getPlantById(_selectedPlantId ?? '');
         
@@ -487,10 +476,8 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
         );
       },
     );
-  }
 
-  Widget _buildInsightCard(String title, String status, String description, IconData icon, Color color) {
-    return Card(
+  Widget _buildInsightCard(String title, String status, String description, IconData icon, Color color) => Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -534,7 +521,6 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
         ),
       ),
     );
-  }
 
   Color _getHealthColor(HealthStatus status) {
     switch (status) {
@@ -563,17 +549,17 @@ class _HistoryScreenState extends State<HistoryScreen> with TickerProviderStateM
   }
 
   double _calculateAverageMoisture() {
-    if (_sensorHistory.isEmpty) return 0.0;
+    if (_sensorHistory.isEmpty) return 0;
     return _sensorHistory.map((r) => r.moisture).reduce((a, b) => a + b) / _sensorHistory.length;
   }
 
   double _calculateAverageTemperature() {
-    if (_sensorHistory.isEmpty) return 0.0;
+    if (_sensorHistory.isEmpty) return 0;
     return _sensorHistory.map((r) => r.temperature).reduce((a, b) => a + b) / _sensorHistory.length;
   }
 
   double _calculateAverageLight() {
-    if (_sensorHistory.isEmpty) return 0.0;
+    if (_sensorHistory.isEmpty) return 0;
     return _sensorHistory.map((r) => r.light.toDouble()).reduce((a, b) => a + b) / _sensorHistory.length;
   }
 }

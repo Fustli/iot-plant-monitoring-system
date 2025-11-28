@@ -13,6 +13,10 @@
         android:usesCleartextTraffic="true">
 
         <activity
+# ============================================================================
+# python-json-logger==2.0.7
+
+# ====================================
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"

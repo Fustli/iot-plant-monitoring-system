@@ -283,6 +283,21 @@ windows/flutter/generated_plugins.cmake
 coverage/
 
 # ============================================================================
+# CUSTOM PROJECT EXCLUSIONS
+# ============================================================================
+# Temporary process IDs
+pids/
+
+# The downloaded Flutter SDK and compressed archive (Huge files)
+flutter_app/flutter.tar.xz
+flutter_app/flutter/
+
+# Ensure the ServerModule virtual environment is ignored if named differently
+ServerModule/venv/
+ServerModule/.venv/
+ServerModule/env/
+
+# ============================================================================
 # Project specific
 # ============================================================================
 .env.local

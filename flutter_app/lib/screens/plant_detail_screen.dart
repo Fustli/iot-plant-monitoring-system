@@ -8,12 +8,12 @@ import '../constants/app_colors.dart';
 import '../widgets/alert_banner.dart';
 
 class PlantDetailScreen extends StatefulWidget {
-  final String plantId;
 
   const PlantDetailScreen({
     Key? key,
     required this.plantId,
   }) : super(key: key);
+  final String plantId;
 
   @override
   State<PlantDetailScreen> createState() => _PlantDetailScreenState();
@@ -54,8 +54,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+  Widget build(BuildContext context) => Scaffold(
       body: Consumer<PlantProvider>(
         builder: (context, plantProvider, child) {
           final plant = plantProvider.getPlantById(widget.plantId);
@@ -182,10 +181,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         },
       ),
     );
-  }
 
-  Widget _buildPlantInfoCard(Plant plant) {
-    return Card(
+  Widget _buildPlantInfoCard(Plant plant) => Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -217,10 +214,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ),
       ),
     );
-  }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
+  Widget _buildInfoRow(IconData icon, String label, String value) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
@@ -239,10 +234,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ],
       ),
     );
-  }
 
-  Widget _buildSensorReadingsCard(Plant plant) {
-    return Card(
+  Widget _buildSensorReadingsCard(Plant plant) => Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -298,10 +291,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ),
       ),
     );
-  }
 
-  Widget _buildSensorGauge(String title, String value, double progress, Color color, IconData icon) {
-    return Column(
+  Widget _buildSensorGauge(String title, String value, double progress, Color color, IconData icon) => Column(
       children: [
         Stack(
           alignment: Alignment.center,
@@ -335,10 +326,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ),
       ],
     );
-  }
 
-  Widget _buildControlActionsCard(Plant plant) {
-    return Card(
+  Widget _buildControlActionsCard(Plant plant) => Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -400,10 +389,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ),
       ),
     );
-  }
 
-  Widget _buildHistoryCard() {
-    return Card(
+  Widget _buildHistoryCard() => Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -460,10 +447,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ),
       ),
     );
-  }
 
-  Widget _buildPlantCareCard(Plant plant) {
-    return Card(
+  Widget _buildPlantCareCard(Plant plant) => Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -490,10 +475,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ),
       ),
     );
-  }
 
-  Widget _buildCareInstruction(IconData icon, String instruction) {
-    return Padding(
+  Widget _buildCareInstruction(IconData icon, String instruction) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
@@ -508,11 +491,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ],
       ),
     );
-  }
 
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
-  }
+  String _formatDateTime(DateTime dateTime) => '${dateTime.day}/${dateTime.month}/${dateTime.year}';
 
   Future<void> _handleWaterPlant() async {
     setState(() {
@@ -523,8 +503,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       final success = await context.read<PlantProvider>().waterPlant(widget.plantId);
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Plant watered successfully!'),
+          const SnackBar(
+            content: Text('Plant watered successfully!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -555,8 +535,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Light adjusted successfully!'),
+          const SnackBar(
+            content: Text('Light adjusted successfully!'),
             backgroundColor: AppColors.success,
           ),
         );

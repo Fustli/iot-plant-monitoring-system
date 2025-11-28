@@ -5,14 +5,14 @@ import '../services/alert_provider.dart';
 import '../constants/app_colors.dart';
 
 class AlertBanner extends StatefulWidget {
-  final Alert alert;
-  final bool showDismissButton;
 
   const AlertBanner({
     Key? key,
     required this.alert,
     this.showDismissButton = true,
   }) : super(key: key);
+  final Alert alert;
+  final bool showDismissButton;
 
   @override
   State<AlertBanner> createState() => _AlertBannerState();
@@ -213,10 +213,10 @@ class _AlertBannerState extends State<AlertBanner> with TickerProviderStateMixin
       });
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Alert acknowledged'),
+        const SnackBar(
+          content: Text('Alert acknowledged'),
           backgroundColor: AppColors.success,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -234,10 +234,10 @@ class _AlertBannerState extends State<AlertBanner> with TickerProviderStateMixin
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Alert dismissed'),
+          const SnackBar(
+            content: Text('Alert dismissed'),
             backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
       } else {

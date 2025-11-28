@@ -42,7 +42,7 @@ class MockData {
       updatedAt: DateTime.now().subtract(const Duration(hours: 2)),
       imageUrl: 'https://images.unsplash.com/photo-1595799133244-ae69a0e5ba02?w=150',
       currentMoisture: 45,
-      currentTemperature: 21.0,
+      currentTemperature: 21,
       currentLight: 40,
     ),
     Plant(
@@ -60,7 +60,7 @@ class MockData {
       updatedAt: DateTime.now().subtract(const Duration(minutes: 30)),
       imageUrl: 'https://images.unsplash.com/photo-1512428813834-c702c7702b78?w=150',
       currentMoisture: 25,
-      currentTemperature: 24.0,
+      currentTemperature: 24,
       currentLight: 80,
     ),
     Plant(
@@ -78,7 +78,7 @@ class MockData {
       updatedAt: DateTime.now().subtract(const Duration(minutes: 15)),
       imageUrl: 'https://images.unsplash.com/photo-1509423350716-97f2360af177?w=150',
       currentMoisture: 85,
-      currentTemperature: 26.0,
+      currentTemperature: 26,
       currentLight: 90,
     ),
     Plant(
@@ -96,7 +96,7 @@ class MockData {
       updatedAt: DateTime.now().subtract(const Duration(hours: 1)),
       imageUrl: 'https://images.unsplash.com/photo-1470058869958-2a77ade41c02?w=150',
       currentMoisture: 60,
-      currentTemperature: 23.0,
+      currentTemperature: 23,
       currentLight: 45,
     ),
     Plant(
@@ -114,7 +114,7 @@ class MockData {
       updatedAt: DateTime.now().subtract(const Duration(minutes: 45)),
       imageUrl: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=150',
       currentMoisture: 70,
-      currentTemperature: 22.0,
+      currentTemperature: 22,
       currentLight: 55,
     ),
   ];
@@ -131,8 +131,6 @@ class MockData {
       severity: AlertSeverityEnum.warning,
       status: AlertStatusEnum.active,
       triggeredAt: DateTime.now().subtract(const Duration(hours: 2)),
-      acknowledgedAt: null,
-      resolvedAt: null,
       createdAt: DateTime.now().subtract(const Duration(hours: 2)),
       updatedAt: DateTime.now().subtract(const Duration(hours: 2)),
     ),
@@ -146,8 +144,6 @@ class MockData {
       severity: AlertSeverityEnum.critical,
       status: AlertStatusEnum.active,
       triggeredAt: DateTime.now().subtract(const Duration(minutes: 30)),
-      acknowledgedAt: null,
-      resolvedAt: null,
       createdAt: DateTime.now().subtract(const Duration(minutes: 30)),
       updatedAt: DateTime.now().subtract(const Duration(minutes: 30)),
     ),
@@ -162,7 +158,6 @@ class MockData {
       status: AlertStatusEnum.acknowledged,
       triggeredAt: DateTime.now().subtract(const Duration(hours: 6)),
       acknowledgedAt: DateTime.now().subtract(const Duration(hours: 4)),
-      resolvedAt: null,
       createdAt: DateTime.now().subtract(const Duration(hours: 6)),
       updatedAt: DateTime.now().subtract(const Duration(hours: 4)),
     ),
@@ -178,19 +173,19 @@ class MockData {
 
   /// Generate mock sensor history for charts
   static List<SensorReading> generateSensorHistory(String plantId, int days) {
-    final List<SensorReading> history = [];
+    final history = <SensorReading>[];
     final now = DateTime.now();
     final plant = plants.firstWhere((p) => p.id == plantId, orElse: () => plants.first);
     
     // Generate hourly readings for the specified number of days
-    for (int day = days; day >= 0; day--) {
-      for (int hour = 0; hour < 24; hour++) {
+    for (var day = days; day >= 0; day--) {
+      for (var hour = 0; hour < 24; hour++) {
         final timestamp = now.subtract(Duration(days: day, hours: hour));
         
         // Generate realistic fluctuations around the plant's current values
         final moistureVariation = (_random.nextDouble() - 0.5) * 20; // ±10%
         final tempVariation = (_random.nextDouble() - 0.5) * 6; // ±3°C
-        final lightVariation = (_random.nextInt(40) - 20); // ±20%
+        final lightVariation = _random.nextInt(40) - 20; // ±20%
         
         history.add(SensorReading(
           timestamp: timestamp,

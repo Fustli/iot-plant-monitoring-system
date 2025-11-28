@@ -1,0 +1,728 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../constants/app_colors.dart';
+import '../widgets/plant_card.dart';
+import '../widgets/alert_banner.dart';
+import '../services/plant_provider.dart';
+import '../services/alert_provider.dart';
+import '../services/auth_provider.dart';
+import '../services/localization_service.dart';
+import 'plant_detail_screen.dart';
+import 'history_screen.dart';
+
+/// Consumer/User dashboard with plants, devices, alerts, and settings
+class UserDashboardScreen extends StatefulWidget {
+  const UserDashboardScreen({super.key});
+
+  @override
+  State<UserDashboardScreen> createState() => _UserDashboardScreenState();
+}
+
+class _UserDashboardScreenState extends State<UserDashboardScreen> {
+  int _selectedIndex = 0;
+  final PageController _pageController = PageController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PlantProvider>().loadPlants();
+      context.read<AlertProvider>().loadAlerts();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationProvider>();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_getAppBarTitle(localization)),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _handleRefresh,
+          ),
+        ],
+      ),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        children: const [
+          _HomeView(),
+          _PlantsView(),
+          _DevicesView(),
+          _AlertsView(),
+          _SettingsView(),
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: Colors.grey,
+        items: [
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.dashboard),
+            label: localization.tr('nav_home'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.local_florist),
+            label: localization.tr('nav_plants'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.devices),
+            label: localization.tr('nav_devices'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.warning_amber),
+            label: localization.tr('nav_alerts'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.settings),
+            label: localization.tr('nav_settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getAppBarTitle(LocalizationProvider localization) {
+    switch (_selectedIndex) {
+      case 0:
+        return localization.tr('nav_home');
+      case 1:
+        return localization.tr('plants_title');
+      case 2:
+        return localization.tr('devices_title');
+      case 3:
+        return localization.tr('alerts_title');
+      case 4:
+        return localization.tr('settings_title');
+      default:
+        return localization.tr('app_name');
+    }
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  Future<void> _handleRefresh() async {
+    await Future.wait([
+      context.read<PlantProvider>().refresh(),
+      context.read<AlertProvider>().refresh(),
+    ]);
+  }
+}
+
+// =============================================================================
+// HOME VIEW
+// =============================================================================
+
+class _HomeView extends StatelessWidget {
+  const _HomeView();
+
+  @override
+  Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationProvider>();
+    final authProvider = context.watch<AuthProvider>();
+    final username = authProvider.username ?? 'User';
+
+    return RefreshIndicator(
+      onRefresh: () => Future.wait([
+        context.read<PlantProvider>().refresh(),
+        context.read<AlertProvider>().refresh(),
+      ]),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Welcome header
+            Text(
+              '${localization.tr('home_hello')}, $username! 🌱',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+            ),
+            const SizedBox(height: 24),
+
+            // Critical alerts banner
+            Consumer<AlertProvider>(
+              builder: (context, alertProvider, child) {
+                final criticalAlerts = alertProvider.criticalAlerts
+                    .where((alert) => alert.status.name == 'active')
+                    .toList();
+
+                if (criticalAlerts.isNotEmpty) {
+                  return Column(
+                    children: [
+                      AlertBanner(alert: criticalAlerts.first),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+
+            // Quick stats
+            Text(
+              localization.tr('home_quick_stats'),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Consumer2<PlantProvider, AlertProvider>(
+              builder: (context, plantProvider, alertProvider, child) {
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.local_florist,
+                        title: localization.tr('home_total_plants'),
+                        value: plantProvider.totalPlants.toString(),
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.devices,
+                        title: localization.tr('home_total_devices'),
+                        value: '0', // TODO: Get from device provider
+                        color: AppColors.info,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.warning,
+                        title: localization.tr('home_active_alerts'),
+                        value: alertProvider.activeAlertsCount.toString(),
+                        color: alertProvider.criticalAlertsCount > 0
+                            ? AppColors.error
+                            : AppColors.warning,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // Plants needing attention
+            Consumer<PlantProvider>(
+              builder: (context, plantProvider, child) {
+                final needsAttention = plantProvider.plantsNeedingAttention;
+
+                if (needsAttention.isNotEmpty) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        localization.tr('home_recent_alerts'),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                      const SizedBox(height: 12),
+                      ...needsAttention.take(2).map((plant) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: PlantCard(
+                              plant: plant,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      PlantDetailScreen(plantId: plant.id),
+                                ),
+                              ),
+                              onWaterSuccess: (plantId) {
+                                context
+                                    .read<PlantProvider>()
+                                    .loadPlantDetails(plantId);
+                              },
+                            ),
+                          )),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // History/Analytics card
+            Card(
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.info.withOpacity(0.1),
+                  child: Icon(Icons.analytics, color: AppColors.info),
+                ),
+                title: Text(localization.tr('common_view_details')),
+                subtitle: const Text('Plant History & Analytics'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const HistoryScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withOpacity(0.1),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+// =============================================================================
+// PLANTS VIEW
+// =============================================================================
+
+class _PlantsView extends StatelessWidget {
+  const _PlantsView();
+
+  @override
+  Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationProvider>();
+
+    return Consumer<PlantProvider>(
+      builder: (context, plantProvider, child) {
+        if (plantProvider.isLoading) {
+          return Center(
+              child: CircularProgressIndicator(color: AppColors.primary));
+        }
+
+        if (plantProvider.plants.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.local_florist, size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(localization.tr('plants_empty')),
+                const SizedBox(height: 8),
+                Text(localization.tr('plants_add_first'),
+                    style: TextStyle(color: Colors.grey[600])),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // TODO: Navigate to add plant screen
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(localization.tr('common_loading'))),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: Text(localization.tr('plants_add')),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: plantProvider.refresh,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: plantProvider.plants.length,
+            itemBuilder: (context, index) {
+              final plant = plantProvider.plants[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: PlantCard(
+                  plant: plant,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            PlantDetailScreen(plantId: plant.id),
+                      ),
+                    );
+                  },
+                  onWaterSuccess: (plantId) {
+                    plantProvider.loadPlantDetails(plantId);
+                  },
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+// =============================================================================
+// DEVICES VIEW
+// =============================================================================
+
+class _DevicesView extends StatelessWidget {
+  const _DevicesView();
+
+  @override
+  Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationProvider>();
+
+    // TODO: Implement DeviceProvider and device management
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.devices_other, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(localization.tr('devices_empty')),
+          const SizedBox(height: 8),
+          Text(localization.tr('devices_add_first'),
+              style: TextStyle(color: Colors.grey[600])),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(localization.tr('common_loading'))),
+              );
+            },
+            icon: const Icon(Icons.add),
+            label: Text(localization.tr('devices_add')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// ALERTS VIEW
+// =============================================================================
+
+class _AlertsView extends StatelessWidget {
+  const _AlertsView();
+
+  @override
+  Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationProvider>();
+
+    return Consumer<AlertProvider>(
+      builder: (context, alertProvider, child) {
+        if (alertProvider.isLoading) {
+          return Center(
+              child: CircularProgressIndicator(color: AppColors.primary));
+        }
+
+        if (alertProvider.alerts.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle, size: 64, color: Colors.green),
+                const SizedBox(height: 16),
+                Text(localization.tr('alerts_none')),
+                const SizedBox(height: 8),
+                Text(localization.tr('home_no_alerts'),
+                    style: TextStyle(color: Colors.grey[600])),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: alertProvider.refresh,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: alertProvider.alerts.length,
+            itemBuilder: (context, index) {
+              final alert = alertProvider.alerts[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: AlertBanner(alert: alert),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+// =============================================================================
+// SETTINGS VIEW
+// =============================================================================
+
+class _SettingsView extends StatelessWidget {
+  const _SettingsView();
+
+  @override
+  Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationProvider>();
+    final authProvider = context.watch<AuthProvider>();
+    final role = authProvider.currentRole;
+    final username = authProvider.username ?? 'User';
+    final isDemoMode = authProvider.isDemoMode;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // User info card
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: AppColors.primary,
+                  radius: 28,
+                  child:
+                      const Icon(Icons.person, color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        username,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          role?.displayNameHu ??
+                              localization.tr('demo_consumer'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      if (isDemoMode) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          localization.tr('demo_title'),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Language settings
+        _buildSectionTitle(localization.tr('settings_preferences')),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.language),
+                title: Text(localization.tr('settings_language')),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      localization.currentLanguage.displayName,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: localization.currentLanguage == AppLanguage.hu,
+                      onChanged: (value) {
+                        localization.setLanguage(
+                          value ? AppLanguage.hu : AppLanguage.en,
+                        );
+                      },
+                      activeColor: AppColors.primary,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.notifications),
+                title: Text(localization.tr('settings_notifications')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(localization.tr('common_loading'))),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // About
+        _buildSectionTitle(localization.tr('settings_about')),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: Text(localization.tr('settings_about')),
+                subtitle: Text('${localization.tr('version')} 1.0.0'),
+                onTap: () {
+                  showAboutDialog(
+                    context: context,
+                    applicationName: localization.tr('app_name'),
+                    applicationVersion: '1.0.0',
+                    applicationLegalese:
+                        '© 2025 ${localization.tr('app_subtitle')}',
+                  );
+                },
+              ),
+              if (isDemoMode) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.refresh),
+                  title: const Text('Reset Demo Data'),
+                  onTap: () {
+                    context.read<PlantProvider>().loadPlants();
+                    context.read<AlertProvider>().loadAlerts();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Demo data reset')),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Logout button
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              await context.read<AuthProvider>().logout();
+              if (context.mounted) {
+                Navigator.of(context)
+                    .pushNamedAndRemoveUntil('/login', (route) => false);
+              }
+            },
+            icon: const Icon(Icons.logout),
+            label: Text(localization.tr('settings_logout')),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[400],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey,
+        ),
+      ),
+    );
+  }
+}

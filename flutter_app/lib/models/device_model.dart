@@ -1,17 +1,4 @@
 class Device {
-  final int id;
-  final int userId;
-  final int deviceTypeId;
-  final String uniqueIdentifier;
-  final String deviceName;
-  final bool isActive;
-  final DateTime? lastDataReceived;
-  final DateTime? lastHeartbeat;
-  final String? locationDescription;
-  final double? batteryLevel;
-  final int? rssi;
-  final DateTime createdAt;
-  final DateTime updatedAt;
 
   Device({
     required this.id,
@@ -28,14 +15,6 @@ class Device {
     required this.createdAt,
     required this.updatedAt,
   });
-
-  bool get isOnline {
-    if (lastHeartbeat == null) return false;
-    final duration = DateTime.now().difference(lastHeartbeat!);
-    return duration.inMinutes < 5;
-  }
-
-  String get statusText => isOnline ? 'Online' : 'Offline';
 
   factory Device.fromJson(Map<String, dynamic> json) {
     return Device(
@@ -54,6 +33,27 @@ class Device {
       updatedAt: DateTime.parse(json['updated_at']),
     );
   }
+  final int id;
+  final int userId;
+  final int deviceTypeId;
+  final String uniqueIdentifier;
+  final String deviceName;
+  final bool isActive;
+  final DateTime? lastDataReceived;
+  final DateTime? lastHeartbeat;
+  final String? locationDescription;
+  final double? batteryLevel;
+  final int? rssi;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  bool get isOnline {
+    if (lastHeartbeat == null) return false;
+    final duration = DateTime.now().difference(lastHeartbeat!);
+    return duration.inMinutes < 5;
+  }
+
+  String get statusText => isOnline ? 'Online' : 'Offline';
 
   Map<String, dynamic> toJson() => {
     'id': id,

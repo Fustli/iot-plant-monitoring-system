@@ -1,12 +1,4 @@
 class SensorData {
-  final int id;
-  final int deviceId;
-  final double measurementValue;
-  final String measurementUnit;
-  final int dataQuality;
-  final bool isAnomaly;
-  final DateTime timestamp;
-  final String? rawData;
 
   SensorData({
     required this.id,
@@ -31,6 +23,14 @@ class SensorData {
       rawData: json['raw_data'],
     );
   }
+  final int id;
+  final int deviceId;
+  final double measurementValue;
+  final String measurementUnit;
+  final int dataQuality;
+  final bool isAnomaly;
+  final DateTime timestamp;
+  final String? rawData;
 
   Map<String, dynamic> toJson() => {
     'id': id,
