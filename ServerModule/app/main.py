@@ -17,6 +17,9 @@ from schemas import (
     DeviceCommand,
     NewPlantType,
     UserDetails,
+    PlantSearch,
+    PasswordChange,
+    RegisterDevice,
 )
 from security import verify_password
 from auth_jwt import create_access_token, decode_access_token
@@ -130,6 +133,16 @@ async def register(
     """Registers a new user account."""
     pass
 
+@app.post("/api/auth/register/consumer")
+async def register_consumer(
+    payload: UserDetails
+):
+    """
+    Public registration for consumer users only.
+    Manufacturers and admins must be created by existing admins.
+    """
+    pass
+
 
 @app.get("/api/user/profile")
 async def get_user_profile(
@@ -149,6 +162,31 @@ async def update_user_profile(
     ),
 ):
     """Updates user details or deletes the account."""
+    pass
+
+@app.post("/api/user/change-password")
+async def change_password(
+    payload: PasswordChange,
+    current_user: User = Depends(
+        require_roles(["admin", "consumer", "manufacturer"])
+    ),
+):
+    """Change user password."""
+    pass
+
+@app.post("/api/auth/forgot-password")
+async def forgot_password(
+    email: str
+):
+    """Initiate password reset flow."""
+    pass
+
+@app.post("/api/auth/reset-password")
+async def reset_password(
+    token: str, 
+    new_password: str
+):
+    """Reset password with token."""
     pass
 
 
@@ -190,11 +228,12 @@ async def list_all_devices_admin(
 
 
 # ---------------------------------------------------------------------------
-# 3. Device Manufacturer TODO
+# 3. Device Manufacturer
 # ---------------------------------------------------------------------------
 
 @app.post("/api/manufacturer/device-types")
 async def register_device_type(
+    payload: RegisterDevice,
     current_manufacturer: User = Depends(
         require_roles(["manufacturer", "admin"])
     ),
@@ -216,6 +255,7 @@ async def list_device_types(
 @app.put("/api/manufacturer/device-types/{device_type_id}")
 async def update_device_type(
     device_type_id: int,
+    payload: RegisterDevice,
     current_manufacturer: User = Depends(
         require_roles(["manufacturer", "admin"])
     ),
@@ -224,19 +264,8 @@ async def update_device_type(
     pass
 
 
-@app.post("/api/manufacturer/devices")
-async def register_device_instance(
-    current_manufacturer: User = Depends(
-        require_roles(["manufacturer", "admin"])
-    ),
-):
-    """Registers specific device instances (by serial number) to be claimable by users."""
-    pass
-
-
 # ---------------------------------------------------------------------------
-# 4. Plant Database Manager (Species Catalog)
-#    -> treated as admin-only in this 3-role setup
+# 4. Plants
 # ---------------------------------------------------------------------------
 
 @app.post("/api/plant-type")
@@ -267,15 +296,20 @@ async def delete_plant_species(
     pass
 
 
-# ---------------------------------------------------------------------------
-# 5. Plants
-# ---------------------------------------------------------------------------
-
 @app.get("/api/consumer/plant-types")
 async def list_plant_types(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """Lists available plant types for the user to select from when adding a new plant."""
+    pass
+
+
+@app.get("/api/consumer/plant-types/search")
+async def search_plant_types(
+    payload: PlantSearch,
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+):
+    """Search plant types by name or scientific name."""
     pass
 
 
@@ -353,6 +387,13 @@ async def register_user_device(
     """Registers a purchased device to the user's account using its Unique ID."""
     pass
 
+@app.get("/api/consumer/device-types")
+async def list_available_device_types(
+    current_user: User = Depends(require_roles(["consumer", "admin", "manufacturer"])),
+):
+    """Lists device types."""
+    pass
+
 
 @app.get("/api/consumer/my-devices")
 async def list_my_devices(
@@ -410,6 +451,22 @@ async def get_alerts(
 ):
     """Retrieves active system alerts (e.g., low moisture, device failure)."""
     pass
+
+
+@app.put("/api/consumer/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+):
+    """Mark alert as acknowledged."""
+    pass
+
+
+@app.put("/api/consumer/alerts/{alert_id}/resolve")
+async def resolve_alert(
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+):
+    pass
+    """Mark alert as resolved."""
 
 
 # ---------------------------------------------------------------------------

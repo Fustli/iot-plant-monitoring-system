@@ -87,3 +87,22 @@ class UserDetails(BaseModel):
     phone_number: str
     is_active: bool
     is_verified: bool
+
+class PlantSearch(BaseModel):
+    name: str | None = None
+    scientific_name: str | None = None 
+
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str
+
+class RegisterDevice(BaseModel):
+    name: str
+    device_type: str
+    communication_interface: str
+    supported_functions: str
+    data_unit: str
+    min_value: float
+    max_value: float
+    is_active: bool = True
+    description: str | None = None
