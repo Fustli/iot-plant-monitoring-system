@@ -203,7 +203,6 @@ class Consumer(User):
                 db_interface.set_device_active_state(device.id, command)
 
     def plant_care_activation(self, plant_id: int | None = None, command: bool = True):
-        db_interface = DBInterface()
         if plant_id:
             for plant in self.plants:
                 if getattr(plant, "id", None) == plant_id:

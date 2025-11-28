@@ -327,6 +327,43 @@ class SystemState:
             manufacturer = Manufacturer(user.id, user.username)
             self.manufacturers[user.id] = manufacturer
         return manufacturer
+    
+    def remove_user(self, user_id: int):
+        """
+        General:
+            Remove a user and related in-memory domain objects from the system state.
+
+        Parameters:
+            user_id:
+                Identifier of the user to remove.
+
+        Returns:
+            None. Any matching consumer/manufacturer is removed from caches and
+            plants are detached from the thread manager.
+        """
+        # Remove consumer and its plants from the manager
+        consumer = self.consumers.pop(user_id, None)
+        if consumer:
+            # Detach plants from the thread manager
+            for plant in list(consumer.plants):
+                self.thread_manager.remove_plant(plant)
+
+        # Remove manufacturer, if present
+        self.manufacturers.pop(user_id, None)
+
+    def remove_manufacturer(self, manufacturer_id: int):
+        """
+        General:
+            Remove a manufacturer from the in-memory system state.
+
+        Parameters:
+            manufacturer_id:
+                Identifier of the manufacturer to remove.
+
+        Returns:
+            None. Any matching manufacturer is removed from the cache.
+        """
+        self.manufacturers.pop(manufacturer_id, None)
 
 
 system_state = SystemState()
@@ -756,19 +793,34 @@ async def delete_user(
 ):
     """
     General:
-        Delete or ban a user account by its identifier.
+        Delete a user account and remove related domain objects from system state.
 
     Parameters:
         user_id:
-            Identifier of the user to remove.
+            Identifier of the user to delete.
         current_admin:
             Authenticated admin user performing the deletion.
 
     Returns:
-        The result of DBInterface.remove_user for the given user_id.
+        A dictionary with a detail message upon successful removal.
+
+    Raises:
+        HTTPException: If the user cannot be found.
     """
     db_interface = DBInterface()
-    return db_interface.remove_user(user_id)
+    result = db_interface.remove_user(user_id)
+
+    # If your DB helper returns something falsy when nothing was deleted:
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Keep in-memory state in sync
+    system_state.remove_user(user_id)
+
+    return {"detail": "User removed"}
 
 
 @app.delete("/api/admin/manufacturers/{manufacturer_id}")
@@ -778,19 +830,33 @@ async def delete_manufacturer(
 ):
     """
     General:
-        Delete a manufacturer entry by its identifier.
+        Delete a manufacturer and remove it from system state.
 
     Parameters:
         manufacturer_id:
-            Identifier of the manufacturer to remove.
+            Identifier of the manufacturer to delete.
         current_admin:
             Authenticated admin user performing the deletion.
 
     Returns:
-        The result of DBInterface.remove_manufacturer for the given manufacturer_id.
+        A dictionary with a detail message upon successful removal.
+
+    Raises:
+        HTTPException: If the manufacturer cannot be found.
     """
     db_interface = DBInterface()
-    return db_interface.remove_manufacturer(manufacturer_id)
+    result = db_interface.remove_manufacturer(manufacturer_id)
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manufacturer not found",
+        )
+
+    # Keep in-memory state in sync
+    system_state.remove_manufacturer(manufacturer_id)
+
+    return {"detail": "Manufacturer removed"}
 
 
 @app.get("/api/admin/devices")
