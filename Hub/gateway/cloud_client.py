@@ -67,3 +67,30 @@ class CloudClient:
                 raise RuntimeError("No cloud endpoint configured for GET requests")
             url = f"{self.endpoint.rstrip('/')}/{path.lstrip('/')}"
         return self.session.get(url, headers=self.default_headers, timeout=timeout)
+
+    def register(self, callback_url: str, path: str | None = None, timeout: int = 5):
+        """Register a gateway callback URL with the cloud.
+
+        The registration path is chosen in this order:
+        1. explicit `path` argument
+        2. environment variable `CLOUD_REGISTRATION_PATH`
+        3. spec value `registration_path`
+        4. default 'register'
+
+        The request body will be JSON: {"callback": <callback_url>}.
+        Returns requests.Response.
+        """
+        if not callback_url:
+            raise ValueError("callback_url is required for register")
+
+        reg_path = path or os.getenv("CLOUD_REGISTRATION_PATH") or self.spec.get("registration_path") or "register"
+
+        if reg_path.startswith("http"):
+            url = reg_path
+        else:
+            if not self.endpoint:
+                raise RuntimeError("No cloud endpoint configured for registration")
+            url = f"{self.endpoint.rstrip('/')}/{reg_path.lstrip('/')}"
+
+        payload = {"callback": callback_url}
+        return self.session.post(url, json=payload, headers=self.default_headers, timeout=timeout)

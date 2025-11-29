@@ -17,7 +17,10 @@ import json
 import os
 import urllib.parse
 import sys
-from typing import Tuple
+import threading
+import time
+from typing import Tuple, List
+import requests
 
 
 DEFAULT_COMMANDS = [
@@ -34,6 +37,24 @@ def load_commands() -> object:
     except Exception:
         print("Invalid JSON in MOCK_COMMANDS, falling back to default", file=sys.stderr)
         return DEFAULT_COMMANDS
+
+
+# Registered callback URLs that the cloud will POST commands to
+_registered_callbacks: List[str] = []
+
+
+def _invoke_callbacks(payload: object):
+    """POST `payload` (JSON) to all registered callback URLs in background."""
+    def _post(cb_url: str, data: object):
+        try:
+            r = requests.post(cb_url, json=data, timeout=5)
+            print(f"[MOCK] Posted to {cb_url} -> status {r.status_code}")
+        except Exception as e:
+            print(f"[MOCK] Failed to post to {cb_url}: {e}")
+
+    for cb in list(_registered_callbacks):
+        t = threading.Thread(target=_post, args=(cb, payload), daemon=True)
+        t.start()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -60,20 +81,53 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"status": "ok"})
             return
 
+        if parsed.path == "/register":
+            # Expect JSON body: {"callback": "http://.../commands"}
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length else b""
+            try:
+                data = json.loads(raw.decode("utf-8")) if raw else {}
+            except Exception:
+                data = {}
+
+            cb = data.get("callback")
+            if not cb:
+                self._send(400, {"error": "callback required"})
+                return
+
+            if cb not in _registered_callbacks:
+                _registered_callbacks.append(cb)
+                print(f"[MOCK] Registered callback: {cb}")
+
+            # Optionally trigger an immediate command to the gateway to test callback
+            # Send a sample command asynchronously
+            sample = load_commands()
+            _invoke_callbacks(sample)
+
+            self._send(200, {"status": "registered", "callback": cb})
+            return
+
+        if parsed.path == "/trigger":
+            # Trigger sending a command to registered callbacks. Body is optional JSON payload
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length else b""
+            try:
+                data = json.loads(raw.decode("utf-8")) if raw else load_commands()
+            except Exception:
+                data = load_commands()
+
+            print("[MOCK] Triggering callbacks ->", data)
+            _invoke_callbacks(data)
+            self._send(200, {"status": "triggered"})
+            return
+
         # not found
         self._send(404, {"error": "not found"})
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/commands":
-            cmds = load_commands()
-            # Return commands as-is (either single object or list)
-            self._send(200, cmds)
-            print("[MOCK] Served /commands ->", cmds)
-            return
-
         if parsed.path == "/":
-            self._send(200, {"info": "mock cloud server", "routes": ["/telemetry (POST)", "/commands (GET)"]})
+            self._send(200, {"info": "mock cloud server", "routes": ["/telemetry (POST)", "/register (POST)", "/trigger (POST)"]})
             return
 
         self._send(404, {"error": "not found"})

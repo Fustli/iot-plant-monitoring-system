@@ -8,8 +8,10 @@ import os
 import json
 import time
 import threading
+from typing import Iterable
 
 import paho.mqtt.client as mqtt
+from flask import Flask, request, jsonify
 
 from logging_config import get_logger
 from cloud_client import CloudClient
@@ -121,6 +123,55 @@ def _init_mqtt_client(hub_id: str, cloud_client: CloudClient | None, topics: lis
     return client
 
 
+def _start_http_server(client: mqtt.Client, listen_host: str, listen_port: int):
+    """Start a small Flask HTTP server in a background thread.
+
+    - POST /commands -> accepts a single command or list of commands and publishes to MQTT.
+    - GET /health -> simple health check.
+    """
+    app = Flask(__name__)
+
+    def _publish_command(cmd: dict) -> tuple[int, str]:
+        topic = cmd.get("topic")
+        payload = cmd.get("payload")
+        if not topic or payload is None:
+            return 400, "invalid command: missing topic or payload"
+        out = payload if isinstance(payload, str) else json.dumps(payload)
+        client.publish(topic, out, qos=cmd.get("qos", 0), retain=cmd.get("retain", False))
+        return 200, "published"
+
+    @app.route("/commands", methods=["POST"])
+    def commands():
+        try:
+            data = request.get_json()
+        except Exception:
+            return jsonify({"error": "invalid json"}), 400
+
+        if isinstance(data, list):
+            results = []
+            for item in data:
+                status, msg = _publish_command(item)
+                results.append({"status": status, "msg": msg})
+            return jsonify(results), 200
+        elif isinstance(data, dict):
+            status, msg = _publish_command(data)
+            return jsonify({"status": status, "msg": msg}), status
+        else:
+            return jsonify({"error": "expected object or array"}), 400
+
+    @app.route("/health", methods=["GET"])
+    def health():
+        return jsonify({"status": "ok"})
+
+    def run_app():
+        # Flask's built-in server is fine for this small gateway; bind to configured host/port
+        app.run(host=listen_host, port=listen_port, threaded=True)
+
+    t = threading.Thread(target=run_app, daemon=True, name="http-server")
+    t.start()
+    return t
+
+
 def _process_poll_response(resp, client: mqtt.Client):
     """Process a poll response and publish any commands found."""
     data = resp.json() if resp and getattr(resp, "status_code", None) == 200 else None
@@ -166,11 +217,51 @@ def _start_poller_if_needed(client: mqtt.Client, cloud_client: CloudClient | Non
     if not (poll_path and cloud_client):
         return None
 
+    # If the cloud uses registration / push model, do not start the poller.
+    # Detect registration by presence of CLOUD_REGISTRATION_PATH or an advertised URL.
+    if os.getenv("CLOUD_REGISTRATION_PATH") or os.getenv("GATEWAY_ADVERTISED_URL") or getattr(
+        cloud_client, "spec", {}
+    ).get("registration_path"):
+        logger.info("Registration/push model detected; skipping cloud poller")
+        return None
+
     t = threading.Thread(
         target=_poller_loop, args=(cloud_client, poll_path, poll_interval, client), daemon=True, name="cloud-poller"
     )
     t.start()
     return t
+
+
+def _start_http_and_register(client: mqtt.Client, cloud_client: CloudClient | None, listen_host: str, listen_port: int, advertised_url: str | None):
+    """Start HTTP server and, if possible, register callback URL with cloud.
+
+    If `advertised_url` is provided it will be posted to the cloud registration endpoint.
+    If not provided the function will try to construct a URL from `listen_host` and `listen_port` but
+    will log a warning that automatic discovery may not be reachable from cloud.
+    """
+    http_thread = _start_http_server(client, listen_host, listen_port)
+
+    if not cloud_client:
+        return http_thread
+
+    cb_url = advertised_url or os.getenv("GATEWAY_ADVERTISED_URL")
+    if not cb_url:
+        # Try to construct a URL but warn user
+        proto = os.getenv("GATEWAY_ADVERTISED_SCHEME", "http")
+        host_for_url = os.getenv("GATEWAY_ADVERTISED_HOST", listen_host)
+        cb_url = f"{proto}://{host_for_url}:{listen_port}/commands"
+        logger.warning(
+            "No explicit advertised URL set; constructed callback URL %s. Cloud may not be able to reach this address.",
+            cb_url,
+        )
+
+    try:
+        resp = cloud_client.register(cb_url)
+        logger.info("Posted registration to cloud; status=%s", getattr(resp, "status_code", "?"))
+    except Exception:
+        logger.exception("Failed to register gateway callback with cloud")
+
+    return http_thread
 
 
 def _run_loop(client: mqtt.Client):
@@ -195,6 +286,9 @@ def run(
     poll_path: str = None,
     poll_interval: int = 5,
     start_delay: int = 1,
+    listen_host: str = None,
+    listen_port: int = None,
+    advertised_url: str = None,
 ):
     """Run gateway with simple, environment-driven defaults.
 
@@ -228,7 +322,15 @@ def run(
 
     client.loop_start()
 
+    # Start poller if configured (legacy) and/or start HTTP server and register callback
     _start_poller_if_needed(client, cloud_client, cfg["poll_path"], cfg["poll_interval"])
+
+    # Start HTTP server if requested
+    lh = listen_host or os.getenv("GATEWAY_LISTEN_HOST", "0.0.0.0")
+    lp = int(listen_port or os.getenv("GATEWAY_LISTEN_PORT", os.getenv("GATEWAY_PORT", "8080")))
+    adv = advertised_url or os.getenv("GATEWAY_ADVERTISED_URL")
+
+    _start_http_and_register(client, cloud_client, lh, lp, adv)
 
     _run_loop(client)
 

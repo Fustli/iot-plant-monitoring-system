@@ -20,8 +20,13 @@ services:
       - MQTT_BROKER_HOST=broker
       - HUB_ID=123456
       - CLOUD_ENDPOINT=http://host.docker.internal:8000/telemetry
-      - CLOUD_COMMANDS_ENDPOINT=http://host.docker.internal:8000/commands
+      - CLOUD_REGISTRATION_PATH=http://host.docker.internal:8000/register
+      - GATEWAY_LISTEN_HOST=0.0.0.0
+      - GATEWAY_LISTEN_PORT=8080
+      - GATEWAY_ADVERTISED_URL=http://localhost:8080/commands
       - MQTT_TOPICS=home/sensors/+,telemetry
+    ports:
+      - "8080:8080"
     networks:
       - iot_net
 
