@@ -166,7 +166,7 @@ if [ "$SKIP_SDK" = false ]; then
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             print_info "Using existing Flutter SDK"
-            FLUTTER_BIN="$FLUTTER_DIR/bin/flutter"
+            FLUTTER_BIN="$FLUTTER_DIR/flutter/bin/flutter"
         else
             rm -rf "$FLUTTER_DIR"
         fi
@@ -215,7 +215,7 @@ if [ "$SKIP_SDK" = false ]; then
         print_success "Flutter SDK extracted to $FLUTTER_DIR"
     fi
 
-    FLUTTER_BIN="$FLUTTER_DIR/bin/flutter"
+    FLUTTER_BIN="$FLUTTER_DIR/flutter/bin/flutter"
 else
     # Use system Flutter
     if command -v flutter &> /dev/null; then

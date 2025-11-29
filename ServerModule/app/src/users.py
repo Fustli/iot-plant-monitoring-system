@@ -1,12 +1,11 @@
 from abc import ABC, abstractmethod
 
-from plants import Plant
-from devices import Device, create_device_from_type
-from db.db_utils import DBInterface
-from logger import Logger
-from measurements import Moisture
-from thread_manager import PlantThreadManager
-from textbook import Textbook
+from src.plants import Plant
+from src.devices import create_device_from_type
+from src.db.db_utils import DBInterface
+from src.logger import Logger
+from src.thread_manager import PlantThreadManager
+from src.textbook import Textbook
 
 class User(ABC):
     def __init__(self, id: str, username: str):
@@ -75,7 +74,7 @@ class Consumer(User):
         req_brightness: float,
         req_humidity: float,
         req_temperature: float,
-        req_moisture: int,
+        req_moisture: float,
         description: str = None,
         care_instructions: str = None,
         location: str | None = None,
