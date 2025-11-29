@@ -37,7 +37,6 @@ from src.db.sensor_models import SensorData as SensorDataModel
 from src.db.user_models import User
 from src.devices import create_device_from_type
 from src.logger import Logger
-from src.measurements import Moisture
 from src.plants import Plant as PlantDomain
 from src.thread_manager import PlantThreadManager
 from src.users import Consumer, Manufacturer
@@ -280,28 +279,6 @@ class SystemState:
         self.logger = Logger(name="SystemState")
         self.initialized = False
 
-    def _normalize_moisture(self, value: float) -> Moisture:
-        """
-        General:
-            Convert a numeric moisture value from the database to a Moisture enum.
-
-        Parameters:
-            value:
-                Numeric moisture value, typically 0–100.
-
-        Returns:
-            A Moisture enum corresponding to the given numeric value.
-        """
-        try:
-            return Moisture(int(value))
-        except Exception:
-            if value <= 33:
-                return Moisture.DRY
-            elif value <= 66:
-                return Moisture.MOIST
-            else:
-                return Moisture.WET
-
     def load_from_db(self):
         """
         General:
@@ -365,7 +342,7 @@ class SystemState:
                 req_brightness=optimal_light,
                 req_humidity=optimal_humidity,
                 req_temperature=optimal_temperature,
-                req_moisture=self._normalize_moisture(optimal_moisture),
+                req_moisture=optimal_moisture,
                 health_status=health_status,
             )
             consumer.plants.append(plant)
@@ -1605,7 +1582,7 @@ async def update_my_plant(
                     p.act_brightness = int(brightness)
                     p.act_humidity = humidity
                     p.act_temperature = temperature
-                    p.act_moisture = Moisture(int(moisture))
+                    p.act_moisture = moisture
                 except Exception:
                     # Ignore malformed health_status
                     pass

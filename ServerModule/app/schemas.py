@@ -27,7 +27,7 @@ class PlantTypeFromScratch(BaseModel):
     req_brightness: float
     req_humidity: float
     req_temperature: float
-    req_moisture: int
+    req_moisture: float
     description: str = None
     care_instructions: str = None
     location: str | None = None
@@ -73,7 +73,7 @@ class NewPlantType(BaseModel):
     req_brightness: float
     req_humidity: float
     req_temperature: float
-    req_moisture: int
+    req_moisture: float
     description: str | None = None
     care_instructions: str | None = None
 

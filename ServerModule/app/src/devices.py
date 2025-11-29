@@ -2,7 +2,6 @@ import requests
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 from src.db.db_utils import DBInterface
-from src.measurements import Moisture
 from src.textbook import Textbook, MetricMessages
 from src.logger import Logger
 from src.alert_sender import send_alert

@@ -2,7 +2,7 @@ import datetime
 
 from src.devices import Device, DeviceCollection
 from src.db.db_utils import DBInterface
-from src.measurements import Moisture, TEMPERATURE_THRESHOLD, HUMIDITY_THRESHOLD, BRIGHTNESS_THRESHOLD
+from src.measurements import MOISTURE_THRESHOLD, TEMPERATURE_THRESHOLD, HUMIDITY_THRESHOLD, BRIGHTNESS_THRESHOLD
 from src.textbook import Textbook, MetricMessages
 from src.logger import Logger
 
@@ -16,7 +16,7 @@ class Plant:
             req_brightness: float,
             req_humidity: float,
             req_temperature: float,
-            req_moisture: Moisture,
+            req_moisture: float,
             health_status: str | None = None,
         ):
         """Instantiate a new Plant object with its type and required parameters."""
@@ -35,14 +35,14 @@ class Plant:
         self.act_brightness: float = None
         self.act_humidity: float = None
         self.act_temperature: float = None
-        self.act_moisture: Moisture = None
+        self.act_moisture: float = None
 
         if health_status:
             brightness, humidity, temperature, moisture = (float(x) for x in health_status.split(","))
             self.act_brightness = int(brightness)
             self.act_humidity = humidity
             self.act_temperature = temperature
-            self.act_moisture = Moisture(int(moisture))
+            self.act_moisture = moisture
 
         self.logger = Logger(name=self.name)
         self.devices: DeviceCollection = DeviceCollection(self.name, self.logger)
@@ -60,7 +60,7 @@ class Plant:
         req_brightness: float,
         req_humidity: float,
         req_temperature: float,
-        req_moisture: int,
+        req_moisture: float,
         description: str | None = None,
         care_instructions: str | None = None,
         location: str | None = None,
@@ -85,8 +85,6 @@ class Plant:
             health_status, notes,
         )
         logger.info(Textbook.plant_creation_in_db + plant_name)
-
-        req_moisture = Moisture(req_moisture)
 
         return cls(
             plant_id,
@@ -127,8 +125,6 @@ class Plant:
             health_status, notes
         )
         logger.info(Textbook.plant_creation_in_db + plant_name)
-
-        req_moisture = Moisture(req_moisture)
     
         return cls(
             plant_id,
@@ -146,7 +142,7 @@ class Plant:
         """Detach device from Plant."""
         self.devices.remove_device(device)
 
-    def update_moisture(self, moisture: Moisture):
+    def update_moisture(self, moisture: float):
         self.act_moisture = moisture
 
     def update_brightness(self, brightness: int):
@@ -195,7 +191,7 @@ class Plant:
             "moisture",
             act_value=self.act_moisture,
             req_value=self._req_moisture,
-            threshold=0,
+            threshold=MOISTURE_THRESHOLD,
         )
 
         self.check_metric(
