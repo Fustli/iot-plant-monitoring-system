@@ -1,3 +1,4 @@
 paho-mqtt
 requests
-Flask
+azure-iot-device
+azure-iot-device

@@ -20,15 +20,36 @@ services:
       - MQTT_BROKER_HOST=broker
       - HUB_ID=123456
       - CLOUD_ENDPOINT=http://host.docker.internal:8000/telemetry
-      - CLOUD_REGISTRATION_PATH=http://host.docker.internal:8000/register
-      - GATEWAY_LISTEN_HOST=0.0.0.0
-      - GATEWAY_LISTEN_PORT=8080
-      - GATEWAY_ADVERTISED_URL=http://localhost:8080/commands
       - MQTT_TOPICS=home/sensors/+,telemetry
+    # The gateway no longer exposes an HTTP server; MQTT only. Keep port mapping if you still
+    # want to access MQTT or other services on the host.
     ports:
       - "8080:8080"
+    secrets:
+      - device_connection_string
+    networks:
+      - iot_net
+
+  method_invoker:
+    image: python:3.12-slim
+    container_name: iot_method_invoker
+    working_dir: /app
+    volumes:
+      - ./test:/app:ro
+    command: ["sh","-c","pip install requests && python invoke_method.py"]
+    secrets:
+      - iothub_connection_string
+      - device_id
     networks:
       - iot_net
 
 networks:
   iot_net:
+
+secrets:
+  iothub_connection_string:
+    file: ./secrets/iothub_connection_string
+  device_connection_string:
+    file: ./secrets/device_connection_string
+  device_id:
+    file: ./secrets/device_id
