@@ -35,7 +35,7 @@ from src.db.device_models import Device as DeviceModel, DeviceType as DeviceType
 from src.db.plant_models import Plant as PlantModel, PlantType as PlantTypeModel
 from src.db.sensor_models import SensorData as SensorDataModel
 from src.db.user_models import User
-from src.devices import create_device_from_type
+from src.devices import Device, create_device_from_type
 from src.logger import Logger
 from src.plants import Plant as PlantDomain
 from src.thread_manager import PlantThreadManager
@@ -163,6 +163,79 @@ def serialize_plant_type_search(row: tuple) -> dict:
         "care_instructions": row[8],
     }
 
+def serialize_runtime_device(device: Device) -> dict:
+    """
+    Convert a runtime Device instance to a dictionary with key properties.
+    """
+    return {
+        "id": getattr(device, "id", None),
+        "user_id": getattr(device, "user_id", None),
+        "device_type_id": getattr(device, "device_type_id", None),
+        "unique_identifier": getattr(device, "unique_identifier", None),
+        "device_name": getattr(device, "device_name", None),
+        "is_active": getattr(device, "is_active", None),
+        "capabilities": sorted(list(getattr(device, "capabilities", set()))),
+    }
+
+
+def serialize_runtime_plant(plant: PlantDomain) -> dict:
+    """
+    Convert a runtime PlantDomain instance to a dictionary, including attached devices.
+    """
+    # Collect attached devices from the DeviceCollection if present
+    devices_data = []
+    device_collection = getattr(plant, "devices", None)
+    if device_collection is not None:
+        for dev in getattr(device_collection, "devices", []):
+            devices_data.append(serialize_runtime_device(dev))
+
+    return {
+        "id": getattr(plant, "id", None),
+        "name": getattr(plant, "name", None),
+        "user_id": getattr(plant, "user_id", None),
+        "req_brightness": getattr(plant, "_req_brightness", None),
+        "req_humidity": getattr(plant, "_req_humidity", None),
+        "req_temperature": getattr(plant, "_req_temperature", None),
+        "req_moisture": getattr(plant, "_req_moisture", None),
+        "act_brightness": getattr(plant, "act_brightness", None),
+        "act_humidity": getattr(plant, "act_humidity", None),
+        "act_temperature": getattr(plant, "act_temperature", None),
+        "act_moisture": getattr(plant, "act_moisture", None),
+        "health_status": getattr(plant, "health_status", None),
+        "devices": devices_data,
+    }
+
+
+def serialize_runtime_consumer(consumer: Consumer) -> dict:
+    """
+    Convert a runtime Consumer instance to a dictionary, including its plants and devices.
+    """
+    plants_data = []
+    devices_data = []
+
+    for plant in getattr(consumer, "plants", []):
+        plant_dict = serialize_runtime_plant(plant)
+        plants_data.append(plant_dict)
+        # Devices are already inside plant_dict["devices"], but we also flatten them
+        devices_data.extend(plant_dict.get("devices", []))
+
+    return {
+        "id": getattr(consumer, "id", None),
+        "username": getattr(consumer, "username", None),
+        "email": getattr(consumer, "email", None),
+        "plants": plants_data,
+        "devices": devices_data,
+    }
+
+
+def serialize_runtime_manufacturer(manufacturer: Manufacturer) -> dict:
+    """
+    Convert a runtime Manufacturer instance to a dictionary.
+    """
+    return {
+        "id": getattr(manufacturer, "id", None),
+        "username": getattr(manufacturer, "username", None),
+    }
 
 # CORS middleware - allow frontend to access the API
 app.add_middleware(
@@ -833,23 +906,37 @@ async def reset_password(
 # 2. Administrator (System Management)
 # ---------------------------------------------------------------------------
 
-
 @app.get("/api/admin/system/status")
 async def get_system_status(
     current_admin: User = Depends(require_roles(["admin"])),
 ):
     """
     General:
-        Check system and database health status for administrative monitoring.
+        Inspect the current in-memory system state and list all “alive” domain
+        objects (Users, Consumers, Manufacturers, Plants, Devices).
+
+        - Users are loaded from the database.
+        - Consumers and Manufacturers are the in-memory domain objects stored in
+          SystemState.
+        - Plants and Devices are taken from the currently loaded Consumer
+          domain objects and their attached Plant/Device instances.
 
     Parameters:
         current_admin:
-            Authenticated admin user requesting system status.
+            Authenticated admin user requesting system state information.
 
     Returns:
-        A dictionary indicating application and database health.
+        A dictionary with:
+            - users:       All user records from the database (serialized).
+            - consumers:   All in-memory Consumer domain objects with their plants
+                           and devices.
+            - manufacturers: All in-memory Manufacturer domain objects.
+            - plants:      All in-memory Plant domain objects (flattened list).
+            - devices:     All in-memory Device domain objects (flattened and
+                           de-duplicated by id).
     """
     db_interface = DBInterface()
+
     db_ok = False
     try:
         db_interface.execute_query("SELECT 1")
@@ -857,9 +944,53 @@ async def get_system_status(
     except Exception:
         db_ok = False
 
+    # --- Database-backed User instances ---
+    user_rows = db_interface.list_users() or []
+    users_data = [serialize_user(row) for row in user_rows]
+
+    # --- Runtime Consumers & Manufacturers from SystemState ---
+    consumers_runtime = [
+        serialize_runtime_consumer(c)
+        for c in system_state.consumers.values()
+    ]
+    manufacturers_runtime = [
+        serialize_runtime_manufacturer(m)
+        for m in system_state.manufacturers.values()
+    ]
+
+    # --- Flatten runtime Plants & Devices from all Consumers ---
+    runtime_plants: list[dict] = []
+    runtime_devices: list[dict] = []
+
+    for consumer in system_state.consumers.values():
+        for plant in getattr(consumer, "plants", []):
+            plant_dict = serialize_runtime_plant(plant)
+            runtime_plants.append(plant_dict)
+
+            device_collection = getattr(plant, "devices", None)
+            if device_collection is not None:
+                for dev in getattr(device_collection, "devices", []):
+                    runtime_devices.append(serialize_runtime_device(dev))
+
+    # De-duplicate devices by id
+    seen_device_ids = set()
+    unique_runtime_devices = []
+    for d in runtime_devices:
+        did = d.get("id")
+        if did is not None and did in seen_device_ids:
+            continue
+        if did is not None:
+            seen_device_ids.add(did)
+        unique_runtime_devices.append(d)
+
     return {
         "application": "ok",
         "database": "ok" if db_ok else "error",
+        "users": users_data,
+        "consumers": consumers_runtime,
+        "manufacturers": manufacturers_runtime,
+        "plants": runtime_plants,
+        "devices": unique_runtime_devices,
     }
 
 
