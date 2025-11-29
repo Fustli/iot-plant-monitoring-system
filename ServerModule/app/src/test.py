@@ -1,8 +1,8 @@
 import time
-from db.db_utils import DBInterface
-from users import Consumer
-from plants import Plant
-from thread_manager import PlantThreadManager
+from src.db.db_utils import DBInterface
+from src.users import Consumer
+from src.plants import Plant
+from src.thread_manager import PlantThreadManager
 
 
 def test1():

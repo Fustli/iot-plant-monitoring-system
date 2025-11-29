@@ -1,11 +1,11 @@
 import requests
 from abc import ABC, abstractmethod
 from types import MappingProxyType
-from db.db_utils import DBInterface
-from measurements import Moisture
-from textbook import Textbook, MetricMessages
-from logger import Logger
-from alert_sender import send_alert
+from src.db.db_utils import DBInterface
+from src.measurements import Moisture
+from src.textbook import Textbook, MetricMessages
+from src.logger import Logger
+from src.alert_sender import send_alert
 
 # Bejön az üzenet egy adott eszköztől -> frissítjük annak az eszköznek az adatát
 # Le tudjuk kérni az eszköz által mért értéket

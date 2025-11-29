@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 
-from plants import Plant
-from devices import Device, create_device_from_type
-from db.db_utils import DBInterface
-from logger import Logger
-from measurements import Moisture
-from thread_manager import PlantThreadManager
-from textbook import Textbook
+from src.plants import Plant
+from src.devices import Device, create_device_from_type
+from src.db.db_utils import DBInterface
+from src.logger import Logger
+from src.measurements import Moisture
+from src.thread_manager import PlantThreadManager
+from src.textbook import Textbook
 
 class User(ABC):
     def __init__(self, id: str, username: str):

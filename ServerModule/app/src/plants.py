@@ -1,10 +1,10 @@
 import datetime
 
-from devices import Device, DeviceCollection
-from db.db_utils import DBInterface
-from measurements import Moisture, TEMPERATURE_THRESHOLD, HUMIDITY_THRESHOLD, BRIGHTNESS_THRESHOLD
-from textbook import Textbook, MetricMessages
-from logger import Logger
+from src.devices import Device, DeviceCollection
+from src.db.db_utils import DBInterface
+from src.measurements import Moisture, TEMPERATURE_THRESHOLD, HUMIDITY_THRESHOLD, BRIGHTNESS_THRESHOLD
+from src.textbook import Textbook, MetricMessages
+from src.logger import Logger
 
 
 class Plant:
