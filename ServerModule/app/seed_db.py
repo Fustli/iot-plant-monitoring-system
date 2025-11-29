@@ -391,6 +391,21 @@ def seed_sample_plants(session: Session, users: list, plant_types: list) -> list
                 plants.append(existing)
                 continue
             
+            # Generate realistic dummy sensor values based on plant type
+            # Add some variance around optimal values
+            moisture_variance = random.uniform(-15, 15)
+            temp_variance = random.uniform(-3, 3)
+            light_variance = random.uniform(-300, 300)
+            
+            current_moisture = max(10, min(90, plant_type.optimal_moisture + moisture_variance))
+            current_temperature = max(15, min(35, plant_type.optimal_temperature + temp_variance))
+            current_light = max(100, min(5000, plant_type.optimal_light + light_variance))
+            
+            # Some plants may have been watered recently
+            last_watered = None
+            if random.random() > 0.3:  # 70% have been watered
+                last_watered = datetime.now() - timedelta(hours=random.randint(1, 72))
+            
             plant = Plant(
                 user_id=user.id,
                 plant_type_id=plant_type.id,
@@ -400,6 +415,10 @@ def seed_sample_plants(session: Session, users: list, plant_types: list) -> list
                 is_healthy=random.choice([True, True, True, False]),  # 75% healthy
                 health_status="Good" if random.random() > 0.25 else "Needs attention",
                 notes=f"A lovely {plant_type.name} plant.",
+                current_moisture=round(current_moisture, 1),
+                current_temperature=round(current_temperature, 1),
+                current_light=round(current_light, 0),
+                last_watered=last_watered,
             )
             session.add(plant)
             plants.append(plant)

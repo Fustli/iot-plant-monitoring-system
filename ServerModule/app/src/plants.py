@@ -93,11 +93,6 @@ class Plant:
         )
         logger.info(Textbook.plant_creation_in_db + plant_name)
 
-<<<<<<< HEAD
-=======
-        req_moisture = Moisture.from_percentage(req_moisture)
-
->>>>>>> 5d115f2 (Frontend debug and new hub table)
         return cls(
             plant_id,
             plant_name, user_id, 
@@ -137,11 +132,6 @@ class Plant:
             health_status, notes
         )
         logger.info(Textbook.plant_creation_in_db + plant_name)
-<<<<<<< HEAD
-=======
-
-        req_moisture = Moisture.from_percentage(req_moisture)
->>>>>>> 5d115f2 (Frontend debug and new hub table)
     
         return cls(
             plant_id,

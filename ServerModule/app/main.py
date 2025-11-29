@@ -103,8 +103,12 @@ def serialize_plant(row: tuple) -> dict:
         "is_healthy": row[6],
         "health_status": row[7],
         "notes": row[8],
-        "created_at": row[9].isoformat() if row[9] else None,
-        "updated_at": row[10].isoformat() if row[10] else None,
+        "current_moisture": row[9],
+        "current_temperature": row[10],
+        "current_light": row[11],
+        "last_watered": row[12].isoformat() if row[12] else None,
+        "created_at": row[13].isoformat() if row[13] else None,
+        "updated_at": row[14].isoformat() if row[14] else None,
     }
 
 def serialize_device(row: tuple) -> dict:
@@ -114,18 +118,19 @@ def serialize_device(row: tuple) -> dict:
     return {
         "id": row[0],
         "user_id": row[1],
-        "plant_id": row[2],
-        "device_type_id": row[3],
-        "unique_identifier": row[4],
-        "device_name": row[5],
-        "is_active": row[6],
-        "last_data_received": row[7].isoformat() if row[7] else None,
-        "last_heartbeat": row[8].isoformat() if row[8] else None,
-        "location_description": row[9],
-        "battery_level": row[10],
-        "rssi": row[11],
-        "created_at": row[12].isoformat() if row[12] else None,
-        "updated_at": row[13].isoformat() if row[13] else None,
+        "hub_id": row[2],
+        "plant_id": row[3],
+        "device_type_id": row[4],
+        "unique_identifier": row[5],
+        "device_name": row[6],
+        "is_active": row[7],
+        "last_data_received": row[8].isoformat() if row[8] else None,
+        "last_heartbeat": row[9].isoformat() if row[9] else None,
+        "location_description": row[10],
+        "battery_level": row[11],
+        "rssi": row[12],
+        "created_at": row[13].isoformat() if row[13] else None,
+        "updated_at": row[14].isoformat() if row[14] else None,
     }
 
 def serialize_device_type(row: tuple) -> dict:
