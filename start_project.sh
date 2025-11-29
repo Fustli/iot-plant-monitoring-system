@@ -34,6 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 SERVER_DIR="$PROJECT_ROOT/ServerModule/app"
 FLUTTER_DIR="$PROJECT_ROOT/flutter_app"
+FLUTTER_CMD="$PROJECT_ROOT/flutter_sdk/flutter/bin/flutter"
 
 # Configuration
 BACKEND_PORT=8000
@@ -233,17 +234,17 @@ start_flutter() {
     
     # Get dependencies
     log_info "Getting Flutter dependencies..."
-    flutter pub get
+    $FLUTTER_CMD pub get
     
     if [ "$DEBUG_MODE" = true ]; then
         # Debug mode: run in foreground with verbose output
         log_info "Starting Flutter in DEBUG mode (foreground)..."
         log_info "Press Ctrl+C to stop"
         log_info "Frontend will be available at: http://localhost:$FLUTTER_PORT"
-        flutter run -d web-server --web-port $FLUTTER_PORT --web-hostname 0.0.0.0
+        $FLUTTER_CMD run -d web-server --web-port $FLUTTER_PORT --web-hostname 0.0.0.0
     else
         # Normal mode: run in background
-        nohup flutter run -d web-server --web-port $FLUTTER_PORT --web-hostname 0.0.0.0 > "$PROJECT_ROOT/logs/flutter.log" 2>&1 &
+        nohup $FLUTTER_CMD run -d web-server --web-port $FLUTTER_PORT --web-hostname 0.0.0.0 > "$PROJECT_ROOT/logs/flutter.log" 2>&1 &
         local pid=$!
         
         ensure_pid_dir
@@ -351,7 +352,13 @@ main() {
         exit 1
     fi
     
-    check_command flutter
+    # Check Flutter SDK
+    if [ -f "$FLUTTER_CMD" ]; then
+        log_info "Found Flutter SDK at: $FLUTTER_CMD"
+    else
+        log_error "Flutter SDK not found at: $FLUTTER_CMD"
+        exit 1
+    fi
     
     # Parse arguments
     local seed_db=false
