@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/app_colors.dart';
+import '../models/device_model.dart';
+import '../models/plant_model.dart';
 import '../models/plant_type_model.dart';
 import '../widgets/plant_card.dart';
 import '../widgets/alert_banner.dart';
+import '../services/api_client.dart';
+import '../services/api_exceptions.dart';
 import '../services/plant_provider.dart';
 import '../services/alert_provider.dart';
 import '../services/auth_provider.dart';
@@ -632,36 +636,382 @@ class _PlantsViewState extends State<_PlantsView> {
 // DEVICES VIEW
 // =============================================================================
 
-class _DevicesView extends StatelessWidget {
+class _DevicesView extends StatefulWidget {
   const _DevicesView();
+
+  @override
+  State<_DevicesView> createState() => _DevicesViewState();
+}
+
+class _DevicesViewState extends State<_DevicesView> {
+  final ApiService _apiService = ApiService();
+  List<Device> _devices = [];
+  List<Map<String, dynamic>> _deviceTypes = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final devices = await _apiService.getMyDevices();
+      final deviceTypes = await _apiService.listAvailableDeviceTypes();
+      setState(() {
+        _devices = devices;
+        _deviceTypes = deviceTypes;
+      });
+    } on ApiException catch (e) {
+      setState(() {
+        _error = e.messageHu;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load devices';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _showAddDeviceDialog(BuildContext context) async {
+    final localization = context.read<LocalizationProvider>();
+    final plantProvider = context.read<PlantProvider>();
+
+    if (_deviceTypes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.tr('devices_no_types'))),
+      );
+      return;
+    }
+
+    Map<String, dynamic>? selectedType;
+    Plant? selectedPlant;
+    final uniqueIdController = TextEditingController();
+    final nameController = TextEditingController();
+    final locationController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(localization.tr('devices_add')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<Map<String, dynamic>>(
+                  value: selectedType,
+                  hint: Text(localization.tr('devices_select_type')),
+                  isExpanded: true,
+                  items: _deviceTypes.map((type) {
+                    return DropdownMenuItem(
+                      value: type,
+                      child: Text(type['name'] ?? 'Unknown'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedType = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<Plant>(
+                  value: selectedPlant,
+                  hint: Text(localization.tr('devices_select_plant')),
+                  isExpanded: true,
+                  items: plantProvider.plants.map((plant) {
+                    return DropdownMenuItem(
+                      value: plant,
+                      child: Text(plant.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedPlant = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: uniqueIdController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('devices_unique_id'),
+                    border: const OutlineInputBorder(),
+                    hintText: 'e.g., SENSOR-001',
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('devices_name'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: locationController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('devices_location'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(localization.tr('common_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: selectedType == null ||
+                      selectedPlant == null ||
+                      uniqueIdController.text.isEmpty
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
+              child: Text(localization.tr('common_add')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true &&
+        selectedType != null &&
+        selectedPlant != null &&
+        mounted) {
+      try {
+        await _apiService.registerDevice({
+          'device_type_name': selectedType!['name'],
+          'plant_id': int.parse(selectedPlant!.id),
+          'unique_identifier': uniqueIdController.text,
+          'device_name': nameController.text.isNotEmpty
+              ? nameController.text
+              : '${selectedType!['name']} Device',
+          'is_active': true,
+          'location_description': locationController.text.isNotEmpty
+              ? locationController.text
+              : null,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('devices_added_success')),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadData();
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.messageHu),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteDevice(BuildContext context, Device device) async {
+    final localization = context.read<LocalizationProvider>();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(localization.tr('devices_delete')),
+        content: Text(localization
+            .tr('devices_delete_confirm')
+            .replaceAll('{name}', device.deviceName)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(localization.tr('common_delete')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      try {
+        await _apiService.removeDevice(device.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('devices_deleted_success')),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadData();
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.messageHu),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
-    // TODO: Implement DeviceProvider and device management
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.devices_other, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(localization.tr('devices_empty')),
-          const SizedBox(height: 8),
-          Text(localization.tr('devices_add_first'),
-              style: TextStyle(color: Colors.grey[600])),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(localization.tr('common_loading'))),
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadData,
+              child: Text(localization.tr('common_retry')),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_devices.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.devices_other, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(localization.tr('devices_empty')),
+            const SizedBox(height: 8),
+            Text(localization.tr('devices_add_first'),
+                style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _showAddDeviceDialog(context),
+              icon: const Icon(Icons.add),
+              label: Text(localization.tr('devices_add')),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadData,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _devices.length,
+            itemBuilder: (context, index) {
+              final device = _devices[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: device.isOnline
+                        ? Colors.green.withOpacity(0.2)
+                        : Colors.grey.withOpacity(0.2),
+                    child: Icon(
+                      Icons.sensors,
+                      color: device.isOnline ? Colors.green : Colors.grey,
+                    ),
+                  ),
+                  title: Text(
+                    device.deviceName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Device ID: ${device.uniqueIdentifier}'),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            device.isOnline ? Icons.check_circle : Icons.cancel,
+                            size: 14,
+                            color: device.isOnline ? Colors.green : Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            device.isOnline
+                                ? localization.tr('devices_online')
+                                : localization.tr('devices_offline'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color:
+                                  device.isOnline ? Colors.green : Colors.grey,
+                            ),
+                          ),
+                          if (device.batteryLevel != null) ...[
+                            const SizedBox(width: 12),
+                            Icon(Icons.battery_std,
+                                size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 2),
+                            Text(
+                              '${device.batteryLevel}%',
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _confirmDeleteDevice(context, device),
+                  ),
+                  isThreeLine: true,
+                ),
               );
             },
-            icon: const Icon(Icons.add),
-            label: Text(localization.tr('devices_add')),
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
+            backgroundColor: AppColors.primary,
+            onPressed: () => _showAddDeviceDialog(context),
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 }

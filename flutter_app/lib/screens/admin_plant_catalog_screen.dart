@@ -182,26 +182,26 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
                 const SizedBox(height: 8),
                 _buildRequirementRow(
                   Icons.thermostat,
-                  'Hőmérséklet',
-                  '${plantType.reqTemperature.toStringAsFixed(1)}°C',
+                  'Homerseklet',
+                  '${plantType.reqTemperature.round()}°C',
                   Colors.orange,
                 ),
                 _buildRequirementRow(
                   Icons.water_drop,
-                  'Talajnedvesség',
+                  'Talajnedvesseg',
                   '${plantType.reqMoisture}%',
                   Colors.blue,
                 ),
                 _buildRequirementRow(
                   Icons.wb_sunny,
-                  'Fényigény',
-                  '${plantType.reqBrightness.toStringAsFixed(0)}%',
+                  'Fenyigeny',
+                  '${plantType.reqBrightness.round()} lux',
                   Colors.amber,
                 ),
                 _buildRequirementRow(
                   Icons.opacity,
-                  'Páratartalom',
-                  '${plantType.reqHumidity.toStringAsFixed(0)}%',
+                  'Paratartalom',
+                  '${plantType.reqHumidity.round()}%',
                   Colors.teal,
                 ),
 
@@ -276,15 +276,26 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
     );
 
     if (result != null && mounted) {
-      final success =
-          await context.read<PlantProvider>().addPlantTypeToCatalog(result);
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Növényfaj sikeresen hozzáadva'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      final plantProvider = context.read<PlantProvider>();
+      final success = await plantProvider.addPlantTypeToCatalog(result);
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Novenyfaj sikeresen hozzaadva'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  plantProvider.error ?? 'Nem sikerult hozzaadni a novenyfajt'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          plantProvider.clearError();
+        }
       }
     }
   }
@@ -297,16 +308,27 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
     );
 
     if (result != null && mounted) {
-      final success = await context
-          .read<PlantProvider>()
-          .updatePlantSpecies(plantType.id, result);
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Növényfaj sikeresen frissítve'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      final plantProvider = context.read<PlantProvider>();
+      final success =
+          await plantProvider.updatePlantSpecies(plantType.id, result);
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Novenyfaj sikeresen frissitve'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(plantProvider.error ??
+                  'Nem sikerult frissiteni a novenyfajt'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          plantProvider.clearError();
+        }
       }
     }
   }
@@ -335,15 +357,26 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
     );
 
     if (confirm == true && mounted) {
-      final success =
-          await context.read<PlantProvider>().deletePlantSpecies(plantType.id);
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Növényfaj törölve'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      final plantProvider = context.read<PlantProvider>();
+      final success = await plantProvider.deletePlantSpecies(plantType.id);
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Novenyfaj torolve'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  plantProvider.error ?? 'Nem sikerult torolni a novenyfajt'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          plantProvider.clearError();
+        }
       }
     }
   }
@@ -365,11 +398,11 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
   late TextEditingController _scientificNameController;
   late TextEditingController _descriptionController;
   late TextEditingController _careInstructionsController;
+  late TextEditingController _brightnessController;
 
-  late double _reqTemperature;
+  late int _reqTemperature;
   late int _reqMoisture;
-  late double _reqBrightness;
-  late double _reqHumidity;
+  late int _reqHumidity;
 
   bool get isEditing => widget.plantType != null;
 
@@ -384,11 +417,12 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
         TextEditingController(text: widget.plantType?.description ?? '');
     _careInstructionsController =
         TextEditingController(text: widget.plantType?.careInstructions ?? '');
+    _brightnessController = TextEditingController(
+        text: (widget.plantType?.reqBrightness.round() ?? 5000).toString());
 
-    _reqTemperature = widget.plantType?.reqTemperature ?? 22.0;
+    _reqTemperature = widget.plantType?.reqTemperature.round() ?? 22;
     _reqMoisture = widget.plantType?.reqMoisture ?? 50;
-    _reqBrightness = widget.plantType?.reqBrightness ?? 50.0;
-    _reqHumidity = widget.plantType?.reqHumidity ?? 50.0;
+    _reqHumidity = widget.plantType?.reqHumidity.round() ?? 50;
   }
 
   @override
@@ -397,6 +431,7 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
     _scientificNameController.dispose();
     _descriptionController.dispose();
     _careInstructionsController.dispose();
+    _brightnessController.dispose();
     super.dispose();
   }
 
@@ -449,45 +484,60 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
 
                 // Requirements section
                 const Text(
-                  'Igények',
+                  'Igenyek',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 16),
 
-                // Temperature slider
-                _buildSliderField(
-                  label: 'Hőmérséklet',
+                // Temperature slider (whole numbers)
+                _buildIntSliderField(
+                  label: 'Homerseklet',
                   value: _reqTemperature,
                   min: 10,
                   max: 35,
-                  suffix: '°C',
+                  suffix: '\u00b0C',
                   onChanged: (value) => setState(() => _reqTemperature = value),
                 ),
 
-                // Moisture slider
-                _buildSliderField(
-                  label: 'Talajnedvesség',
-                  value: _reqMoisture.toDouble(),
+                // Moisture slider (whole numbers)
+                _buildIntSliderField(
+                  label: 'Talajnedvesseg',
+                  value: _reqMoisture,
                   min: 0,
                   max: 100,
                   suffix: '%',
-                  onChanged: (value) =>
-                      setState(() => _reqMoisture = value.round()),
+                  onChanged: (value) => setState(() => _reqMoisture = value),
                 ),
 
-                // Brightness slider
-                _buildSliderField(
-                  label: 'Fényigény',
-                  value: _reqBrightness,
-                  min: 0,
-                  max: 100,
-                  suffix: '%',
-                  onChanged: (value) => setState(() => _reqBrightness = value),
+                // Brightness text field (lux - no constraint)
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _brightnessController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Fenyigeny (lux) *',
+                    hintText: 'pl. 5000',
+                    border: OutlineInputBorder(),
+                    suffixText: 'lux',
+                    helperText:
+                        'Tipikus ertekek: Arnyekos: 500-2000, Kozepes: 2000-10000, Napsutos: 10000+',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Kotelezo mezo';
+                    }
+                    final parsed = int.tryParse(value);
+                    if (parsed == null || parsed < 0) {
+                      return 'Ervenyes pozitiv szamot adjon meg';
+                    }
+                    return null;
+                  },
                 ),
+                const SizedBox(height: 16),
 
-                // Humidity slider
-                _buildSliderField(
-                  label: 'Páratartalom',
+                // Humidity slider (whole numbers)
+                _buildIntSliderField(
+                  label: 'Paratartalom',
                   value: _reqHumidity,
                   min: 0,
                   max: 100,
@@ -525,23 +575,23 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Mégsem'),
+          child: const Text('Megsem'),
         ),
         ElevatedButton(
           onPressed: _submit,
-          child: Text(isEditing ? 'Mentés' : 'Hozzáadás'),
+          child: Text(isEditing ? 'Mentes' : 'Hozzaadas'),
         ),
       ],
     );
   }
 
-  Widget _buildSliderField({
+  Widget _buildIntSliderField({
     required String label,
-    required double value,
-    required double min,
-    required double max,
+    required int value,
+    required int min,
+    required int max,
     required String suffix,
-    required ValueChanged<double> onChanged,
+    required ValueChanged<int> onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -551,16 +601,17 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
           children: [
             Text(label),
             Text(
-              '${value.toStringAsFixed(suffix == '°C' ? 1 : 0)}$suffix',
+              '$value$suffix',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
         Slider(
-          value: value,
-          min: min,
-          max: max,
-          onChanged: onChanged,
+          value: value.toDouble(),
+          min: min.toDouble(),
+          max: max.toDouble(),
+          divisions: max - min,
+          onChanged: (v) => onChanged(v.round()),
         ),
       ],
     );
@@ -569,13 +620,15 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
+    final brightness = int.tryParse(_brightnessController.text.trim()) ?? 5000;
+
     final plantType = PlantType(
       id: widget.plantType?.id ?? 0,
       plantName: _nameController.text.trim(),
       scientificName: _scientificNameController.text.trim(),
-      reqBrightness: _reqBrightness,
-      reqHumidity: _reqHumidity,
-      reqTemperature: _reqTemperature,
+      reqBrightness: brightness.toDouble(),
+      reqHumidity: _reqHumidity.toDouble(),
+      reqTemperature: _reqTemperature.toDouble(),
       reqMoisture: _reqMoisture,
       description: _descriptionController.text.trim().isEmpty
           ? null

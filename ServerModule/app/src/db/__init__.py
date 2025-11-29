@@ -4,6 +4,7 @@ from src.db.device_models import Manufacturer, DeviceType, Device
 from src.db.plant_models import PlantType, Plant, PlantDeviceAssignment
 from src.db.sensor_models import SensorData
 from src.db.alert_models import AlertRule, Alert
+from src.db.hub_models import Hub, HubMetrics
 from src.db.db_utils import (
     DBInterface, get_db_interface,
     create_engine_instance, get_session, init_db, drop_all_tables,
@@ -17,6 +18,7 @@ __all__ = [
     'PlantType', 'Plant', 'PlantDeviceAssignment',
     'SensorData',
     'AlertRule', 'Alert',
+    'Hub', 'HubMetrics',
     'DeviceTypeEnum', 'AlertSeverityEnum', 'AlertStatusEnum',
     'DBInterface', 'get_db_interface',
     'create_engine_instance', 'get_session', 'init_db', 'drop_all_tables',

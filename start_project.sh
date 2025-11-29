@@ -32,9 +32,19 @@ NC='\033[0m' # No Color
 # Project directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
+
+# Load environment variables from .env file if it exists
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    # Export only lines that don't start with # and contain =
+    set -a
+    source "$PROJECT_ROOT/.env"
+    set +a
+fi
+
 SERVER_DIR="$PROJECT_ROOT/ServerModule/app"
 FLUTTER_DIR="$PROJECT_ROOT/flutter_app"
-FLUTTER_CMD="$PROJECT_ROOT/flutter_sdk/flutter/bin/flutter"
+# FLUTTER_CMD can be overridden via environment variable or .env file
+FLUTTER_CMD="${FLUTTER_CMD:-$PROJECT_ROOT/flutter_sdk/flutter/bin/flutter}"
 
 # Configuration
 BACKEND_PORT=8000

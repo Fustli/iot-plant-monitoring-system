@@ -18,6 +18,21 @@ class User(ABC):
 class Manufacturer(User):
     def __init__(self, id: str, username: str):
         super().__init__(id, username)
+        self._manufacturer_profile_id = None
+
+    def _get_manufacturer_profile_id(self) -> int:
+        """Get the manufacturer profile ID from the database."""
+        if self._manufacturer_profile_id is None:
+            db_interface = DBInterface()
+            result = db_interface.execute_query(
+                "SELECT id FROM manufacturers WHERE user_id = %s",
+                (self.id,)
+            )
+            if result and len(result) > 0:
+                self._manufacturer_profile_id = result[0][0]
+            else:
+                raise ValueError(f"No manufacturer profile found for user {self.id}")
+        return self._manufacturer_profile_id
 
     def register_new_device_type(
         self,
@@ -46,7 +61,7 @@ class Manufacturer(User):
         supported_functions_str = ", ".join(normalized)
 
         db_interface.register_new_device_type(
-            manufacturer_id=self.id,
+            manufacturer_id=self._get_manufacturer_profile_id(),
             name=name,
             device_type=device_type,
             communication_interface=communication_interface,

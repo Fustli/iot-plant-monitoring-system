@@ -11,6 +11,7 @@ class Manufacturer(Base):
     __tablename__ = 'manufacturers'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), unique=True, nullable=False)
     name = Column(String(255), unique=True, nullable=False, index=True)
     description = Column(Text)
     contact_email = Column(String(255))
@@ -20,6 +21,7 @@ class Manufacturer(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), 
                        onupdate=func.now(), nullable=False)
 
+    user = relationship('User', back_populates='manufacturer_profile')
     device_types = relationship('DeviceType', back_populates='manufacturer', cascade='all, delete-orphan')
 
     def __repr__(self):
@@ -62,6 +64,7 @@ class Device(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    hub_id = Column(Integer, ForeignKey('hubs.id', ondelete='SET NULL'), nullable=True, index=True)
     plant_id = Column(Integer, ForeignKey('plants.id', ondelete='SET NULL'), nullable=True, index=True)
     device_type_id = Column(Integer, ForeignKey('device_types.id', ondelete='RESTRICT'), nullable=False)
     unique_identifier = Column(String(255), unique=True, nullable=False, index=True)
@@ -77,6 +80,7 @@ class Device(Base):
                        onupdate=func.now(), nullable=False)
 
     owner = relationship('User', back_populates='devices')
+    hub = relationship('Hub', back_populates='devices')
     plant = relationship('Plant', foreign_keys=[plant_id])
     device_type = relationship('DeviceType', back_populates='devices')
     sensor_data = relationship('SensorData', back_populates='device', cascade='all, delete-orphan')
@@ -84,6 +88,7 @@ class Device(Base):
 
     __table_args__ = (
         Index('idx_device_user', 'user_id'),
+        Index('idx_device_hub', 'hub_id'),
         Index('idx_device_plant', 'plant_id'),
         Index('idx_device_unique_identifier', 'unique_identifier'),
         Index('idx_device_is_active', 'is_active'),

@@ -161,9 +161,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       );
     }
 
-    // Embedded mode - no scaffold, just body
+    // Embedded mode - no scaffold, just body with FAB
     if (widget.embedded) {
-      return _buildBody();
+      return Stack(
+        children: [
+          _buildBody(),
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: _showAddUserDialog,
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.person_add),
+            ),
+          ),
+        ],
+      );
     }
 
     return Scaffold(
@@ -379,9 +392,217 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   void _showAddUserDialog() {
-    // TODO: Implement add user dialog
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Felhasználó hozzáadása: hamarosan...')),
+    final usernameController = TextEditingController();
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final firstNameController = TextEditingController();
+    final lastNameController = TextEditingController();
+    final companyNameController = TextEditingController();
+    UserRole selectedRole = UserRole.consumer;
+    final formKey = GlobalKey<FormState>();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Új felhasználó'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Role selector
+                  DropdownButtonFormField<UserRole>(
+                    value: selectedRole,
+                    decoration: const InputDecoration(
+                      labelText: 'Szerepkör *',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: UserRole.values.map((role) {
+                      return DropdownMenuItem(
+                        value: role,
+                        child: Row(
+                          children: [
+                            Icon(_getRoleIcon(role), size: 20),
+                            const SizedBox(width: 8),
+                            Text(role.displayNameHu),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => selectedRole = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Felhasználónév *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Kötelező mező';
+                      }
+                      if (value.length < 3) {
+                        return 'Legalább 3 karakter';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email *',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Kötelező mező';
+                      }
+                      if (!value.contains('@')) {
+                        return 'Érvénytelen email cím';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Jelszó *',
+                      border: OutlineInputBorder(),
+                    ),
+                    obscureText: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Kötelező mező';
+                      }
+                      if (value.length < 6) {
+                        return 'Legalább 6 karakter';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: firstNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Keresztnév',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: lastNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Vezetéknév',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  // Company name field - only shown for manufacturer role
+                  if (selectedRole == UserRole.manufacturer) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: companyNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Cég neve *',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (selectedRole == UserRole.manufacturer &&
+                            (value == null || value.isEmpty)) {
+                          return 'Kötelező mező gyártóknál';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Mégsem'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (formKey.currentState!.validate()) {
+                        setDialogState(() => isLoading = true);
+                        try {
+                          await _apiService.registerUser(
+                            username: usernameController.text.trim(),
+                            email: emailController.text.trim(),
+                            password: passwordController.text,
+                            role: selectedRole.name,
+                            firstName: firstNameController.text.isNotEmpty
+                                ? firstNameController.text.trim()
+                                : null,
+                            lastName: lastNameController.text.isNotEmpty
+                                ? lastNameController.text.trim()
+                                : null,
+                            companyName:
+                                selectedRole == UserRole.manufacturer &&
+                                        companyNameController.text.isNotEmpty
+                                    ? companyNameController.text.trim()
+                                    : null,
+                          );
+                          if (mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    '${usernameController.text} létrehozva'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            _loadUsers();
+                          }
+                        } on ApiException catch (e) {
+                          setDialogState(() => isLoading = false);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(e.messageHu),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          setDialogState(() => isLoading = false);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Hiba: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+              child: isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Létrehozás'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

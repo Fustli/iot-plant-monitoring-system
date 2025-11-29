@@ -274,14 +274,17 @@ class ApiService {
     required String role,
     String? firstName,
     String? lastName,
+    String? companyName,
   }) async {
     await _post('/auth/register', body: {
       'username': username,
       'email': email,
-      'password': password,
+      'password_hash':
+          password, // Backend expects password_hash, it will hash it
       'role': role,
       if (firstName != null) 'first_name': firstName,
       if (lastName != null) 'last_name': lastName,
+      if (companyName != null) 'company_name': companyName,
     });
   }
 
@@ -408,6 +411,11 @@ class ApiService {
   Future<void> updateDeviceType(
       int deviceTypeId, Map<String, dynamic> updates) async {
     await _put('/manufacturer/device-types/$deviceTypeId', body: updates);
+  }
+
+  /// Delete device type (manufacturer/admin)
+  Future<void> deleteDeviceType(int deviceTypeId) async {
+    await _delete('/manufacturer/device-types/$deviceTypeId');
   }
 
   // NOTE: registerDeviceInstance is deferred - requires backend schema changes

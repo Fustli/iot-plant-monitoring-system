@@ -37,12 +37,19 @@ class Plant:
         self.act_temperature: float = None
         self.act_moisture: float = None
 
-        if health_status:
-            brightness, humidity, temperature, moisture = (float(x) for x in health_status.split(","))
-            self.act_brightness = int(brightness)
-            self.act_humidity = humidity
-            self.act_temperature = temperature
-            self.act_moisture = moisture
+        # health_status can be either:
+        # 1. A comma-separated string of sensor values: "brightness,humidity,temperature,moisture"
+        # 2. A text status like "Good", "Needs attention" - in this case we don't have sensor data
+        if health_status and "," in health_status:
+            try:
+                brightness, humidity, temperature, moisture = (float(x) for x in health_status.split(","))
+                self.act_brightness = int(brightness)
+                self.act_humidity = humidity
+                self.act_temperature = temperature
+                self.act_moisture = moisture
+            except (ValueError, AttributeError):
+                # If parsing fails, just ignore - we don't have sensor data
+                pass
 
         self.logger = Logger(name=self.name)
         self.devices: DeviceCollection = DeviceCollection(self.name, self.logger)
@@ -86,6 +93,11 @@ class Plant:
         )
         logger.info(Textbook.plant_creation_in_db + plant_name)
 
+<<<<<<< HEAD
+=======
+        req_moisture = Moisture.from_percentage(req_moisture)
+
+>>>>>>> 5d115f2 (Frontend debug and new hub table)
         return cls(
             plant_id,
             plant_name, user_id, 
@@ -125,6 +137,11 @@ class Plant:
             health_status, notes
         )
         logger.info(Textbook.plant_creation_in_db + plant_name)
+<<<<<<< HEAD
+=======
+
+        req_moisture = Moisture.from_percentage(req_moisture)
+>>>>>>> 5d115f2 (Frontend debug and new hub table)
     
         return cls(
             plant_id,

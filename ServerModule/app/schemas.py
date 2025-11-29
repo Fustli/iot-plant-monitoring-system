@@ -82,11 +82,20 @@ class UserDetails(BaseModel):
     username: str
     role: str
     password_hash: str
-    first_name: str
-    last_name: str
-    phone_number: str
-    is_active: bool
-    is_verified: bool
+    first_name: str | None = None
+    last_name: str | None = None
+    phone_number: str | None = None
+    company_name: str | None = None  # For manufacturer registration
+    is_active: bool = True
+    is_verified: bool = False
+
+class ConsumerRegistration(BaseModel):
+    """Schema for public consumer registration - minimal fields required."""
+    email: str
+    username: str
+    password: str
+    first_name: str | None = None
+    last_name: str | None = None
 
 class PlantSearch(BaseModel):
     name: str | None = None

@@ -147,6 +147,28 @@ class PlantProvider with ChangeNotifier {
     }
   }
 
+  /// Update an existing plant's details
+  Future<bool> updatePlant(
+      int plantId, PlantFromDatabaseRequest request) async {
+    try {
+      await _apiService.updatePlant(plantId, request);
+      await loadPlants(); // Refresh plant list
+      // Also refresh the selected plant if it's the one being edited
+      if (_selectedPlant?.id == plantId.toString()) {
+        await loadPlantDetails(plantId.toString());
+      }
+      return true;
+    } on ApiException catch (e) {
+      _error = e.messageHu;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'Nem sikerult frissiteni a novenyt';
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Delete a plant
   Future<bool> deletePlant(int plantId) async {
     try {

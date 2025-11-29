@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from auth_jwt import create_access_token, decode_access_token
 from schemas import (
+    ConsumerRegistration,
     DeviceActivation,
     DeviceCommand,
     DeviceCreation,
@@ -31,7 +32,7 @@ from security import hash_password, verify_password
 from src.db.alert_models import Alert as AlertModel
 from src.db.base import AlertStatusEnum
 from src.db.db_utils import DBInterface, get_session
-from src.db.device_models import Device as DeviceModel, DeviceType as DeviceTypeModel
+from src.db.device_models import Device as DeviceModel, DeviceType as DeviceTypeModel, Manufacturer as ManufacturerModel
 from src.db.plant_models import Plant as PlantModel, PlantType as PlantTypeModel
 from src.db.sensor_models import SensorData as SensorDataModel
 from src.db.user_models import User
@@ -251,6 +252,18 @@ app.add_middleware(
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+
+def get_manufacturer_profile_id(user_id: int) -> int | None:
+    """Get the manufacturer profile ID for a user."""
+    db_interface = DBInterface()
+    result = db_interface.execute_query(
+        "SELECT id FROM manufacturers WHERE user_id = %s",
+        (user_id,)
+    )
+    if result and len(result) > 0:
+        return result[0][0]
+    return None
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -639,6 +652,17 @@ async def register(
     if new_user.role == "consumer":
         system_state.get_consumer(new_user)
     elif new_user.role == "manufacturer":
+        # Create manufacturer profile in database
+        company_name = payload.company_name or f"{new_user.username}'s Company"
+        manufacturer_profile = ManufacturerModel(
+            user_id=new_user.id,
+            name=company_name,
+            description="Manufacturer profile",
+            contact_email=new_user.email,
+            is_verified=False,
+        )
+        db.add(manufacturer_profile)
+        db.commit()
         system_state.get_manufacturer(new_user)
 
     return {
@@ -651,7 +675,7 @@ async def register(
 
 @app.post("/api/auth/register/consumer")
 async def register_consumer(
-    payload: UserDetails,
+    payload: ConsumerRegistration,
     db: Session = Depends(get_db),
 ):
     """
@@ -660,7 +684,7 @@ async def register_consumer(
 
     Parameters:
         payload:
-            UserDetails with consumer registration data.
+            ConsumerRegistration with consumer registration data.
         db:
             Database session dependency used to create the user.
 
@@ -683,10 +707,9 @@ async def register_consumer(
         email=payload.email,
         username=payload.username,
         role="consumer",
-        password_hash=hash_password(payload.password_hash),
+        password_hash=hash_password(payload.password),
         first_name=payload.first_name,
         last_name=payload.last_name,
-        phone_number=payload.phone_number,
         is_active=True,
         is_verified=False,
     )
@@ -1246,17 +1269,29 @@ async def register_device_type(
         s.strip() for s in payload.supported_functions.split(",") if s.strip()
     ]
 
-    manufacturer_domain.register_new_device_type(
-        name=payload.name,
-        device_type=payload.device_type,
-        communication_interface=payload.communication_interface,
-        supported_functions=supported_functions_list,
-        data_unit=payload.data_unit,
-        min_value=payload.min_value,
-        max_value=payload.max_value,
-        is_active=payload.is_active,
-        description=payload.description,
-    )
+    try:
+        manufacturer_domain.register_new_device_type(
+            name=payload.name,
+            device_type=payload.device_type,
+            communication_interface=payload.communication_interface,
+            supported_functions=supported_functions_list,
+            data_unit=payload.data_unit,
+            min_value=payload.min_value,
+            max_value=payload.max_value,
+            is_active=payload.is_active,
+            description=payload.description,
+        )
+    except Exception as e:
+        error_msg = str(e)
+        if "duplicate key" in error_msg or "unique" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Device type with name '{payload.name}' already exists",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to register device type: {error_msg}",
+        )
 
     return {"detail": "Device type registered successfully"}
 
@@ -1279,7 +1314,10 @@ async def list_device_types(
         A list of device types owned by the manufacturer.
     """
     db_interface = DBInterface()
-    device_types = db_interface.list_device_types(current_manufacturer.id)
+    manufacturer_profile_id = get_manufacturer_profile_id(current_manufacturer.id)
+    if manufacturer_profile_id is None:
+        return []
+    device_types = db_interface.list_device_types(manufacturer_profile_id)
     return [serialize_device_type(dt) for dt in device_types] if device_types else []
 
 
@@ -1321,7 +1359,7 @@ async def update_device_type(
 
     if (
         current_manufacturer.role != "admin"
-        and device_type.manufacturer_id != current_manufacturer.id
+        and device_type.manufacturer_id != get_manufacturer_profile_id(current_manufacturer.id)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1341,6 +1379,51 @@ async def update_device_type(
     db.commit()
     db.refresh(device_type)
     return device_type
+
+
+@app.delete("/api/manufacturer/device-types/{device_type_id}")
+async def delete_device_type(
+    device_type_id: int,
+    current_manufacturer: User = Depends(require_roles(["manufacturer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    """
+    General:
+        Remove a device type from the catalog.
+
+    Parameters:
+        device_type_id:
+            ID of the device type to delete.
+        current_manufacturer:
+            Authenticated manufacturer or admin performing the deletion.
+        db:
+            Database session dependency.
+
+    Returns:
+        Success message.
+
+    Raises:
+        HTTPException: If the device type does not exist or the user lacks permission.
+    """
+    device_type = db.query(DeviceTypeModel).get(device_type_id)
+    if not device_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device type not found",
+        )
+
+    if (
+        current_manufacturer.role != "admin"
+        and device_type.manufacturer_id != get_manufacturer_profile_id(current_manufacturer.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+
+    db.delete(device_type)
+    db.commit()
+    return {"message": "Device type deleted successfully"}
 
 
 # ---------------------------------------------------------------------------

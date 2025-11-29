@@ -420,24 +420,68 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                       ),
                     ],
                   ),
-                  trailing: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: (deviceType['is_active'] == true)
-                          ? Colors.green.withOpacity(0.2)
-                          : Colors.grey.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      (deviceType['is_active'] == true) ? 'Active' : 'Inactive',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: (deviceType['is_active'] == true)
-                            ? Colors.green
-                            : Colors.grey,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: (deviceType['is_active'] == true)
+                              ? Colors.green.withOpacity(0.2)
+                              : Colors.grey.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          (deviceType['is_active'] == true)
+                              ? 'Active'
+                              : 'Inactive',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: (deviceType['is_active'] == true)
+                                ? Colors.green
+                                : Colors.grey,
+                          ),
+                        ),
                       ),
-                    ),
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            _showEditDeviceTypeDialog(
+                                context, localization, deviceType);
+                          } else if (value == 'delete') {
+                            _confirmDeleteDeviceType(
+                                context, localization, deviceType);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.edit, size: 20),
+                                const SizedBox(width: 8),
+                                Text(localization.tr('common_edit')),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.delete,
+                                    size: 20, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Text(
+                                  localization.tr('common_delete'),
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   isThreeLine: true,
                 ),
@@ -632,9 +676,243 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
       }
     }
   }
-}
 
-// =============================================================================
+  Future<void> _showEditDeviceTypeDialog(
+      BuildContext context,
+      LocalizationProvider localization,
+      Map<String, dynamic> deviceType) async {
+    final nameController =
+        TextEditingController(text: deviceType['name'] ?? '');
+    final typeController =
+        TextEditingController(text: deviceType['device_type'] ?? '');
+    final descController =
+        TextEditingController(text: deviceType['description'] ?? '');
+    final interfaceController = TextEditingController(
+        text: deviceType['communication_interface'] ?? 'MQTT');
+    final functionsController =
+        TextEditingController(text: deviceType['supported_functions'] ?? '');
+    final unitController =
+        TextEditingController(text: deviceType['data_unit'] ?? '');
+    final minController =
+        TextEditingController(text: (deviceType['min_value'] ?? 0).toString());
+    final maxController = TextEditingController(
+        text: (deviceType['max_value'] ?? 100).toString());
+    bool isActive = deviceType['is_active'] ?? true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(localization.tr('manufacturer_edit_device_type')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Device Type Name *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: typeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Type (sensor/actuator/controller) *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: interfaceController,
+                  decoration: const InputDecoration(
+                    labelText: 'Communication Interface *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: functionsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Supported Functions (comma-separated) *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: unitController,
+                  decoration: const InputDecoration(
+                    labelText: 'Data Unit *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: minController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Min Value',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: maxController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Max Value',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  title: const Text('Active'),
+                  value: isActive,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isActive = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(localization.tr('common_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
+              child: Text(localization.tr('common_save')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      if (nameController.text.isEmpty ||
+          typeController.text.isEmpty ||
+          functionsController.text.isEmpty ||
+          unitController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please fill all required fields'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      try {
+        await _apiService.updateDeviceType(deviceType['id'], {
+          'name': nameController.text,
+          'device_type': typeController.text,
+          'communication_interface': interfaceController.text,
+          'supported_functions': functionsController.text,
+          'data_unit': unitController.text,
+          'min_value': double.tryParse(minController.text) ?? 0,
+          'max_value': double.tryParse(maxController.text) ?? 100,
+          'is_active': isActive,
+          'description':
+              descController.text.isNotEmpty ? descController.text : null,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content:
+                  Text(localization.tr('manufacturer_device_type_updated')),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadDeviceTypes();
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.messageHu),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteDeviceType(
+      BuildContext context,
+      LocalizationProvider localization,
+      Map<String, dynamic> deviceType) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(localization.tr('manufacturer_delete_device_type')),
+        content: Text(localization
+            .tr('manufacturer_delete_device_type_confirm')
+            .replaceAll('{name}', deviceType['name'] ?? 'Unknown')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(localization.tr('common_delete')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      try {
+        await _apiService.deleteDeviceType(deviceType['id']);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content:
+                  Text(localization.tr('manufacturer_device_type_deleted')),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadDeviceTypes();
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.messageHu),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+} // =============================================================================
 // DEVICE INSTANCES VIEW
 // =============================================================================
 

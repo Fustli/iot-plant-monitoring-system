@@ -36,7 +36,7 @@ from src.db.db_utils import get_session, create_engine_instance, get_db_interfac
 from src.db.base import Base
 from src.db.user_models import User
 from src.db.plant_models import PlantType, Plant
-from src.db.device_models import Device, DeviceType
+from src.db.device_models import Device, DeviceType, Manufacturer
 from security import hash_password
 
 # Import the scraper
@@ -238,15 +238,30 @@ def seed_admin_user(session: Session) -> User:
 
 def seed_manufacturer_user(session: Session) -> User:
     """Create test manufacturer user if not exists."""
-    manufacturer = session.query(User).filter(
+    manufacturer_user = session.query(User).filter(
         User.email == "manufacturer@plantmonitor.com"
     ).first()
     
-    if manufacturer:
+    if manufacturer_user:
+        # Ensure manufacturer profile exists
+        manufacturer_profile = session.query(Manufacturer).filter(
+            Manufacturer.user_id == manufacturer_user.id
+        ).first()
+        if not manufacturer_profile:
+            manufacturer_profile = Manufacturer(
+                user_id=manufacturer_user.id,
+                name="Test Manufacturer Co.",
+                description="Test manufacturer for demo purposes",
+                contact_email="manufacturer@plantmonitor.com",
+                is_verified=True,
+            )
+            session.add(manufacturer_profile)
+            session.commit()
+            print("[SUCCESS] Created manufacturer profile for existing user")
         print("[INFO] Manufacturer user already exists")
-        return manufacturer
+        return manufacturer_user
     
-    manufacturer = User(
+    manufacturer_user = User(
         email="manufacturer@plantmonitor.com",
         username="test_manufacturer",
         role="manufacturer",
@@ -256,10 +271,22 @@ def seed_manufacturer_user(session: Session) -> User:
         is_active=True,
         is_verified=True,
     )
-    session.add(manufacturer)
+    session.add(manufacturer_user)
     session.commit()
+    
+    # Create manufacturer profile linked to user
+    manufacturer_profile = Manufacturer(
+        user_id=manufacturer_user.id,
+        name="Test Manufacturer Co.",
+        description="Test manufacturer for demo purposes",
+        contact_email="manufacturer@plantmonitor.com",
+        is_verified=True,
+    )
+    session.add(manufacturer_profile)
+    session.commit()
+    
     print("[SUCCESS] Created manufacturer user (manufacturer@plantmonitor.com)")
-    return manufacturer
+    return manufacturer_user
 
 
 def seed_dummy_users(session: Session, count: int = 5) -> list:

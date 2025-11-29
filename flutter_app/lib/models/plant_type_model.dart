@@ -6,7 +6,7 @@ class PlantType {
   final int id;
   final String plantName;
   final String scientificName;
-  final double reqBrightness; // Required light level (0-100 lux percentage)
+  final double reqBrightness; // Required light level in lux (no upper limit)
   final double reqHumidity; // Required humidity (0-100%)
   final double reqTemperature; // Required temperature (Celsius)
   final int reqMoisture; // Required soil moisture (0-100%)

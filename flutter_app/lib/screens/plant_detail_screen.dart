@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/plant_model.dart';
+import '../models/plant_type_model.dart';
 import '../models/sensor_model.dart';
 import '../services/plant_provider.dart';
 import '../services/alert_provider.dart';
+import '../services/localization_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/alert_banner.dart';
 
@@ -59,6 +61,129 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     }
   }
 
+  Future<void> _showEditPlantDialog(BuildContext context, Plant plant) async {
+    final localization = context.read<LocalizationProvider>();
+    final plantProvider = context.read<PlantProvider>();
+
+    final nameController = TextEditingController(text: plant.name);
+    final locationController =
+        TextEditingController(text: plant.location ?? '');
+    final notesController = TextEditingController(text: plant.notes ?? '');
+    bool isHealthy = plant.isHealthy;
+    String healthStatus = plant.healthStatus.displayName;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(localization.tr('plants_edit')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('plants_name'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: locationController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('plants_location'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notesController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('plants_notes'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  title: Text(localization.tr('plants_healthy')),
+                  value: isHealthy,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isHealthy = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: healthStatus,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('plants_health_status'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: ['Good', 'Needs attention', 'Critical']
+                      .map((status) => DropdownMenuItem(
+                            value: status,
+                            child: Text(status),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      healthStatus = value ?? 'Good';
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(localization.tr('common_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: nameController.text.isEmpty
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
+              child: Text(localization.tr('common_save')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      final request = PlantFromDatabaseRequest(
+        name: nameController.text,
+        scientificName:
+            plant.name, // Use plant name as scientific name fallback
+        location:
+            locationController.text.isNotEmpty ? locationController.text : null,
+        notes: notesController.text.isNotEmpty ? notesController.text : null,
+        isHealthy: isHealthy,
+        healthStatus: healthStatus,
+      );
+
+      final success =
+          await plantProvider.updatePlant(int.parse(plant.id), request);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success
+                ? localization.tr('plants_updated_success')
+                : localization.tr('plants_updated_error')),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+        if (success) {
+          await _loadPlantData();
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         body: Consumer<PlantProvider>(
@@ -78,6 +203,12 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   expandedHeight: 250,
                   pinned: true,
                   backgroundColor: AppColors.primary,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.white),
+                      onPressed: () => _showEditPlantDialog(context, plant),
+                    ),
+                  ],
                   flexibleSpace: FlexibleSpaceBar(
                     title: Text(
                       plant.name,
