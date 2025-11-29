@@ -41,7 +41,7 @@ paho-mqtt==2.1.0             # MQTT client for IoT device communication
 # ============================================================================
 # UTILITIES & HELPERS
 # ============================================================================
-typing-extensions==4.8.0     # Extended typing support
+typing-extensions==4.12.2     # Extended typing support
 
 # ============================================================================
 # TESTING
