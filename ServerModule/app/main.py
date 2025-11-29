@@ -27,6 +27,7 @@ from schemas import (
     TokenResponse,
     UserDetails,
     UserUpdate,
+    DeviceData,
 )
 from security import hash_password, verify_password
 from src.db.alert_models import Alert as AlertModel
@@ -2068,6 +2069,145 @@ async def get_device_history(
         }
         for r in rows
     ]
+
+@app.post("/api/device/receive-data")
+async def receive_device_data(
+    payload: DeviceData,
+    db: Session = Depends(get_db),
+):
+    """
+    General:
+        Receive telemetry data from a device, store it in the database, update
+        the device metadata and refresh the corresponding plant's live metrics
+        and health_status (moisture now stored as a percentage).
+
+    Parameters:
+        payload:
+            DeviceData containing:
+                - device_id: ID of the device sending data.
+                - data_type: Type of the metric (e.g. "temperature",
+                  "humidity", "brightness", "moisture").
+                - data: Measured value (for moisture this is a percentage).
+                - data_unit: Unit of the measurement (e.g. "°C", "%", "lux").
+        db:
+            Database session dependency used to update device, plant and sensor
+            data tables.
+
+    Returns:
+        A dictionary containing:
+            - detail: Status message.
+            - device_id: ID of the device that sent the data.
+            - plant_id: ID of the plant affected (if any).
+            - metric: Normalized metric name.
+            - value: Stored measurement value.
+            - unit: Measurement unit.
+            - timestamp: ISO-format timestamp when data was recorded.
+            - health_status: Updated health_status string of the plant
+              (if applicable).
+
+    Raises:
+        HTTPException:
+            - 404 if the device does not exist.
+    """
+    # ------------------------------------------------------------------
+    # 1. Look up device
+    # ------------------------------------------------------------------
+    device = db.query(DeviceModel).get(payload.device_id)
+    if not device:
+        raise HTTPException(
+            status_code=404,
+            detail="Device not found",
+        )
+
+    # Normalize metric name
+    metric_name = payload.data_type.lower()
+
+    # ------------------------------------------------------------------
+    # 2. Store raw measurement in sensor_data
+    # ------------------------------------------------------------------
+    now = datetime.utcnow()
+
+    sensor_record = SensorDataModel(
+        device_id=device.id,
+        measurement_value=float(payload.data),
+        measurement_unit=payload.data_unit,
+        timestamp=now,
+    )
+    db.add(sensor_record)
+
+    # ------------------------------------------------------------------
+    # 3. Update device metadata
+    # ------------------------------------------------------------------
+    device.last_data_received = now
+    device.last_heartbeat = now
+    # (If later you extend DeviceData with battery/rssi, update them here.)
+
+    # ------------------------------------------------------------------
+    # 4. Update plant health_status in DB & live PlantDomain
+    # ------------------------------------------------------------------
+    plant = db.query(PlantModel).get(device.plant_id) if device.plant_id else None
+    new_health_status = None
+
+    # Mapping indices in health_status: brightness, humidity, temperature, moisture(%)
+    metric_index = None
+    if metric_name in ("brightness", "light", "illumination"):
+        metric_index = 0
+    elif metric_name in ("humidity", "air_humidity", "relative_humidity"):
+        metric_index = 1
+    elif metric_name in ("temperature", "temp"):
+        metric_index = 2
+    elif metric_name in ("moisture", "soil_moisture", "soil"):
+        metric_index = 3
+
+    if plant and metric_index is not None:
+        # health_status is "brightness,humidity,temperature,moisture"
+        parts = [0.0, 0.0, 0.0, 0.0]
+        if plant.health_status:
+            try:
+                existing = [float(x) for x in str(plant.health_status).split(",")]
+                for i in range(min(4, len(existing))):
+                    parts[i] = existing[i]
+            except Exception:
+                # If parsing fails, keep default zeros
+                pass
+
+        parts[metric_index] = float(payload.data)
+        new_health_status = ",".join(str(v) for v in parts)
+        plant.health_status = new_health_status
+
+        # ----- Sync live PlantDomain object in SystemState -----
+        consumer = system_state.consumers.get(device.user_id)
+        if consumer:
+            for runtime_plant in consumer.plants:
+                if runtime_plant.id == plant.id:
+                    if metric_index == 0:
+                        runtime_plant.act_brightness = float(payload.data)
+                    elif metric_index == 1:
+                        runtime_plant.act_humidity = float(payload.data)
+                    elif metric_index == 2:
+                        runtime_plant.act_temperature = float(payload.data)
+                    elif metric_index == 3:
+                        runtime_plant.act_moisture = float(payload.data)
+                    break
+
+    # ------------------------------------------------------------------
+    # 5. Commit changes and return response
+    # ------------------------------------------------------------------
+    db.commit()
+    db.refresh(device)
+    if plant:
+        db.refresh(plant)
+
+    return {
+        "detail": "Device data received",
+        "device_id": device.id,
+        "plant_id": plant.id if plant else None,
+        "metric": metric_name,
+        "value": float(payload.data),
+        "unit": payload.data_unit,
+        "timestamp": now.isoformat(),
+        "health_status": new_health_status,
+    }
 
 
 @app.post("/api/consumer/devices/{device_id}/command")

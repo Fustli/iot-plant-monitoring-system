@@ -125,3 +125,9 @@ class RegisterDevice(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+class DeviceData(BaseModel):
+    device_id: int
+    data_type: str
+    data: float
+    data_unit: str
