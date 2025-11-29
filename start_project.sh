@@ -197,10 +197,10 @@ start_backend() {
         log_info "Press Ctrl+C to stop"
         log_info "API available at: http://localhost:$BACKEND_PORT"
         log_info "API docs at: http://localhost:$BACKEND_PORT/docs"
-        $UVICORN_CMD main:app --host 0.0.0.0 --port $BACKEND_PORT --reload --log-level debug
+        PYTHONPATH="$SERVER_DIR/src:$PYTHONPATH" $UVICORN_CMD main:app --host 0.0.0.0 --port $BACKEND_PORT --reload --log-level debug
     else
         # Normal mode: run in background
-        nohup $UVICORN_CMD main:app --host 0.0.0.0 --port $BACKEND_PORT --reload > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
+        PYTHONPATH="$SERVER_DIR/src:$PYTHONPATH" nohup $UVICORN_CMD main:app --host 0.0.0.0 --port $BACKEND_PORT --reload > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
         local pid=$!
         
         ensure_pid_dir

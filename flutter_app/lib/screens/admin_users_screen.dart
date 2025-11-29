@@ -78,7 +78,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${user.username} törölve'),
+              content: Text('${user.username} torolve'),
               backgroundColor: Colors.green,
             ),
           );
@@ -92,6 +92,58 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             ),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _toggleVerified(User user) async {
+    try {
+      await _apiService.updateUser(user.id, isVerified: !user.isVerified);
+      _loadUsers();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(user.isVerified
+                ? '${user.username} hitelesitese visszavonva'
+                : '${user.username} hitelesitve'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.messageHu),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleActive(User user) async {
+    try {
+      await _apiService.updateUser(user.id, isActive: !user.isActive);
+      _loadUsers();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(user.isActive
+                ? '${user.username} deaktivalva'
+                : '${user.username} aktivalva'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.messageHu),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -205,32 +257,53 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               children: [
                 _buildRoleBadge(user.role),
                 const SizedBox(width: 8),
-                if (!user.isActive) _buildStatusBadge('Inaktív', Colors.red),
+                if (!user.isActive) _buildStatusBadge('Inaktiv', Colors.red),
                 if (!user.isVerified)
-                  _buildStatusBadge('Nem hitelesített', Colors.orange),
+                  _buildStatusBadge('Nem hitelesite', Colors.orange),
               ],
             ),
           ],
         ),
         trailing: PopupMenuButton<String>(
-          onSelected: (action) {
+          onSelected: (action) async {
             switch (action) {
               case 'delete':
                 _deleteUser(user);
                 break;
-              case 'edit':
-                // TODO: Implement edit
+              case 'verify':
+                await _toggleVerified(user);
+                break;
+              case 'activate':
+                await _toggleActive(user);
                 break;
             }
           },
           itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'edit',
+            PopupMenuItem(
+              value: 'verify',
               child: Row(
                 children: [
-                  Icon(Icons.edit),
-                  SizedBox(width: 8),
-                  Text('Szerkesztés'),
+                  Icon(
+                    user.isVerified ? Icons.verified : Icons.verified_outlined,
+                    color: user.isVerified ? Colors.grey : Colors.green,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(user.isVerified
+                      ? 'Hitelesites visszavonas'
+                      : 'Hitelesites'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'activate',
+              child: Row(
+                children: [
+                  Icon(
+                    user.isActive ? Icons.block : Icons.check_circle,
+                    color: user.isActive ? Colors.orange : Colors.green,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(user.isActive ? 'Deaktivalas' : 'Aktivalas'),
                 ],
               ),
             ),
@@ -240,7 +313,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 children: [
                   Icon(Icons.delete, color: Colors.red),
                   SizedBox(width: 8),
-                  Text('Törlés', style: TextStyle(color: Colors.red)),
+                  Text('Torles', style: TextStyle(color: Colors.red)),
                 ],
               ),
             ),

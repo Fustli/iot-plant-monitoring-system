@@ -291,6 +291,8 @@ pids/
 # The downloaded Flutter SDK and compressed archive (Huge files)
 flutter_app/flutter.tar.xz
 flutter_app/flutter/
+flutter_app/build/
+flutter_app/.dart_tool/
 
 # Ensure the ServerModule virtual environment is ignored if named differently
 ServerModule/venv/

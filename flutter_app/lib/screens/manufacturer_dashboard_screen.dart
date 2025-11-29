@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
+import '../services/api_client.dart';
+import '../services/api_exceptions.dart';
 
 /// Manufacturer dashboard for device type management
 class ManufacturerDashboardScreen extends StatefulWidget {
@@ -134,7 +136,7 @@ class _DashboardView extends StatelessWidget {
         children: [
           // Welcome header
           Text(
-            '${localization.tr('home_hello')}, $username! 🏭',
+            '${localization.tr('home_hello')}, $username!',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.blue[700],
@@ -289,85 +291,346 @@ class _StatCard extends StatelessWidget {
 // DEVICE TYPES VIEW
 // =============================================================================
 
-class _DeviceTypesView extends StatelessWidget {
+class _DeviceTypesView extends StatefulWidget {
   const _DeviceTypesView();
+
+  @override
+  State<_DeviceTypesView> createState() => _DeviceTypesViewState();
+}
+
+class _DeviceTypesViewState extends State<_DeviceTypesView> {
+  final ApiService _apiService = ApiService();
+  List<Map<String, dynamic>> _deviceTypes = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeviceTypes();
+  }
+
+  Future<void> _loadDeviceTypes() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      _deviceTypes = await _apiService.listDeviceTypes();
+    } on ApiException catch (e) {
+      _error = e.messageHu;
+    } catch (e) {
+      _error = 'Failed to load device types';
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
-    // TODO: Implement device types list
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.category, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          const Text('No device types yet'),
-          const SizedBox(height: 8),
-          Text(
-            'Register your first device type',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              _showAddDeviceTypeDialog(context, localization);
-            },
-            icon: const Icon(Icons.add),
-            label: Text(localization.tr('common_add')),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[700],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-  void _showAddDeviceTypeDialog(
-      BuildContext context, LocalizationProvider localization) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(localization.tr('manufacturer_device_types')),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Device Type Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 16),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadDeviceTypes,
+              child: const Text('Retry'),
             ),
           ],
         ),
+      );
+    }
+
+    if (_deviceTypes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.category, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            const Text('No device types yet'),
+            const SizedBox(height: 8),
+            Text(
+              'Register your first device type',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _showAddDeviceTypeDialog(context, localization),
+              icon: const Icon(Icons.add),
+              label: Text(localization.tr('common_add')),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadDeviceTypes,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _deviceTypes.length,
+            itemBuilder: (context, index) {
+              final deviceType = _deviceTypes[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.blue.withOpacity(0.1),
+                    child: Icon(
+                      _getDeviceIcon(deviceType['device_type'] ?? ''),
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                  title: Text(
+                    deviceType['name'] ?? 'Unknown',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(deviceType['device_type'] ?? ''),
+                      const SizedBox(height: 4),
+                      Text(
+                        deviceType['description'] ?? 'No description',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                  trailing: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (deviceType['is_active'] == true)
+                          ? Colors.green.withOpacity(0.2)
+                          : Colors.grey.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      (deviceType['is_active'] == true) ? 'Active' : 'Inactive',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: (deviceType['is_active'] == true)
+                            ? Colors.green
+                            : Colors.grey,
+                      ),
+                    ),
+                  ),
+                  isThreeLine: true,
+                ),
+              );
+            },
+          ),
+        ),
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
+            onPressed: () => _showAddDeviceTypeDialog(context, localization),
+            backgroundColor: Colors.blue[700],
+            child: const Icon(Icons.add),
+          ),
+        ),
+      ],
+    );
+  }
+
+  IconData _getDeviceIcon(String deviceType) {
+    switch (deviceType.toLowerCase()) {
+      case 'sensor':
+        return Icons.sensors;
+      case 'actuator':
+        return Icons.settings_remote;
+      case 'controller':
+        return Icons.memory;
+      default:
+        return Icons.devices;
+    }
+  }
+
+  Future<void> _showAddDeviceTypeDialog(
+      BuildContext context, LocalizationProvider localization) async {
+    final nameController = TextEditingController();
+    final typeController = TextEditingController();
+    final descController = TextEditingController();
+    final interfaceController = TextEditingController(text: 'MQTT');
+    final functionsController = TextEditingController();
+    final unitController = TextEditingController();
+    final minController = TextEditingController(text: '0');
+    final maxController = TextEditingController(text: '100');
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(localization.tr('manufacturer_device_types')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Device Type Name *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: typeController,
+                decoration: const InputDecoration(
+                  labelText: 'Type (sensor/actuator/controller) *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: interfaceController,
+                decoration: const InputDecoration(
+                  labelText: 'Communication Interface *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: functionsController,
+                decoration: const InputDecoration(
+                  labelText: 'Supported Functions (comma-separated) *',
+                  border: OutlineInputBorder(),
+                  hintText: 'temperature,humidity',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: unitController,
+                decoration: const InputDecoration(
+                  labelText: 'Data Unit *',
+                  border: OutlineInputBorder(),
+                  hintText: 'Celsius, %, etc.',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: minController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Min Value',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: maxController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Max Value',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descController,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(localization.tr('common_cancel')),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(localization.tr('common_loading'))),
-              );
-            },
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
             child: Text(localization.tr('common_save')),
           ),
         ],
       ),
     );
+
+    if (result == true && mounted) {
+      if (nameController.text.isEmpty ||
+          typeController.text.isEmpty ||
+          functionsController.text.isEmpty ||
+          unitController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please fill all required fields'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      try {
+        await _apiService.registerDeviceType({
+          'name': nameController.text,
+          'device_type': typeController.text,
+          'communication_interface': interfaceController.text,
+          'supported_functions': functionsController.text,
+          'data_unit': unitController.text,
+          'min_value': double.tryParse(minController.text) ?? 0,
+          'max_value': double.tryParse(maxController.text) ?? 100,
+          'is_active': true,
+          'description':
+              descController.text.isNotEmpty ? descController.text : null,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Device type registered successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadDeviceTypes();
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.messageHu),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 }
 
@@ -380,77 +643,40 @@ class _DeviceInstancesView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final localization = context.watch<LocalizationProvider>();
-
-    // TODO: Implement device instances list
+    // Device instance pre-registration requires backend schema changes
+    // (new DevicePreRegistration table with manufacturer_id, device_type_id, serial_number)
+    // This feature will be available in a future release
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.devices, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          const Text('No device instances registered'),
-          const SizedBox(height: 8),
-          Text(
-            'Register device instances for users to claim',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              _showAddDeviceInstanceDialog(context, localization);
-            },
-            icon: const Icon(Icons.add),
-            label: Text(localization.tr('manufacturer_register_device')),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[700],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddDeviceInstanceDialog(
-      BuildContext context, LocalizationProvider localization) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(localization.tr('manufacturer_register_device')),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Serial Number / Unique ID',
-                border: OutlineInputBorder(),
-              ),
+            Icon(Icons.construction, size: 64, color: Colors.orange[400]),
+            const SizedBox(height: 16),
+            const Text(
+              'Device Instance Pre-Registration',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
-            SizedBox(height: 16),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Device Type',
-                border: OutlineInputBorder(),
-              ),
+            const SizedBox(height: 16),
+            Text(
+              'This feature allows manufacturers to pre-register device serial numbers '
+              'so consumers can easily claim their purchased devices.\n\n'
+              'Coming in a future update.',
+              style: TextStyle(color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Icon(Icons.info_outline, size: 20, color: Colors.grey[400]),
+            const SizedBox(height: 8),
+            Text(
+              'Currently, consumers can register devices directly using the device type and serial number.',
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(localization.tr('common_cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(localization.tr('common_loading'))),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
-            child: Text(localization.tr('common_save')),
-          ),
-        ],
       ),
     );
   }

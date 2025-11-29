@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/app_colors.dart';
+import '../models/plant_type_model.dart';
 import '../widgets/plant_card.dart';
 import '../widgets/alert_banner.dart';
 import '../services/plant_provider.dart';
@@ -164,7 +165,7 @@ class _HomeView extends StatelessWidget {
           children: [
             // Welcome header
             Text(
-              '${localization.tr('home_hello')}, $username! 🌱',
+              '${localization.tr('home_hello')}, $username!',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppColors.primary,
@@ -359,76 +360,270 @@ class _StatCard extends StatelessWidget {
 // PLANTS VIEW
 // =============================================================================
 
-class _PlantsView extends StatelessWidget {
+class _PlantsView extends StatefulWidget {
   const _PlantsView();
+
+  @override
+  State<_PlantsView> createState() => _PlantsViewState();
+}
+
+class _PlantsViewState extends State<_PlantsView> {
+  @override
+  void initState() {
+    super.initState();
+    // Load plant types for the add dialog
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PlantProvider>().loadPlantTypes();
+    });
+  }
+
+  Future<void> _showAddPlantDialog(BuildContext context) async {
+    final plantProvider = context.read<PlantProvider>();
+    final localization = context.read<LocalizationProvider>();
+
+    if (plantProvider.plantTypes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.tr('plants_no_types'))),
+      );
+      return;
+    }
+
+    PlantType? selectedType;
+    final nameController = TextEditingController();
+    final locationController = TextEditingController();
+    final notesController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(localization.tr('plants_add')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(localization.tr('plants_select_type'),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<PlantType>(
+                  value: selectedType,
+                  hint: Text(localization.tr('plants_select_type_hint')),
+                  isExpanded: true,
+                  items: plantProvider.plantTypes.map((type) {
+                    return DropdownMenuItem(
+                      value: type,
+                      child: Text('${type.plantName} (${type.scientificName})'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedType = value;
+                      if (value != null && nameController.text.isEmpty) {
+                        nameController.text = value.plantName;
+                      }
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('plants_name'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: locationController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('plants_location'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notesController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('plants_notes'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(localization.tr('common_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: selectedType == null || nameController.text.isEmpty
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
+              child: Text(localization.tr('common_add')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true && selectedType != null && mounted) {
+      final request = PlantFromDatabaseRequest(
+        name: nameController.text,
+        scientificName: selectedType!.scientificName,
+        location:
+            locationController.text.isNotEmpty ? locationController.text : null,
+        notes: notesController.text.isNotEmpty ? notesController.text : null,
+      );
+
+      final success = await plantProvider.createPlantFromDatabase(request);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success
+                ? localization.tr('plants_added_success')
+                : localization.tr('plants_added_error')),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeletePlant(
+      BuildContext context, String plantId, String plantName) async {
+    final localization = context.read<LocalizationProvider>();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(localization.tr('plants_delete')),
+        content: Text(localization
+            .tr('plants_delete_confirm')
+            .replaceAll('{name}', plantName)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(localization.tr('common_delete')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final plantProvider = context.read<PlantProvider>();
+      final success = await plantProvider.deletePlant(int.parse(plantId));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success
+                ? localization.tr('plants_deleted_success')
+                : localization.tr('plants_deleted_error')),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
-    return Consumer<PlantProvider>(
-      builder: (context, plantProvider, child) {
-        if (plantProvider.isLoading) {
-          return Center(
-              child: CircularProgressIndicator(color: AppColors.primary));
-        }
+    return Stack(
+      children: [
+        Consumer<PlantProvider>(
+          builder: (context, plantProvider, child) {
+            if (plantProvider.isLoading) {
+              return Center(
+                  child: CircularProgressIndicator(color: AppColors.primary));
+            }
 
-        if (plantProvider.plants.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.local_florist, size: 64, color: Colors.grey[400]),
-                const SizedBox(height: 16),
-                Text(localization.tr('plants_empty')),
-                const SizedBox(height: 8),
-                Text(localization.tr('plants_add_first'),
-                    style: TextStyle(color: Colors.grey[600])),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    // TODO: Navigate to add plant screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(localization.tr('common_loading'))),
-                    );
-                  },
-                  icon: const Icon(Icons.add),
-                  label: Text(localization.tr('plants_add')),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: plantProvider.refresh,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: plantProvider.plants.length,
-            itemBuilder: (context, index) {
-              final plant = plantProvider.plants[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: PlantCard(
-                  plant: plant,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            PlantDetailScreen(plantId: plant.id),
-                      ),
-                    );
-                  },
-                  onWaterSuccess: (plantId) {
-                    plantProvider.loadPlantDetails(plantId);
-                  },
+            if (plantProvider.plants.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.local_florist,
+                        size: 64, color: Colors.grey[400]),
+                    const SizedBox(height: 16),
+                    Text(localization.tr('plants_empty')),
+                    const SizedBox(height: 8),
+                    Text(localization.tr('plants_add_first'),
+                        style: TextStyle(color: Colors.grey[600])),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => _showAddPlantDialog(context),
+                      icon: const Icon(Icons.add),
+                      label: Text(localization.tr('plants_add')),
+                    ),
+                  ],
                 ),
               );
-            },
+            }
+
+            return RefreshIndicator(
+              onRefresh: plantProvider.refresh,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: plantProvider.plants.length,
+                itemBuilder: (context, index) {
+                  final plant = plantProvider.plants[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Dismissible(
+                      key: Key(plant.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        color: Colors.red,
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      confirmDismiss: (direction) async {
+                        await _confirmDeletePlant(
+                            context, plant.id, plant.name);
+                        return false; // We handle deletion ourselves
+                      },
+                      child: PlantCard(
+                        plant: plant,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  PlantDetailScreen(plantId: plant.id),
+                            ),
+                          );
+                        },
+                        onWaterSuccess: (plantId) {
+                          plantProvider.loadPlantDetails(plantId);
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+        // FAB for adding plants
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
+            onPressed: () => _showAddPlantDialog(context),
+            backgroundColor: AppColors.primary,
+            child: const Icon(Icons.add),
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

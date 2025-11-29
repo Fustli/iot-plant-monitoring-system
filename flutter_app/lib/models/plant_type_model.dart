@@ -34,12 +34,20 @@ class PlantType {
     return PlantType(
       id: json['id'] as int? ?? 0,
       plantName:
-          json['plant_name'] as String? ?? json['name'] as String? ?? 'Unknown',
+          json['name'] as String? ?? json['plant_name'] as String? ?? 'Unknown',
       scientificName: json['scientific_name'] as String? ?? '',
-      reqBrightness: (json['req_brightness'] as num?)?.toDouble() ?? 50.0,
-      reqHumidity: (json['req_humidity'] as num?)?.toDouble() ?? 50.0,
-      reqTemperature: (json['req_temperature'] as num?)?.toDouble() ?? 22.0,
-      reqMoisture: (json['req_moisture'] as num?)?.toInt() ?? 50,
+      reqBrightness: (json['req_brightness'] as num?)?.toDouble() ??
+          (json['optimal_light'] as num?)?.toDouble() ??
+          50.0,
+      reqHumidity: (json['req_humidity'] as num?)?.toDouble() ??
+          (json['optimal_humidity'] as num?)?.toDouble() ??
+          50.0,
+      reqTemperature: (json['req_temperature'] as num?)?.toDouble() ??
+          (json['optimal_temperature'] as num?)?.toDouble() ??
+          22.0,
+      reqMoisture: (json['req_moisture'] as num?)?.toInt() ??
+          (json['optimal_moisture'] as num?)?.toInt() ??
+          50,
       description: json['description'] as String?,
       careInstructions: json['care_instructions'] as String?,
       createdAt: json['created_at'] != null
@@ -53,7 +61,7 @@ class PlantType {
 
   /// Convert to JSON for API requests (matches NewPlantType schema)
   Map<String, dynamic> toJson() => {
-        'plant_name': plantName,
+        'name': plantName,
         'scientific_name': scientificName,
         'req_brightness': reqBrightness,
         'req_humidity': reqHumidity,
@@ -94,7 +102,7 @@ class PlantType {
 
   /// Get formatted requirements string for display
   String get requirementsSummary =>
-      '🌡️ ${reqTemperature.toStringAsFixed(1)}°C | 💧 $reqMoisture% | ☀️ ${reqBrightness.toStringAsFixed(0)}%';
+      'Temp: ${reqTemperature.toStringAsFixed(1)}C | Moisture: $reqMoisture% | Light: ${reqBrightness.toStringAsFixed(0)}%';
 
   /// Get formatted requirements in Hungarian
   String get requirementsSummaryHu =>

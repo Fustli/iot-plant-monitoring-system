@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
 
 import '../models/auth_models.dart';
@@ -21,12 +21,18 @@ class ApiService {
   ApiService._internal();
 
   // Base URL configuration
-  // Web uses localhost, Android emulator uses 10.0.2.2, others use localhost
+  // - Production (Docker/Azure): Use relative URL, Nginx proxies to backend
+  // - Development: Use localhost:8000
   static String get _baseUrl {
     if (kIsWeb) {
+      // In release mode (Docker), use relative URL - Nginx will proxy
+      if (kReleaseMode) {
+        return '/api';
+      }
+      // Development mode - direct to backend
       return 'http://localhost:8000/api';
     }
-    // For mobile, would need platform-specific check, but for now default to localhost
+    // For mobile, would need platform-specific check
     return 'http://localhost:8000/api';
   }
 
@@ -197,6 +203,28 @@ class ApiService {
     }
   }
 
+  /// Execute a PATCH request with error handling
+  Future<dynamic> _patch(String endpoint,
+      {Map<String, dynamic>? body, bool requireAuth = true}) async {
+    try {
+      final response = await http
+          .patch(
+            Uri.parse('$_baseUrl$endpoint'),
+            headers: _buildHeaders(requireAuth: requireAuth),
+            body: body != null ? json.encode(body) : null,
+          )
+          .timeout(_timeout);
+
+      return _handleResponse(response);
+    } on TimeoutException catch (e) {
+      throw TimeoutException(originalError: e);
+    } on http.ClientException catch (e) {
+      throw ServerUnreachableException(originalError: e);
+    } catch (e) {
+      throw NetworkException(originalError: e);
+    }
+  }
+
   // ===========================================================================
   // 1. AUTHENTICATION
   // ===========================================================================
@@ -322,6 +350,22 @@ class ApiService {
     await _delete('/admin/users/$userId');
   }
 
+  /// Update user status (admin only) - for approving manufacturers, etc.
+  Future<User> updateUser(
+    int userId, {
+    String? role,
+    bool? isActive,
+    bool? isVerified,
+  }) async {
+    final body = <String, dynamic>{};
+    if (role != null) body['role'] = role;
+    if (isActive != null) body['is_active'] = isActive;
+    if (isVerified != null) body['is_verified'] = isVerified;
+
+    final response = await _patch('/admin/users/$userId', body: body);
+    return User.fromJson(response);
+  }
+
   /// Delete a manufacturer (admin only)
   Future<void> deleteManufacturer(int manufacturerId) async {
     await _delete('/admin/manufacturers/$manufacturerId');
@@ -366,10 +410,9 @@ class ApiService {
     await _put('/manufacturer/device-types/$deviceTypeId', body: updates);
   }
 
-  /// Register device instance for user claiming (manufacturer/admin)
-  Future<void> registerDeviceInstance(Map<String, dynamic> deviceData) async {
-    await _post('/manufacturer/devices', body: deviceData);
-  }
+  // NOTE: registerDeviceInstance is deferred - requires backend schema changes
+  // for manufacturer device pre-registration table.
+  // See docs/MISSING_API_REPORT.md for details.
 
   // ===========================================================================
   // 4. PLANT DATABASE (SPECIES CATALOG) - Admin Only
@@ -382,12 +425,12 @@ class ApiService {
 
   /// Update plant species in catalog (admin only)
   Future<void> updatePlantSpecies(int speciesId, PlantType plantType) async {
-    await _put('/plant-species/$speciesId', body: plantType.toJson());
+    await _put('/plant-types/$speciesId', body: plantType.toJson());
   }
 
   /// Delete plant species from catalog (admin only)
   Future<void> deletePlantSpecies(int speciesId) async {
-    await _delete('/plant-species/$speciesId');
+    await _delete('/plant-type/$speciesId');
   }
 
   // ===========================================================================
@@ -401,11 +444,24 @@ class ApiService {
   }
 
   /// Search plant types by name or scientific name
-  Future<List<PlantType>> searchPlantTypes(String query) async {
-    final response = await _post('/consumer/plant-types/search', body: {
-      'query': query,
-    });
-    return (response as List).map((json) => PlantType.fromJson(json)).toList();
+  Future<dynamic> searchPlantTypes(
+      {String? name, String? scientificName}) async {
+    final queryParams = <String, String>{};
+    if (name != null && name.isNotEmpty) queryParams['name'] = name;
+    if (scientificName != null && scientificName.isNotEmpty) {
+      queryParams['scientific_name'] = scientificName;
+    }
+
+    final queryString = queryParams.entries
+        .map((e) =>
+            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+
+    final endpoint = queryString.isEmpty
+        ? '/consumer/plant-types/search'
+        : '/consumer/plant-types/search?$queryString';
+
+    return await _get(endpoint);
   }
 
   /// Get all plants for current user

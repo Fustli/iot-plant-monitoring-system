@@ -1,66 +1,7 @@
 # IoT Plant Monitoring System - Project Requirements
 
 # ============================================================================
-# FRONTEND - FLUTTER
-# ============================================================================
-# Install Flutter: https://flutter.dev/docs/get-started/install
-# Then run: flutter pub get
-#
-# Key Flutter packages:
-#   - provider: ^6.0.0          # State management
-#   - google_fonts: ^6.0.0      # Typography
-#   - fl_chart: ^0.65.0         # Data visualization
-#   - http: ^1.1.0              # HTTP client (future backend integration)
-#   - intl: ^0.19.0             # Date/time formatting
-#   - shared_preferences: ^2.2.0 # Local storage
-#
-# See: flutter_app/pubspec.yaml for full Flutter dependencies
-
-# ============================================================================
-# BACKEND - PYTHON DATABASE & ORM
-# ============================================================================
-SQLAlchemy==2.0.23
-psycopg2-binary==2.9.11  # PostgreSQL adapter for Python
-sqlparse==0.4.4          # SQL parsing and formatting
-alembic==1.13.0          # Schema migration tool for SQLAlchemy
-
-# ============================================================================
-# ENVIRONMENT & CONFIGURATION
-# ============================================================================
-python-dotenv==1.0.0  # Load environment variables from .env
-
-# ============================================================================
-# UTILITIES & HELPERS
-# ============================================================================
-typing-extensions==4.8.0  # Extended typing support
-
-# ============================================================================
-# TESTING
-# ============================================================================
-pytest==7.4.3                 # Testing framework
-pytest-postgresql==5.1.0      # PostgreSQL fixtures for pytest
-
-# ============================================================================
-# CODE QUALITY & LINTING
-# ============================================================================
-# pylint==3.0.0
-# black==23.11.0
-# flake8==6.1.0
-# isort==5.13.0
-
-# ============================================================================
-# LOGGING & MONITORING
-# ============================================================================
-# python-json-logger==2.0.7
-
-# ============================================================================
-# DEVELOPMENT TOOLS
-# ============================================================================
-# ipython==8.18.0  # Enhanced Python shell
-# jupyter==1.0.0   # Jupyter notebook support
-
-# ============================================================================
-# WEB FRAMEWORK & API
+# BACKEND - WEB FRAMEWORK & API (FastAPI)
 # ============================================================================
 fastapi==0.115.12            # Web framework for building APIs
 uvicorn==0.34.3              # ASGI server for FastAPI
@@ -69,14 +10,72 @@ email-validator==2.3.0       # Email validation for pydantic
 python-multipart==0.0.20     # Form data parsing for FastAPI
 
 # ============================================================================
-# AUTHENTICATION & SECURITY
+# BACKEND - DATABASE & ORM
+# ============================================================================
+SQLAlchemy==2.0.23           # ORM for database operations
+psycopg2-binary==2.9.11      # PostgreSQL adapter for Python
+alembic==1.13.0              # Schema migration tool for SQLAlchemy
+sqlparse==0.4.4              # SQL parsing and formatting
+
+# ============================================================================
+# BACKEND - AUTHENTICATION & SECURITY
 # ============================================================================
 python-jose[cryptography]==3.4.0  # JWT token handling
 passlib[bcrypt]==1.7.4            # Password hashing
 
 # ============================================================================
-# HTTP & ASYNC
+# BACKEND - ENVIRONMENT & CONFIGURATION
 # ============================================================================
-requests==2.32.5             # HTTP client
-# aiohttp==3.9.0             # For async HTTP requests
-# asyncpg==0.29.0            # Async PostgreSQL driver
+python-dotenv==1.0.0         # Load environment variables from .env
+
+# ============================================================================
+# BACKEND - HTTP CLIENT
+# ============================================================================
+requests==2.32.5             # HTTP client for external API calls
+
+# ============================================================================
+# HUB GATEWAY - MQTT
+# ============================================================================
+paho-mqtt==2.1.0             # MQTT client for IoT device communication
+
+# ============================================================================
+# UTILITIES & HELPERS
+# ============================================================================
+typing-extensions==4.8.0     # Extended typing support
+
+# ============================================================================
+# TESTING
+# ============================================================================
+pytest==7.4.3                # Testing framework
+pytest-postgresql==5.1.0     # PostgreSQL fixtures for pytest
+
+# ============================================================================
+# FRONTEND - FLUTTER (not pip-installable)
+# ============================================================================
+# Install Flutter: https://flutter.dev/docs/get-started/install
+# Then run: cd flutter_app && flutter pub get
+#
+# Key Flutter packages (see flutter_app/pubspec.yaml):
+#   - provider: ^6.0.0          # State management
+#   - google_fonts: ^6.0.0      # Typography
+#   - fl_chart: ^0.65.0         # Data visualization
+#   - http: ^1.1.0              # HTTP client
+#   - intl: ^0.19.0             # Date/time formatting
+#   - shared_preferences: ^2.2.0 # Local storage
+
+# ============================================================================
+# OPTIONAL - CODE QUALITY & LINTING
+# ============================================================================
+# pylint==3.0.0
+# black==23.11.0
+# flake8==6.1.0
+# isort==5.13.0
+
+# ============================================================================
+# OPTIONAL - DEVELOPMENT TOOLS
+# ============================================================================
+# ipython==8.18.0              # Enhanced Python shell
+# jupyter==1.0.0               # Jupyter notebook support
+# python-json-logger==2.0.7    # JSON formatted logging
+# aiohttp==3.9.0               # For async HTTP requests
+# asyncpg==0.29.0              # Async PostgreSQL driver

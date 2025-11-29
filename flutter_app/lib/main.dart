@@ -5,7 +5,6 @@ import 'constants/app_colors.dart';
 import 'models/auth_models.dart';
 import 'screens/login_screen.dart';
 import 'screens/registration_screen.dart';
-import 'screens/dashboard_screen.dart';
 import 'screens/user_dashboard_screen.dart';
 import 'screens/manufacturer_dashboard_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
@@ -67,7 +66,6 @@ class MyApp extends StatelessWidget {
             routes: {
               '/login': (context) => const LoginScreen(),
               '/register': (context) => const RegistrationScreen(),
-              '/dashboard': (context) => const DashboardScreen(),
               '/user-dashboard': (context) => const UserDashboardScreen(),
               '/manufacturer-dashboard': (context) =>
                   const ManufacturerDashboardScreen(),

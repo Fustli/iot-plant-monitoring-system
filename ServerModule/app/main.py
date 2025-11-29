@@ -25,6 +25,7 @@ from schemas import (
     ResetPasswordRequest,
     TokenResponse,
     UserDetails,
+    UserUpdate,
 )
 from security import hash_password, verify_password
 from src.db.alert_models import Alert as AlertModel
@@ -44,6 +45,125 @@ from src.users import Consumer, Manufacturer
 load_dotenv()
 
 app = FastAPI()
+
+# =============================================================================
+# SERIALIZATION HELPERS
+# =============================================================================
+# These convert raw SQL tuples to dictionaries for JSON response
+
+def serialize_user(row: tuple) -> dict:
+    """Convert user tuple to dictionary."""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "email": row[1],
+        "username": row[2],
+        "role": row[3],
+        # Skip password_hash (row[4])
+        "first_name": row[5],
+        "last_name": row[6],
+        "phone_number": row[7],
+        "is_active": row[8],
+        "is_verified": row[9],
+        "created_at": row[10].isoformat() if row[10] else None,
+        "updated_at": row[11].isoformat() if row[11] else None,
+        "last_login": row[12].isoformat() if row[12] else None,
+    }
+
+def serialize_plant_type(row: tuple) -> dict:
+    """Convert plant_type tuple to dictionary."""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "name": row[1],
+        "scientific_name": row[2],
+        "description": row[3],
+        "optimal_temperature": row[4],
+        "optimal_humidity": row[5],
+        "optimal_light": row[6],
+        "optimal_moisture": row[7],
+        "care_instructions": row[8],
+        "created_at": row[9].isoformat() if row[9] else None,
+        "updated_at": row[10].isoformat() if row[10] else None,
+    }
+
+def serialize_plant(row: tuple) -> dict:
+    """Convert plant tuple to dictionary."""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "user_id": row[1],
+        "plant_type_id": row[2],
+        "plant_name": row[3],
+        "location": row[4],
+        "planting_date": row[5].isoformat() if row[5] else None,
+        "is_healthy": row[6],
+        "health_status": row[7],
+        "notes": row[8],
+        "created_at": row[9].isoformat() if row[9] else None,
+        "updated_at": row[10].isoformat() if row[10] else None,
+    }
+
+def serialize_device(row: tuple) -> dict:
+    """Convert device tuple to dictionary."""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "user_id": row[1],
+        "plant_id": row[2],
+        "device_type_id": row[3],
+        "unique_identifier": row[4],
+        "device_name": row[5],
+        "is_active": row[6],
+        "last_data_received": row[7].isoformat() if row[7] else None,
+        "last_heartbeat": row[8].isoformat() if row[8] else None,
+        "location_description": row[9],
+        "battery_level": row[10],
+        "rssi": row[11],
+        "created_at": row[12].isoformat() if row[12] else None,
+        "updated_at": row[13].isoformat() if row[13] else None,
+    }
+
+def serialize_device_type(row: tuple) -> dict:
+    """Convert device_type tuple to dictionary."""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "manufacturer_id": row[1],
+        "name": row[2],
+        "device_type": row[3],
+        "description": row[4],
+        "communication_interface": row[5],
+        "supported_functions": row[6],
+        "data_unit": row[7],
+        "min_value": row[8],
+        "max_value": row[9],
+        "is_active": row[10],
+        "created_at": row[11].isoformat() if row[11] else None,
+        "updated_at": row[12].isoformat() if row[12] else None,
+    }
+
+def serialize_plant_type_search(row: tuple) -> dict:
+    """Convert plant_type search result tuple to dictionary (shorter field list)."""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "name": row[1],
+        "scientific_name": row[2],
+        "optimal_temperature": row[3],
+        "optimal_humidity": row[4],
+        "optimal_light": row[5],
+        "optimal_moisture": row[6],
+        "description": row[7],
+        "care_instructions": row[8],
+    }
+
 
 # CORS middleware - allow frontend to access the API
 app.add_middleware(
@@ -783,7 +903,7 @@ async def list_admin_users(
     """
     db_interface = DBInterface()
     users = db_interface.list_users()
-    return users
+    return [serialize_user(u) for u in users] if users else []
 
 
 @app.delete("/api/admin/users/{user_id}")
@@ -821,6 +941,74 @@ async def delete_user(
     system_state.remove_user(user_id)
 
     return {"detail": "User removed"}
+
+
+@app.patch("/api/admin/users/{user_id}")
+async def update_user(
+    user_id: int,
+    payload: UserUpdate,
+    current_admin: User = Depends(require_roles(["admin"])),
+    db: Session = Depends(get_db),
+):
+    """
+    General:
+        Update user properties like role, is_active, or is_verified.
+        Used by admins to approve manufacturers or deactivate users.
+
+    Parameters:
+        user_id:
+            Identifier of the user to update.
+        payload:
+            UserUpdate schema with optional fields to update.
+        current_admin:
+            Authenticated admin user performing the update.
+        db:
+            Database session dependency.
+
+    Returns:
+        A dictionary with the updated user details.
+
+    Raises:
+        HTTPException: If the user cannot be found.
+    """
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Prevent admin from demoting themselves
+    if user_id == current_admin.id and payload.role and payload.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own admin role",
+        )
+
+    # Update only provided fields
+    if payload.role is not None:
+        user.role = payload.role
+    if payload.is_active is not None:
+        user.is_active = payload.is_active
+    if payload.is_verified is not None:
+        user.is_verified = payload.is_verified
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "role": user.role,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone_number": user.phone_number,
+        "is_active": user.is_active,
+        "is_verified": user.is_verified,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+    }
 
 
 @app.delete("/api/admin/manufacturers/{manufacturer_id}")
@@ -876,7 +1064,7 @@ async def list_all_devices_admin(
     """
     db_interface = DBInterface()
     devices = db_interface.list_devices()
-    return devices
+    return [serialize_device(d) for d in devices] if devices else []
 
 
 @app.get("/api/admin/device_types")
@@ -896,7 +1084,7 @@ async def list_all_device_types_admin(
     """
     db_interface = DBInterface()
     device_types = db_interface.list_device_types()
-    return device_types
+    return [serialize_device_type(dt) for dt in device_types] if device_types else []
 
 
 @app.get("/api/admin/plants")
@@ -916,7 +1104,7 @@ async def list_all_plants_admin(
     """
     db_interface = DBInterface()
     plants = db_interface.list_plants()
-    return plants
+    return [serialize_plant(p) for p in plants] if plants else []
 
 
 # ---------------------------------------------------------------------------
@@ -984,7 +1172,7 @@ async def list_device_types(
     """
     db_interface = DBInterface()
     device_types = db_interface.list_device_types(current_manufacturer.id)
-    return device_types
+    return [serialize_device_type(dt) for dt in device_types] if device_types else []
 
 
 @app.put("/api/manufacturer/device-types/{device_type_id}")
@@ -1179,7 +1367,7 @@ async def list_plant_types(
     """
     db_interface = DBInterface()
     plant_types = db_interface.list_plant_types()
-    return plant_types
+    return [serialize_plant_type(pt) for pt in plant_types] if plant_types else []
 
 
 @app.get("/api/consumer/plant-types/search")
@@ -1205,12 +1393,12 @@ async def search_plant_types(
         plant_type = db_interface.get_plant_details_by_sci_name(
             payload.scientific_name
         )
-        return plant_type
+        return serialize_plant_type_search(plant_type) if plant_type else None
     elif payload.name:
         plant_type = db_interface.get_plant_details_by_name(payload.name)
-        return plant_type
+        return serialize_plant_type_search(plant_type) if plant_type else None
     else:
-        return "No name or scientific name was given. Could not return plant type."
+        return {"error": "No name or scientific name was given."}
 
 
 @app.get("/api/consumer/my-plants")
@@ -1229,11 +1417,11 @@ async def list_user_plants(
         A list of plants for the user or a message if none are registered.
     """
     db_interface = DBInterface()
-    plant_types = db_interface.list_plants(current_user.id)
-    if plant_types:
-        return plant_types
+    plants = db_interface.list_plants(current_user.id)
+    if plants:
+        return [serialize_plant(p) for p in plants]
     else:
-        return "The user has no registered plants."
+        return []
 
 
 @app.post("/api/consumer/plant-from-scratch")
@@ -1533,7 +1721,7 @@ async def list_available_device_types(
     """
     db_interface = DBInterface()
     device_types = db_interface.list_device_types()
-    return device_types
+    return [serialize_device_type(dt) for dt in device_types] if device_types else []
 
 
 @app.get("/api/consumer/my-devices")
@@ -1554,9 +1742,9 @@ async def list_my_devices(
     db_interface = DBInterface()
     devices = db_interface.list_devices(current_user.id)
     if devices:
-        return devices
+        return [serialize_device(d) for d in devices]
     else:
-        return f"User {current_user.username} has no devices registered."
+        return []
 
 
 @app.post("/api/consumer/my-devices/activation")

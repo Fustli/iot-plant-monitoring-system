@@ -68,7 +68,7 @@ class DeviceCommand(BaseModel):
     delta: float
 
 class NewPlantType(BaseModel):
-    plant_name: str
+    name: str
     scientific_name: str
     req_brightness: float
     req_humidity: float
@@ -95,6 +95,12 @@ class PlantSearch(BaseModel):
 class PasswordChange(BaseModel):
     old_password: str
     new_password: str
+
+class UserUpdate(BaseModel):
+    """Schema for admin user updates - approve, verify, or change status."""
+    role: Role | None = None
+    is_active: bool | None = None
+    is_verified: bool | None = None
 
 class RegisterDevice(BaseModel):
     name: str

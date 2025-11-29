@@ -55,21 +55,33 @@ class PlantProvider with ChangeNotifier {
 
   /// Load available plant types from catalog
   Future<void> loadPlantTypes() async {
+    _setLoading(true);
+    _error = null;
+
     try {
       _plantTypes = await _apiService.listPlantTypes();
+      notifyListeners();
     } on ApiException catch (e) {
+      _error = e.messageHu;
       debugPrint('Failed to load plant types: ${e.message}');
       _plantTypes = [];
     } catch (e) {
+      _error = 'Ismeretlen hiba tortent';
       debugPrint('Unexpected error loading plant types: $e');
       _plantTypes = [];
+    } finally {
+      _setLoading(false);
     }
   }
 
   /// Search plant types by name
   Future<List<PlantType>> searchPlantTypes(String query) async {
     try {
-      return await _apiService.searchPlantTypes(query);
+      final results = await _apiService.searchPlantTypes(name: query);
+      if (results is List) {
+        return results.map((json) => PlantType.fromJson(json)).toList();
+      }
+      return [];
     } on ApiException catch (e) {
       debugPrint('Failed to search plant types: ${e.message}');
       return [];

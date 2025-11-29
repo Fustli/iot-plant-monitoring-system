@@ -142,7 +142,7 @@ class _DashboardView extends StatelessWidget {
         children: [
           // Welcome header
           Text(
-            '${localization.tr('home_hello')}, $username! 👑',
+            '${localization.tr('home_hello')}, $username!',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.purple[700],

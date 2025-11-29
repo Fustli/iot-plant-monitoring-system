@@ -1,0 +1,45 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+*.iml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Test
+test/
+integration_test/
+coverage/
+
+# Android (not needed for web)
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# iOS (not needed for web)
+ios/Pods/
+ios/.symlinks/
+
+# Local Flutter SDK (if exists)
+flutter/
+
+# Misc
+*.log
+.env.local
