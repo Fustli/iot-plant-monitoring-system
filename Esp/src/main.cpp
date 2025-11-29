@@ -16,6 +16,10 @@
 // Config namespace in NVS
 static const char *PREF_NAMESPACE = "plantdev";
 
+// Pin definitions
+static const int RESET_SWITCH_PIN = 32;  // GPIO32 for reset switch (with internal pull-down)
+static const int LED_BUILTIN_PIN = 2;    // Built-in LED (GPIO2 on most ESP32 boards)
+
 // Hard-coded Hub configuration (known before first startup)
 static const uint16_t MQTT_PORT = 1883;
 static const char* MQTT_TOPIC_TELEMETRY = "home/sensors/telemetry";
@@ -23,7 +27,8 @@ static const char* MQTT_TOPIC_COMMANDS = "home/sensors/commands";
 
 // Device globals
 Preferences preferences;
-String deviceId;
+String chipId;      // Hardware chip ID (used for BLE advertising)
+String deviceId;    // Custom device ID (received via BLE config, used in MQTT)
 
 // BLE receive buffer
 static String bleConfigData = "";
@@ -49,19 +54,26 @@ PubSubClient mqttClient(espClient);
 unsigned long lastPublish = 0;
 const unsigned long PUBLISH_INTERVAL = 10UL * 1000UL; // 10s
 
+// LED blink timing
+unsigned long lastLedToggle = 0;
+bool ledState = false;
+
 // ============================================================================
 // FUNCTION DECLARATIONS
 // ============================================================================
 
 String chipIdStr();
 bool isConfigured();
-bool saveConfig(const String &ssid, const String &pass, const String &mqttHost);
+bool saveConfig(const String &ssid, const String &pass, const String &mqttHost, const String &devId);
+void clearConfig();
 void receiveConfigFromBLE();
 void connectToWifi(const String &ssid, const String &pass, uint32_t timeout_ms = 20000);
 bool connectToHub();
 void sendMqttData(const String &topic, const String &payload);
 void receiveMqttData(char* topic, byte* payload, unsigned int length);
 void startBLEConfigPortal();
+void checkResetSwitch();
+void blinkLed(unsigned long interval);
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -86,15 +98,47 @@ bool isConfigured() {
     return cfg;
 }
 
-bool saveConfig(const String &ssid, const String &pass, const String &mqttHost) {
+bool saveConfig(const String &ssid, const String &pass, const String &mqttHost, const String &devId) {
     preferences.begin(PREF_NAMESPACE, false);
     preferences.putString("ssid", ssid);
     preferences.putString("pass", pass);
     preferences.putString("mqttHost", mqttHost);
+    preferences.putString("deviceId", devId);
     preferences.putBool("configured", true);
     preferences.end();
     Serial.println("Configuration saved to NVS");
     return true;
+}
+
+void clearConfig() {
+    preferences.begin(PREF_NAMESPACE, false);
+    preferences.clear();
+    preferences.end();
+    Serial.println("Configuration cleared from NVS");
+}
+
+// ============================================================================
+// RESET SWITCH AND LED FUNCTIONS
+// ============================================================================
+
+void checkResetSwitch() {
+    if (digitalRead(RESET_SWITCH_PIN) == HIGH) {
+        Serial.println("⚠ Reset switch activated! Clearing configuration...");
+        clearConfig();
+        Serial.println("Rebooting...");
+        digitalWrite(LED_BUILTIN_PIN, LOW);
+        delay(1000);
+        ESP.restart();
+    }
+}
+
+void blinkLed(unsigned long interval) {
+    unsigned long now = millis();
+    if (now - lastLedToggle >= interval) {
+        lastLedToggle = now;
+        ledState = !ledState;
+        digitalWrite(LED_BUILTIN_PIN, ledState ? HIGH : LOW);
+    }
 }
 
 // ============================================================================
@@ -102,8 +146,8 @@ bool saveConfig(const String &ssid, const String &pass, const String &mqttHost) 
 // ============================================================================
 
 void startBLEConfigPortal() {
-    // Create a more human-readable BLE name
-    String bleName = "PlantDevice-" + chipIdStr().substring(4); // e.g., "PlantDevice-C3D4"
+    // Create a more human-readable BLE name using chip ID
+    String bleName = "PlantDevice-" + chipId.substring(3);  // e.g., "PlantDevice-1234ABCD"
     BLEDevice::init(bleName.c_str());
     pBleServer = BLEDevice::createServer();
     
@@ -122,9 +166,9 @@ void startBLEConfigPortal() {
     pAdvertising->setMinPreferred(0x12);
     pAdvertising->start();
     
-    Serial.printf("BLE Config Portal started. Device name: %s\n", deviceId.c_str());
+    Serial.printf("BLE Config Portal started. BLE name: %s\n", bleName.c_str());
     Serial.println("Waiting for configuration via BLE...");
-    Serial.println("Expected JSON: {\"ssid\":\"YourWiFi\",\"pass\":\"YourPassword\",\"mqttHost\":\"192.168.1.100\"}");
+    Serial.println("Expected JSON: {\"ssid\":\"YourWiFi\",\"pass\":\"YourPassword\",\"mqttHost\":\"192.168.1.100\",\"deviceId\":\"my-device-001\"}");
 }
 
 void receiveConfigFromBLE() {
@@ -149,14 +193,15 @@ void receiveConfigFromBLE() {
     const char* ssid = doc["ssid"] | "";
     const char* pass = doc["pass"] | "";
     const char* mqttHost = doc["mqttHost"] | "";
+    const char* devId = doc["deviceId"] | "";
     
-    if (strlen(ssid) == 0 || strlen(mqttHost) == 0) {
-        Serial.println("ERROR: ssid and mqttHost are required!");
+    if (strlen(ssid) == 0 || strlen(mqttHost) == 0 || strlen(devId) == 0) {
+        Serial.println("ERROR: ssid, mqttHost, and deviceId are required!");
         haveBleData = false;
         return;
     }
     
-    Serial.printf("Parsed - SSID: %s, MQTT Host: %s\n", ssid, mqttHost);
+    Serial.printf("Parsed - Device ID: %s, SSID: %s, MQTT Host: %s\n", devId, ssid, mqttHost);
     
     // Try to connect to WiFi with received credentials
     connectToWifi(String(ssid), String(pass));
@@ -179,8 +224,10 @@ void receiveConfigFromBLE() {
     }
     
     // Success! Save configuration
-    saveConfig(String(ssid), String(pass), String(mqttHost));
+    deviceId = String(devId);  // Set the global deviceId
+    saveConfig(String(ssid), String(pass), String(mqttHost), deviceId);
     Serial.println("=== Configuration Complete! Device will restart... ===");
+    digitalWrite(LED_BUILTIN_PIN, LOW);
     delay(2000);
     ESP.restart();
     
@@ -223,11 +270,11 @@ bool connectToHub() {
     mqttClient.setCallback(receiveMqttData);
     
     Serial.printf("Connecting to MQTT Hub at %s:%u\n", mqttHost.c_str(), MQTT_PORT);
-    Serial.printf("Client ID: %s\n", deviceId.c_str());
+    Serial.printf("Client ID: %s (Device ID: %s)\n", chipId.c_str(), deviceId.c_str());
     
     unsigned long start = millis();
     while (!mqttClient.connected() && (millis() - start) < 10000) {
-        if (mqttClient.connect(deviceId.c_str())) {
+        if (mqttClient.connect(chipId.c_str())) {  // Use chipId as MQTT client ID (unique per hardware)
             Serial.println("✓ MQTT connected to Hub!");
             
             // Subscribe to command topic
@@ -293,14 +340,19 @@ void receiveMqttData(char* topic, byte* payload, unsigned int length) {
 
 void setup() {
     Serial.begin(115200);
-    delay(500);
+    delay(2000);  // 2 second startup delay
+    
+    // Initialize pins
+    pinMode(RESET_SWITCH_PIN, INPUT_PULLDOWN);  // Use internal pull-down resistor
+    pinMode(LED_BUILTIN_PIN, OUTPUT);
+    digitalWrite(LED_BUILTIN_PIN, LOW);
     
     Serial.println("\n\n====================================");
     Serial.println("  Plant IoT Device - Local Hub");
     Serial.println("====================================");
     
-    deviceId = "PD-" + chipIdStr();
-    Serial.printf("Device ID: %s\n\n", deviceId.c_str());
+    chipId = "PD-" + chipIdStr();
+    Serial.printf("Chip ID: %s\n\n", chipId.c_str());
     
     if (!isConfigured()) {
         Serial.println("⚠ Device not configured");
@@ -313,9 +365,11 @@ void setup() {
         String ssid = preferences.getString("ssid", "");
         String pass = preferences.getString("pass", "");
         String mqttHost = preferences.getString("mqttHost", "");
+        deviceId = preferences.getString("deviceId", "");
         preferences.end();
         
         Serial.println("Stored configuration:");
+        Serial.printf("  Device ID: %s\n", deviceId.c_str());
         Serial.printf("  WiFi SSID: %s\n", ssid.c_str());
         Serial.printf("  MQTT Host: %s:%u\n\n", mqttHost.c_str(), MQTT_PORT);
         
@@ -336,12 +390,21 @@ void setup() {
 }
 
 void loop() {
-    // If device is not configured, handle BLE configuration
+    // Check reset switch (works in both configured and unconfigured states)
+    if (isConfigured()) {
+        checkResetSwitch();
+    }
+    
+    // If device is not configured, handle BLE configuration and blink LED (500ms)
     if (!isConfigured()) {
+        blinkLed(500);
         receiveConfigFromBLE();
         delay(100);
         return;
     }
+    
+    // When configured, blink LED slowly (2 sec)
+    blinkLed(2000);
     
     // Ensure MQTT stays connected
     if (!mqttClient.connected()) {
