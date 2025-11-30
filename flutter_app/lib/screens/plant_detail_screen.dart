@@ -4,12 +4,10 @@ import '../models/plant_model.dart';
 import '../models/plant_type_model.dart';
 import '../models/sensor_model.dart';
 import '../services/plant_provider.dart';
-import '../services/alert_provider.dart';
 import '../services/auth_provider.dart';
 import '../services/plant_image_provider.dart';
 import '../services/localization_service.dart';
 import '../constants/app_colors.dart';
-import '../widgets/alert_banner.dart';
 
 class PlantDetailScreen extends StatefulWidget {
   const PlantDetailScreen({
@@ -265,41 +263,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                         _buildPlantInfoCard(plant, localization),
 
                         const SizedBox(height: 16),
-
-                        // Active alerts for this plant
-                        Consumer<AlertProvider>(
-                          builder: (context, alertProvider, child) {
-                            final plantAlerts = alertProvider
-                                .getAlertsForPlant(plant.id)
-                                .where((alert) => alert.status.name == 'active')
-                                .toList();
-
-                            if (plantAlerts.isNotEmpty) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    localization.tr('plant_active_alerts'),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ...plantAlerts.map((alert) => Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 8),
-                                        child: AlertBanner(alert: alert),
-                                      )),
-                                  const SizedBox(height: 16),
-                                ],
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
 
                         // Sensor readings
                         _buildSensorReadingsCard(plant),
@@ -780,9 +743,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-
-        // Reload alerts in case watering resolved any
-        context.read<AlertProvider>().loadAlerts();
       }
     } finally {
       if (mounted) {

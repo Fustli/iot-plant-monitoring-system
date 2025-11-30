@@ -146,7 +146,7 @@ class LocalizationProvider with ChangeNotifier {
     'home_recent_alerts': 'Recent Alerts',
     'home_total_plants': 'Total Plants',
     'home_total_devices': 'Total Devices',
-    'home_active_alerts': 'Active Alerts',
+    'home_healthy_plants': 'Healthy',
     'home_no_alerts': 'No recent alerts',
 
     // Plants
@@ -613,7 +613,7 @@ class LocalizationProvider with ChangeNotifier {
     'home_recent_alerts': 'Legutóbbi Riasztások',
     'home_total_plants': 'Összes Növény',
     'home_total_devices': 'Összes Eszköz',
-    'home_active_alerts': 'Aktív Riasztások',
+    'home_healthy_plants': 'Egészséges',
     'home_no_alerts': 'Nincsenek legutóbbi riasztások',
 
     // Plants

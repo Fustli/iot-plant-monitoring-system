@@ -7,13 +7,11 @@ import '../models/hub_model.dart';
 import '../models/plant_model.dart';
 import '../models/plant_type_model.dart';
 import '../widgets/plant_card.dart';
-import '../widgets/alert_banner.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/empty_state.dart';
 import '../services/api_client.dart';
 import '../services/api_exceptions.dart';
 import '../services/plant_provider.dart';
-import '../services/alert_provider.dart';
 import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
 import 'plant_detail_screen.dart';
@@ -36,7 +34,6 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PlantProvider>().loadPlants();
-      context.read<AlertProvider>().loadAlerts();
     });
   }
 
@@ -139,10 +136,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await Future.wait([
-      context.read<PlantProvider>().refresh(),
-      context.read<AlertProvider>().refresh(),
-    ]);
+    await context.read<PlantProvider>().refresh();
   }
 }
 
@@ -160,10 +154,7 @@ class _HomeView extends StatelessWidget {
     final username = authProvider.username ?? 'User';
 
     return RefreshIndicator(
-      onRefresh: () => Future.wait([
-        context.read<PlantProvider>().refresh(),
-        context.read<AlertProvider>().refresh(),
-      ]),
+      onRefresh: () => context.read<PlantProvider>().refresh(),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
@@ -180,25 +171,6 @@ class _HomeView extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Critical alerts banner
-            Consumer<AlertProvider>(
-              builder: (context, alertProvider, child) {
-                final criticalAlerts = alertProvider.criticalAlerts
-                    .where((alert) => alert.status.name == 'active')
-                    .toList();
-
-                if (criticalAlerts.isNotEmpty) {
-                  return Column(
-                    children: [
-                      AlertBanner(alert: criticalAlerts.first),
-                      const SizedBox(height: 16),
-                    ],
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-
             // Quick stats
             Text(
               localization.tr('home_quick_stats'),
@@ -207,8 +179,8 @@ class _HomeView extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 12),
-            Consumer2<PlantProvider, AlertProvider>(
-              builder: (context, plantProvider, alertProvider, child) {
+            Consumer<PlantProvider>(
+              builder: (context, plantProvider, child) {
                 return Row(
                   children: [
                     Expanded(
@@ -231,12 +203,10 @@ class _HomeView extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _StatCard(
-                        icon: Icons.warning,
-                        title: localization.tr('home_active_alerts'),
-                        value: alertProvider.activeAlertsCount.toString(),
-                        color: alertProvider.criticalAlertsCount > 0
-                            ? AppColors.error
-                            : AppColors.warning,
+                        icon: Icons.favorite,
+                        title: localization.tr('home_healthy_plants'),
+                        value: plantProvider.healthyPlants.toString(),
+                        color: AppColors.success,
                       ),
                     ),
                   ],
@@ -1280,7 +1250,7 @@ class _DevicesViewState extends State<_DevicesView> {
 }
 
 // =============================================================================
-// ALERTS VIEW
+// ALERTS VIEW (Placeholder - Feature coming soon)
 // =============================================================================
 
 class _AlertsView extends StatelessWidget {
@@ -1290,39 +1260,11 @@ class _AlertsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
-    return Consumer<AlertProvider>(
-      builder: (context, alertProvider, child) {
-        if (alertProvider.isLoading) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: ShimmerList(itemCount: 3),
-          );
-        }
-
-        if (alertProvider.alerts.isEmpty) {
-          return EmptyStateWidget(
-            type: EmptyStateType.success,
-            title: localization.tr('alerts_none'),
-            subtitle: localization.tr('home_no_alerts'),
-            repeat: false,
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: alertProvider.refresh,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: alertProvider.alerts.length,
-            itemBuilder: (context, index) {
-              final alert = alertProvider.alerts[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: AlertBanner(alert: alert),
-              );
-            },
-          ),
-        );
-      },
+    return EmptyStateWidget(
+      type: EmptyStateType.success,
+      title: localization.tr('alerts_none'),
+      subtitle: localization.tr('home_no_alerts'),
+      repeat: false,
     );
   }
 }

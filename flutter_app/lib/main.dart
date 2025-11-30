@@ -12,7 +12,6 @@ import 'screens/admin_dashboard_screen.dart';
 import 'screens/history_screen.dart';
 import 'services/auth_provider.dart';
 import 'services/plant_provider.dart';
-import 'services/alert_provider.dart';
 import 'services/localization_service.dart';
 import 'services/plant_image_provider.dart';
 
@@ -31,7 +30,6 @@ class MyApp extends StatelessWidget {
           // Auth provider should be second as other providers may depend on it
           ChangeNotifierProvider(create: (_) => AuthProvider()),
           ChangeNotifierProvider(create: (_) => PlantProvider()),
-          ChangeNotifierProvider(create: (_) => AlertProvider()),
           // Plant image provider for Trefle API
           ChangeNotifierProvider(create: (_) => PlantImageProvider()),
         ],
