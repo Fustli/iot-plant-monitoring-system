@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Literal
+from typing import Literal, List
 
 Role = Literal["admin", "consumer", "manufacturer"]
 
@@ -98,7 +98,7 @@ class UserDetails(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     phone_number: str | None = None
-    company_name: str | None = None  # For manufacturer registration
+    company_name: str | None = None
     is_active: bool = True
     is_verified: bool = False
 
@@ -149,6 +149,10 @@ class DeviceAnomaly(BaseModel):
     device_id: int
     last_seen: int | float | str | None = None
     is_anomaly: bool = True
+
+class PlantHealthUpdate(BaseModel):
+    """Schema for updating plant health readings only."""
+    health_status: List[int]  # [soil_moisture, temperature, light_level, humidity]
 
 # ---------------------------------------------------------------------------
 # Hub Schemas

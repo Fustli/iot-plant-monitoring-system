@@ -37,9 +37,7 @@ class Plant:
         self.act_temperature: float = None
         self.act_moisture: float = None
 
-        # health_status can be either:
-        # 1. A comma-separated string of sensor values: "brightness,humidity,temperature,moisture"
-        # 2. A text status like "Good", "Needs attention" - in this case we don't have sensor data
+        # health_status: A comma-separated string of sensor values: "brightness,humidity,temperature,moisture"
         if health_status and "," in health_status:
             try:
                 brightness, humidity, temperature, moisture = (float(x) for x in health_status.split(","))

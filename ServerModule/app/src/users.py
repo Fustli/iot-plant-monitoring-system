@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
 from src.plants import Plant
 from src.devices import create_device_from_type

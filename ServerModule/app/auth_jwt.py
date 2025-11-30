@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict
-from jose import jwt, JWTError
+from jose import jwt
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me-in-prod")
 ALGORITHM = "HS256"
