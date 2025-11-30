@@ -391,6 +391,26 @@ def seed_sample_plants(session: Session, users: list, plant_types: list) -> list
                 plants.append(existing)
                 continue
             
+            # Generate realistic dummy sensor values based on plant type
+            # Add some variance around optimal values
+            moisture_variance = random.uniform(-15, 15)
+            temp_variance = random.uniform(-3, 3)
+            light_variance = random.uniform(-300, 300)
+            humidity_variance = random.uniform(-10, 10)
+            
+            current_moisture = max(10, min(90, plant_type.optimal_moisture + moisture_variance))
+            current_temperature = max(15, min(35, plant_type.optimal_temperature + temp_variance))
+            current_light = max(100, min(5000, plant_type.optimal_light + light_variance))
+            current_humidity = max(20, min(90, plant_type.optimal_humidity + humidity_variance))
+            
+            # Build health_status as CSV: "brightness,humidity,temperature,moisture"
+            health_status_csv = f"{round(current_light, 1)},{round(current_humidity, 1)},{round(current_temperature, 1)},{round(current_moisture, 1)}"
+            
+            # Some plants may have been watered recently
+            last_watered = None
+            if random.random() > 0.3:  # 70% have been watered
+                last_watered = datetime.now() - timedelta(hours=random.randint(1, 72))
+            
             plant = Plant(
                 user_id=user.id,
                 plant_type_id=plant_type.id,
@@ -398,8 +418,9 @@ def seed_sample_plants(session: Session, users: list, plant_types: list) -> list
                 location=random.choice(locations),
                 planting_date=datetime.now() - timedelta(days=random.randint(30, 365)),
                 is_healthy=random.choice([True, True, True, False]),  # 75% healthy
-                health_status="Good" if random.random() > 0.25 else "Needs attention",
+                health_status=health_status_csv,
                 notes=f"A lovely {plant_type.name} plant.",
+                last_watered=last_watered,
             )
             session.add(plant)
             plants.append(plant)

@@ -17,6 +17,9 @@ from schemas import (
     DeviceActivation,
     DeviceCommand,
     DeviceCreation,
+    HubCreate,
+    HubUpdate,
+    HubDeviceAssign,
     LoginRequest,
     NewPlantType,
     PasswordChange,
@@ -36,6 +39,7 @@ from src.db.alert_models import Alert as AlertModel
 from src.db.base import AlertStatusEnum
 from src.db.db_utils import DBInterface, get_session
 from src.db.device_models import Device as DeviceModel, DeviceType as DeviceTypeModel, Manufacturer as ManufacturerModel
+from src.db.hub_models import Hub as HubModel
 from src.db.plant_models import Plant as PlantModel, PlantType as PlantTypeModel
 from src.db.sensor_models import SensorData as SensorDataModel
 from src.db.user_models import User
@@ -93,9 +97,31 @@ def serialize_plant_type(row: tuple) -> dict:
     }
 
 def serialize_plant(row: tuple) -> dict:
-    """Convert plant tuple to dictionary."""
+    """Convert plant tuple to dictionary.
+    
+    health_status contains CSV: "brightness,humidity,temperature,moisture"
+    """
     if not row:
         return None
+    
+    # Parse health_status CSV to extract sensor values
+    health_status = row[7]
+    brightness = None
+    humidity = None
+    temperature = None
+    moisture = None
+    
+    if health_status:
+        parts = health_status.split(',')
+        if len(parts) >= 4:
+            try:
+                brightness = float(parts[0]) if parts[0] else None
+                humidity = float(parts[1]) if parts[1] else None
+                temperature = float(parts[2]) if parts[2] else None
+                moisture = float(parts[3]) if parts[3] else None
+            except (ValueError, IndexError):
+                pass
+    
     return {
         "id": row[0],
         "user_id": row[1],
@@ -104,14 +130,42 @@ def serialize_plant(row: tuple) -> dict:
         "location": row[4],
         "planting_date": row[5].isoformat() if row[5] else None,
         "is_healthy": row[6],
-        "health_status": row[7],
+        "health_status": health_status,
         "notes": row[8],
-        "current_moisture": row[9],
-        "current_temperature": row[10],
-        "current_light": row[11],
-        "last_watered": row[12].isoformat() if row[12] else None,
-        "created_at": row[13].isoformat() if row[13] else None,
-        "updated_at": row[14].isoformat() if row[14] else None,
+        "current_light": brightness,
+        "current_humidity": humidity,
+        "current_temperature": temperature,
+        "current_moisture": moisture,
+        "last_watered": row[9].isoformat() if row[9] else None,
+        "created_at": row[10].isoformat() if row[10] else None,
+        "updated_at": row[11].isoformat() if row[11] else None,
+    }
+
+def serialize_hub(row: tuple) -> dict:
+    """Convert hub tuple to dictionary."""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "user_id": row[1],
+        "hub_id": row[2],
+        "hub_link": row[3],
+        "name": row[4],
+        "location": row[5],
+        "description": row[6],
+        "is_online": row[7],
+        "last_seen": row[8].isoformat() if row[8] else None,
+        "last_heartbeat": row[9].isoformat() if row[9] else None,
+        "ip_address": row[10],
+        "mac_address": row[11],
+        "firmware_version": row[12],
+        "uptime_seconds": row[13],
+        "messages_sent": row[14],
+        "messages_received": row[15],
+        "errors_count": row[16],
+        "is_active": row[17],
+        "created_at": row[18].isoformat() if row[18] else None,
+        "updated_at": row[19].isoformat() if row[19] else None,
     }
 
 def serialize_device(row: tuple) -> dict:
@@ -1032,14 +1086,50 @@ async def get_system_status(
             seen_device_ids.add(did)
         unique_runtime_devices.append(d)
 
+    # --- Database statistics ---
+    db_plants = db_interface.list_plants() or []
+    db_devices = db_interface.list_devices() or []
+    db_device_types = db_interface.list_device_types() or []
+    
+    # Count users by role (role is at index 3, not 4 which is password_hash)
+    consumers_count = sum(1 for u in user_rows if u[3] == 'consumer')
+    manufacturers_count = sum(1 for u in user_rows if u[3] == 'manufacturer')
+    admins_count = sum(1 for u in user_rows if u[3] == 'admin')
+    
+    # Get device types with supported_functions in "name:mode" format
+    device_types_formatted = []
+    for dt in db_device_types:
+        dt_dict = serialize_device_type(dt)
+        # Parse supported_functions from comma-separated to "name:mode" format
+        supported_funcs = dt_dict.get('supported_functions', '') or ''
+        funcs_list = [f.strip() for f in supported_funcs.split(',') if f.strip()]
+        # Format as "function:read" or "function:write" based on device_type
+        device_type_str = dt_dict.get('device_type', 'sensor')
+        mode = 'read' if device_type_str == 'sensor' else 'write'
+        formatted_funcs = ','.join([f"{f}:{mode}" for f in funcs_list])
+        dt_dict['supported_functions_formatted'] = formatted_funcs
+        device_types_formatted.append(dt_dict)
+
     return {
         "application": "ok",
         "database": "ok" if db_ok else "error",
+        # Database statistics
+        "stats": {
+            "users_total": len(user_rows),
+            "consumers_count": consumers_count,
+            "manufacturers_count": manufacturers_count,
+            "admins_count": admins_count,
+            "plants_count": len(db_plants),
+            "devices_count": len(db_devices),
+            "device_types_count": len(db_device_types),
+        },
+        # Full data
         "users": users_data,
         "consumers": consumers_runtime,
         "manufacturers": manufacturers_runtime,
         "plants": runtime_plants,
         "devices": unique_runtime_devices,
+        "device_types": device_types_formatted,
     }
 
 

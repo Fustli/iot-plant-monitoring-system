@@ -11,10 +11,10 @@ import '../widgets/alert_banner.dart';
 
 class PlantDetailScreen extends StatefulWidget {
   const PlantDetailScreen({
-    Key? key,
+    super.key,
     required this.plantId,
     this.deviceId,
-  }) : super(key: key);
+  });
   final String plantId;
   final int? deviceId;
 
@@ -25,6 +25,7 @@ class PlantDetailScreen extends StatefulWidget {
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
   bool _isWatering = false;
   bool _isControllingLight = false;
+  bool _isControllingTemperature = false;
   List<SensorReading> _sensorHistory = [];
   bool _isLoadingHistory = false;
 
@@ -66,8 +67,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     final plantProvider = context.read<PlantProvider>();
 
     final nameController = TextEditingController(text: plant.name);
-    final locationController =
-        TextEditingController(text: plant.location ?? '');
+    final locationController = TextEditingController(text: plant.location);
     final notesController = TextEditingController(text: plant.notes ?? '');
     bool isHealthy = plant.isHealthy;
     String healthStatus = plant.healthStatus.displayName;
@@ -189,6 +189,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         body: Consumer<PlantProvider>(
           builder: (context, plantProvider, child) {
             final plant = plantProvider.getPlantById(widget.plantId);
+            final localization = context.watch<LocalizationProvider>();
 
             if (plant == null) {
               return const Scaffold(
@@ -259,7 +260,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Plant info card
-                        _buildPlantInfoCard(plant),
+                        _buildPlantInfoCard(plant, localization),
 
                         const SizedBox(height: 16),
 
@@ -276,7 +277,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Active Alerts',
+                                    localization.tr('plant_active_alerts'),
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleLarge
@@ -325,7 +326,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ),
       );
 
-  Widget _buildPlantInfoCard(Plant plant) => Card(
+  Widget _buildPlantInfoCard(Plant plant, LocalizationProvider loc) => Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -336,7 +337,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Icon(Icons.info_outline, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Plant Information',
+                    loc.tr('plant_info'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -344,16 +345,17 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ],
               ),
               const Divider(),
-              _buildInfoRow(Icons.location_on, 'Location', plant.location),
               _buildInfoRow(
-                  Icons.eco, 'Health Status', plant.healthStatus.displayName),
+                  Icons.location_on, loc.tr('plant_location'), plant.location),
+              _buildInfoRow(Icons.eco, loc.tr('plant_health_status'),
+                  plant.healthStatus.displayName),
               if (plant.lastWatered != null)
-                _buildInfoRow(Icons.water_drop, 'Last Watered',
+                _buildInfoRow(Icons.water_drop, loc.tr('plant_last_watered'),
                     _formatDateTime(plant.lastWatered!)),
-              _buildInfoRow(Icons.calendar_today, 'Planted',
+              _buildInfoRow(Icons.calendar_today, loc.tr('plant_planted_date'),
                   _formatDateTime(plant.plantingDate)),
               if (plant.notes != null && plant.notes!.isNotEmpty)
-                _buildInfoRow(Icons.note, 'Notes', plant.notes!),
+                _buildInfoRow(Icons.note, loc.tr('plant_notes'), plant.notes!),
             ],
           ),
         ),
@@ -424,8 +426,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Expanded(
                     child: _buildSensorGauge(
                       'Light Level',
-                      '${plant.currentLight}%',
-                      plant.currentLight / 100,
+                      '${plant.currentLight.toStringAsFixed(0)} lux',
+                      (plant.currentLight / 10000).clamp(0.0, 1.0),
                       Colors.amber,
                       Icons.wb_sunny,
                     ),
@@ -505,14 +507,35 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.water_drop),
-                      label: Text(_isWatering ? 'Watering...' : 'Water Plant'),
+                      label: Text(_isWatering ? 'Watering...' : 'Water'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.info,
                         foregroundColor: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isControllingTemperature
+                          ? null
+                          : _handleAdjustTemperature,
+                      icon: _isControllingTemperature
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.thermostat),
+                      label: Text(
+                          _isControllingTemperature ? 'Adjusting...' : 'Temp'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade400,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed:
@@ -524,9 +547,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.wb_sunny),
-                      label: Text(_isControllingLight
-                          ? 'Adjusting...'
-                          : 'Adjust Light'),
+                      label:
+                          Text(_isControllingLight ? 'Adjusting...' : 'Light'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
@@ -724,6 +746,46 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       if (mounted) {
         setState(() {
           _isControllingLight = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleAdjustTemperature() async {
+    if (widget.deviceId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No temperature device assigned to this plant'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isControllingTemperature = true;
+    });
+
+    try {
+      final success = await context.read<PlantProvider>().controlDevice(
+            widget.plantId,
+            widget.deviceId!,
+            'temperature',
+            22.0, // Set temperature to 22°C
+          );
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Temperature adjusted successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isControllingTemperature = false;
         });
       }
     }

@@ -131,3 +131,33 @@ class DeviceData(BaseModel):
     data_type: str
     data: float
     data_unit: str
+
+# ---------------------------------------------------------------------------
+# Hub Schemas
+# ---------------------------------------------------------------------------
+
+class HubCreate(BaseModel):
+    """Schema for creating a new hub."""
+    hub_id: str  # Unique identifier (MAC address or serial number)
+    hub_link: str  # Connection URL (MQTT broker URL, etc.)
+    name: str
+    location: str | None = None
+    description: str | None = None
+    ip_address: str | None = None
+    mac_address: str | None = None
+    firmware_version: str | None = None
+
+class HubUpdate(BaseModel):
+    """Schema for updating hub settings."""
+    name: str | None = None
+    hub_link: str | None = None
+    location: str | None = None
+    description: str | None = None
+    ip_address: str | None = None
+    firmware_version: str | None = None
+    is_active: bool | None = None
+
+class HubDeviceAssign(BaseModel):
+    """Schema for assigning a device to a hub."""
+    device_id: int
+    hub_id: int

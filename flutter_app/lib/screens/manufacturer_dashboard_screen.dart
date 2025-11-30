@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../constants/app_colors.dart';
 import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
 import '../services/api_client.dart';
@@ -33,7 +34,7 @@ class _ManufacturerDashboardScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(_getAppBarTitle(localization)),
-        backgroundColor: Colors.blue[700],
+        backgroundColor: AppColors.manufacturerPrimary,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -53,7 +54,6 @@ class _ManufacturerDashboardScreenState
         children: const [
           _DashboardView(),
           _DeviceTypesView(),
-          _DeviceInstancesView(),
           _SettingsView(),
         ],
       ),
@@ -61,7 +61,7 @@ class _ManufacturerDashboardScreenState
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: Colors.blue[700],
+        selectedItemColor: AppColors.manufacturerPrimary,
         unselectedItemColor: Colors.grey,
         items: [
           BottomNavigationBarItem(
@@ -71,10 +71,6 @@ class _ManufacturerDashboardScreenState
           BottomNavigationBarItem(
             icon: const Icon(Icons.category),
             label: localization.tr('manufacturer_device_types'),
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.devices),
-            label: 'Devices',
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.settings),
@@ -92,8 +88,6 @@ class _ManufacturerDashboardScreenState
       case 1:
         return localization.tr('manufacturer_device_types');
       case 2:
-        return localization.tr('manufacturer_register_device');
-      case 3:
         return localization.tr('settings_title');
       default:
         return localization.tr('manufacturer_title');
@@ -120,8 +114,37 @@ class _ManufacturerDashboardScreenState
 // DASHBOARD VIEW
 // =============================================================================
 
-class _DashboardView extends StatelessWidget {
+class _DashboardView extends StatefulWidget {
   const _DashboardView();
+
+  @override
+  State<_DashboardView> createState() => _DashboardViewState();
+}
+
+class _DashboardViewState extends State<_DashboardView> {
+  final ApiService _apiService = ApiService();
+  int _deviceTypesCount = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    setState(() => _isLoading = true);
+    try {
+      final deviceTypes = await _apiService.listDeviceTypes();
+      setState(() {
+        _deviceTypesCount = deviceTypes.length;
+      });
+    } catch (e) {
+      // Silently fail, show 0
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -129,111 +152,72 @@ class _DashboardView extends StatelessWidget {
     final authProvider = context.watch<AuthProvider>();
     final username = authProvider.username ?? 'Manufacturer';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Welcome header
-          Text(
-            '${localization.tr('home_hello')}, $username!',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue[700],
-                ),
-          ),
-          const SizedBox(height: 24),
-
-          // Stats cards
-          Row(
-            children: [
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.category,
-                  title: localization.tr('manufacturer_device_types'),
-                  value: '0',
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.devices,
-                  title: 'Registered',
-                  value: '0',
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.check_circle,
-                  title: 'Claimed',
-                  value: '0',
-                  color: Colors.purple,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          // Quick actions
-          Text(
-            'Quick Actions',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 12),
-
-          Card(
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Colors.blue.withOpacity(0.1),
-                child: const Icon(Icons.add_box, color: Colors.blue),
-              ),
-              title: Text(localization.tr('manufacturer_device_types')),
-              subtitle: Text(localization.tr('manufacturer_device_types_desc')),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                // Navigate to device types tab
-                final state = context.findAncestorStateOfType<
-                    _ManufacturerDashboardScreenState>();
-                state?._pageController.animateToPage(
-                  1,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              },
+    return RefreshIndicator(
+      onRefresh: _loadStats,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Welcome header
+            Text(
+              '${localization.tr('home_hello')}, $username!',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.manufacturerPrimary,
+                  ),
             ),
-          ),
+            const SizedBox(height: 24),
 
-          const SizedBox(height: 8),
-
-          Card(
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Colors.green.withOpacity(0.1),
-                child: const Icon(Icons.qr_code, color: Colors.green),
-              ),
-              title: Text(localization.tr('manufacturer_register_device')),
-              subtitle:
-                  Text(localization.tr('manufacturer_register_device_desc')),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                // Navigate to device instances tab
-                final state = context.findAncestorStateOfType<
-                    _ManufacturerDashboardScreenState>();
-                state?._pageController.animateToPage(
-                  2,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              },
+            // Stats card - only device types count
+            _StatCard(
+              icon: Icons.category,
+              title: localization.tr('manufacturer_device_types'),
+              value: _isLoading ? '...' : '$_deviceTypesCount',
+              color: Colors.blue,
             ),
-          ),
-        ],
+
+            const SizedBox(height: 24),
+
+            // Quick actions
+            Text(
+              'Quick Actions',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+
+            Card(
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blue.withOpacity(0.1),
+                  child: const Icon(Icons.add_box, color: Colors.blue),
+                ),
+                title: Text(localization.tr('manufacturer_device_types')),
+                subtitle:
+                    Text(localization.tr('manufacturer_device_types_desc')),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  // Navigate to device types tab
+                  final state = context.findAncestorStateOfType<
+                      _ManufacturerDashboardScreenState>();
+                  if (state != null) {
+                    state.setState(() {
+                      state._selectedIndex = 1;
+                    });
+                    state._pageController.animateToPage(
+                      1,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -350,7 +334,7 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadDeviceTypes,
-              child: const Text('Retry'),
+              child: Text(localization.tr('common_retry')),
             ),
           ],
         ),
@@ -364,10 +348,10 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
           children: [
             Icon(Icons.category, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            const Text('No device types yet'),
+            Text(localization.tr('manufacturer_no_device_types')),
             const SizedBox(height: 8),
             Text(
-              'Register your first device type',
+              localization.tr('manufacturer_add_first'),
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
@@ -376,7 +360,7 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
               icon: const Icon(Icons.add),
               label: Text(localization.tr('common_add')),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[700],
+                backgroundColor: AppColors.manufacturerPrimary,
               ),
             ),
           ],
@@ -400,7 +384,7 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                     backgroundColor: Colors.blue.withOpacity(0.1),
                     child: Icon(
                       _getDeviceIcon(deviceType['device_type'] ?? ''),
-                      color: Colors.blue[700],
+                      color: AppColors.manufacturerPrimary,
                     ),
                   ),
                   title: Text(
@@ -494,7 +478,7 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
           right: 16,
           child: FloatingActionButton(
             onPressed: () => _showAddDeviceTypeDialog(context, localization),
-            backgroundColor: Colors.blue[700],
+            backgroundColor: AppColors.manufacturerPrimary,
             child: const Icon(Icons.add),
           ),
         ),
@@ -620,7 +604,8 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.manufacturerPrimary),
             child: Text(localization.tr('common_save')),
           ),
         ],
@@ -775,7 +760,7 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                 ),
                 const SizedBox(height: 12),
                 SwitchListTile(
-                  title: const Text('Active'),
+                  title: Text(localization.tr('manufacturer_active')),
                   value: isActive,
                   onChanged: (value) {
                     setDialogState(() {
@@ -786,9 +771,9 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: descController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: localization.tr('admin_description'),
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 3,
                 ),
@@ -802,8 +787,8 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.manufacturerPrimary),
               child: Text(localization.tr('common_save')),
             ),
           ],
@@ -912,52 +897,6 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
       }
     }
   }
-} // =============================================================================
-// DEVICE INSTANCES VIEW
-// =============================================================================
-
-class _DeviceInstancesView extends StatelessWidget {
-  const _DeviceInstancesView();
-
-  @override
-  Widget build(BuildContext context) {
-    // Device instance pre-registration requires backend schema changes
-    // (new DevicePreRegistration table with manufacturer_id, device_type_id, serial_number)
-    // This feature will be available in a future release
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.construction, size: 64, color: Colors.orange[400]),
-            const SizedBox(height: 16),
-            const Text(
-              'Device Instance Pre-Registration',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'This feature allows manufacturers to pre-register device serial numbers '
-              'so consumers can easily claim their purchased devices.\n\n'
-              'Coming in a future update.',
-              style: TextStyle(color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Icon(Icons.info_outline, size: 20, color: Colors.grey[400]),
-            const SizedBox(height: 8),
-            Text(
-              'Currently, consumers can register devices directly using the device type and serial number.',
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // =============================================================================
@@ -983,7 +922,7 @@ class _SettingsView extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: Colors.blue[700],
+                  backgroundColor: AppColors.manufacturerPrimary,
                   radius: 28,
                   child: const Icon(Icons.precision_manufacturing,
                       color: Colors.white, size: 28),
@@ -1012,7 +951,7 @@ class _SettingsView extends StatelessWidget {
                           localization.tr('manufacturer'),
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.blue[700],
+                            color: AppColors.manufacturerPrimary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -1048,7 +987,7 @@ class _SettingsView extends StatelessWidget {
                       value ? AppLanguage.hu : AppLanguage.en,
                     );
                   },
-                  activeColor: Colors.blue[700],
+                  activeColor: AppColors.manufacturerPrimary,
                 ),
               ],
             ),

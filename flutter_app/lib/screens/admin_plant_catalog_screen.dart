@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/plant_type_model.dart';
 import '../services/auth_provider.dart';
+import '../services/localization_service.dart';
 import '../services/plant_provider.dart';
 
 /// Admin screen for managing the plant species catalog
@@ -30,12 +31,13 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final loc = context.watch<LocalizationProvider>();
 
     // Security check - only admin can access
     if (!authProvider.isAdmin) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: Text('Nincs jogosultsága ehhez az oldalhoz'),
+          child: Text(loc.tr('admin_no_permission')),
         ),
       );
     }
@@ -57,7 +59,7 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => plantProvider.loadPlantTypes(),
-                  child: const Text('Újrapróbálás'),
+                  child: Text(loc.tr('common_retry')),
                 ),
               ],
             ),
@@ -65,7 +67,7 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
         }
 
         if (plantProvider.plantTypes.isEmpty) {
-          return _buildEmptyState();
+          return _buildEmptyState(loc);
         }
 
         return RefreshIndicator(
@@ -74,7 +76,7 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
             padding: const EdgeInsets.all(16),
             itemCount: plantProvider.plantTypes.length,
             itemBuilder: (context, index) =>
-                _buildPlantTypeCard(plantProvider.plantTypes[index]),
+                _buildPlantTypeCard(plantProvider.plantTypes[index], loc),
           ),
         );
       },
@@ -88,11 +90,10 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
           Positioned(
             bottom: 16,
             right: 16,
-            child: FloatingActionButton.extended(
+            child: FloatingActionButton(
               onPressed: () => _showAddPlantTypeDialog(context),
               backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.add),
-              label: const Text('Új növényfaj'),
+              child: const Icon(Icons.add),
             ),
           ),
         ],
@@ -101,7 +102,7 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Növénykatalógus kezelése'),
+        title: Text(loc.tr('admin_plant_catalog_manage')),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
@@ -112,16 +113,15 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
         ],
       ),
       body: body,
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddPlantTypeDialog(context),
         backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add),
-        label: const Text('Új növényfaj'),
+        child: const Icon(Icons.add),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(LocalizationProvider loc) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -129,7 +129,7 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
           Icon(Icons.eco_outlined, size: 80, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
-            'Üres katalógus',
+            loc.tr('admin_empty_catalog'),
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -138,21 +138,21 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Adja hozzá az első növényfajt a katalógushoz',
+            loc.tr('admin_add_first_plant'),
             style: TextStyle(color: Colors.grey[500]),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () => _showAddPlantTypeDialog(context),
             icon: const Icon(Icons.add),
-            label: const Text('Növényfaj hozzáadása'),
+            label: Text(loc.tr('admin_add_plant_type')),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPlantTypeCard(PlantType plantType) {
+  Widget _buildPlantTypeCard(PlantType plantType, LocalizationProvider loc) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
@@ -175,41 +175,41 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Requirements
-                const Text(
-                  'Igények:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  loc.tr('admin_plant_requirements'),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 _buildRequirementRow(
                   Icons.thermostat,
-                  'Homerseklet',
+                  loc.tr('admin_temperature'),
                   '${plantType.reqTemperature.round()}°C',
                   Colors.orange,
                 ),
                 _buildRequirementRow(
                   Icons.water_drop,
-                  'Talajnedvesseg',
+                  loc.tr('admin_moisture'),
                   '${plantType.reqMoisture}%',
                   Colors.blue,
                 ),
                 _buildRequirementRow(
                   Icons.wb_sunny,
-                  'Fenyigeny',
+                  loc.tr('admin_brightness'),
                   '${plantType.reqBrightness.round()} lux',
                   Colors.amber,
                 ),
                 _buildRequirementRow(
                   Icons.opacity,
-                  'Paratartalom',
+                  loc.tr('admin_humidity'),
                   '${plantType.reqHumidity.round()}%',
                   Colors.teal,
                 ),
 
                 if (plantType.description != null) ...[
                   const SizedBox(height: 12),
-                  const Text(
-                    'Leírás:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    '${loc.tr('admin_description')}:',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(plantType.description!),
@@ -217,9 +217,9 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
 
                 if (plantType.careInstructions != null) ...[
                   const SizedBox(height: 12),
-                  const Text(
-                    'Gondozási útmutató:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    '${loc.tr('admin_care_instructions')}:',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(plantType.careInstructions!),
@@ -235,14 +235,14 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
                       onPressed: () =>
                           _showEditPlantTypeDialog(context, plantType),
                       icon: const Icon(Icons.edit),
-                      label: const Text('Szerkesztés'),
+                      label: Text(loc.tr('admin_edit_plant_type')),
                     ),
                     const SizedBox(width: 8),
                     TextButton.icon(
-                      onPressed: () => _confirmDelete(context, plantType),
+                      onPressed: () => _confirmDelete(context, plantType, loc),
                       icon: const Icon(Icons.delete, color: Colors.red),
-                      label: const Text('Törlés',
-                          style: TextStyle(color: Colors.red)),
+                      label: Text(loc.tr('common_delete'),
+                          style: const TextStyle(color: Colors.red)),
                     ),
                   ],
                 ),
@@ -270,6 +270,7 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
   }
 
   Future<void> _showAddPlantTypeDialog(BuildContext context) async {
+    final loc = context.read<LocalizationProvider>();
     final result = await showDialog<PlantType>(
       context: context,
       builder: (context) => const _PlantTypeFormDialog(),
@@ -281,16 +282,16 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Novenyfaj sikeresen hozzaadva'),
+            SnackBar(
+              content: Text(loc.tr('admin_plant_added')),
               backgroundColor: Colors.green,
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                  plantProvider.error ?? 'Nem sikerult hozzaadni a novenyfajt'),
+              content:
+                  Text(plantProvider.error ?? loc.tr('admin_plant_add_failed')),
               backgroundColor: Colors.red,
             ),
           );
@@ -302,6 +303,7 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
 
   Future<void> _showEditPlantTypeDialog(
       BuildContext context, PlantType plantType) async {
+    final loc = context.read<LocalizationProvider>();
     final result = await showDialog<PlantType>(
       context: context,
       builder: (context) => _PlantTypeFormDialog(plantType: plantType),
@@ -314,16 +316,16 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Novenyfaj sikeresen frissitve'),
+            SnackBar(
+              content: Text(loc.tr('admin_plant_updated')),
               backgroundColor: Colors.green,
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(plantProvider.error ??
-                  'Nem sikerult frissiteni a novenyfajt'),
+              content: Text(
+                  plantProvider.error ?? loc.tr('admin_plant_update_failed')),
               backgroundColor: Colors.red,
             ),
           );
@@ -333,24 +335,25 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
     }
   }
 
-  Future<void> _confirmDelete(BuildContext context, PlantType plantType) async {
+  Future<void> _confirmDelete(BuildContext context, PlantType plantType,
+      LocalizationProvider loc) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Növényfaj törlése'),
+        title: Text(loc.tr('admin_delete_plant_type')),
         content: Text(
-          'Biztosan törölni szeretné a(z) "${plantType.plantName}" növényfajt?\n\n'
-          'Ez a művelet nem visszavonható.',
+          '${loc.tr('admin_delete_plant_confirm').replaceAll('{name}', plantType.plantName)}\n\n'
+          '${loc.tr('admin_action_irreversible')}',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Mégsem'),
+            child: Text(loc.tr('common_cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Törlés'),
+            child: Text(loc.tr('common_delete')),
           ),
         ],
       ),
@@ -362,8 +365,8 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Novenyfaj torolve'),
+            SnackBar(
+              content: Text(loc.tr('admin_plant_deleted')),
               backgroundColor: Colors.green,
             ),
           );
@@ -371,7 +374,7 @@ class _AdminPlantCatalogScreenState extends State<AdminPlantCatalogScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                  plantProvider.error ?? 'Nem sikerult torolni a novenyfajt'),
+                  plantProvider.error ?? loc.tr('admin_plant_delete_failed')),
               backgroundColor: Colors.red,
             ),
           );
@@ -437,8 +440,11 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = context.watch<LocalizationProvider>();
     return AlertDialog(
-      title: Text(isEditing ? 'Növényfaj szerkesztése' : 'Új növényfaj'),
+      title: Text(isEditing
+          ? loc.tr('admin_edit_plant_type')
+          : loc.tr('admin_new_plant_type')),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.9,
         child: Form(
@@ -451,14 +457,14 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
                 // Name
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Név *',
-                    hintText: 'pl. Monstera deliciosa',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: loc.tr('admin_plant_name'),
+                    hintText: loc.tr('admin_plant_name_hint'),
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Kötelező mező';
+                      return loc.tr('admin_required_field');
                     }
                     return null;
                   },
@@ -468,14 +474,14 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
                 // Scientific name
                 TextFormField(
                   controller: _scientificNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tudományos név *',
-                    hintText: 'pl. Monstera deliciosa',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: loc.tr('admin_scientific_name'),
+                    hintText: loc.tr('admin_plant_name_hint'),
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Kötelező mező';
+                      return loc.tr('admin_required_field');
                     }
                     return null;
                   },
@@ -483,15 +489,16 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
                 const SizedBox(height: 24),
 
                 // Requirements section
-                const Text(
-                  'Igenyek',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                Text(
+                  loc.tr('admin_plant_requirements'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 16),
 
                 // Temperature slider (whole numbers)
                 _buildIntSliderField(
-                  label: 'Homerseklet',
+                  label: loc.tr('admin_temperature'),
                   value: _reqTemperature,
                   min: 10,
                   max: 35,
@@ -501,7 +508,7 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
 
                 // Moisture slider (whole numbers)
                 _buildIntSliderField(
-                  label: 'Talajnedvesseg',
+                  label: loc.tr('admin_moisture'),
                   value: _reqMoisture,
                   min: 0,
                   max: 100,
@@ -514,21 +521,20 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
                 TextFormField(
                   controller: _brightnessController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Fenyigeny (lux) *',
-                    hintText: 'pl. 5000',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: loc.tr('admin_brightness_lux'),
+                    hintText: loc.tr('admin_brightness_hint'),
+                    border: const OutlineInputBorder(),
                     suffixText: 'lux',
-                    helperText:
-                        'Tipikus ertekek: Arnyekos: 500-2000, Kozepes: 2000-10000, Napsutos: 10000+',
+                    helperText: loc.tr('admin_brightness_helper'),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Kotelezo mezo';
+                      return loc.tr('admin_required_field');
                     }
                     final parsed = int.tryParse(value);
                     if (parsed == null || parsed < 0) {
-                      return 'Ervenyes pozitiv szamot adjon meg';
+                      return loc.tr('admin_brightness_error');
                     }
                     return null;
                   },
@@ -537,7 +543,7 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
 
                 // Humidity slider (whole numbers)
                 _buildIntSliderField(
-                  label: 'Paratartalom',
+                  label: loc.tr('admin_humidity'),
                   value: _reqHumidity,
                   min: 0,
                   max: 100,
@@ -550,9 +556,9 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
                 // Description
                 TextFormField(
                   controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Leírás',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: loc.tr('admin_description'),
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 3,
                 ),
@@ -561,9 +567,9 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
                 // Care instructions
                 TextFormField(
                   controller: _careInstructionsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Gondozási útmutató',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: loc.tr('admin_care_instructions'),
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 3,
                 ),
@@ -575,11 +581,11 @@ class _PlantTypeFormDialogState extends State<_PlantTypeFormDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Megsem'),
+          child: Text(loc.tr('common_cancel')),
         ),
         ElevatedButton(
           onPressed: _submit,
-          child: Text(isEditing ? 'Mentes' : 'Hozzaadas'),
+          child: Text(isEditing ? loc.tr('common_save') : loc.tr('common_add')),
         ),
       ],
     );
