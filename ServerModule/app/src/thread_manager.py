@@ -102,4 +102,4 @@ class PlantThreadManager:
         try:
             plant.keep_alive_cycle()
         except Exception as exc:
-            self.logger.error(f"Error in keep_alive for plant {plant.id}: {exc}")
+            self.logger.error(f"Error in keep_alive for plant {plant.name}: {exc}")

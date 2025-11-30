@@ -37,6 +37,7 @@ from schemas import (
     UserDetails,
     UserUpdate,
     DeviceData,
+    DeviceAnomaly,
 )
 from security import hash_password, verify_password
 from src.db.alert_models import Alert as AlertModel
@@ -1816,6 +1817,7 @@ async def update_my_plant(
     for p in consumer.plants:
         if p.id == plant_id:
             p.name = plant.plant_name
+            p.logger = Logger(plant.plant_name)
             if payload.health_status:
                 try:
                     brightness, humidity, temperature, moisture = (
