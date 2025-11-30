@@ -618,8 +618,8 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
           functionsController.text.isEmpty ||
           unitController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please fill all required fields'),
+          SnackBar(
+            content: Text(localization.tr('manufacturer_fill_required')),
             backgroundColor: Colors.red,
           ),
         );
@@ -642,8 +642,8 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Device type registered successfully'),
+            SnackBar(
+              content: Text(localization.tr('manufacturer_device_registered')),
               backgroundColor: Colors.green,
             ),
           );
@@ -802,8 +802,8 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
           functionsController.text.isEmpty ||
           unitController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please fill all required fields'),
+          SnackBar(
+            content: Text(localization.tr('manufacturer_fill_required')),
             backgroundColor: Colors.red,
           ),
         );

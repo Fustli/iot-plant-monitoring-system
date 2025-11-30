@@ -224,7 +224,9 @@ class _DashboardViewState extends State<_DashboardView> {
                   children: [
                     const Icon(Icons.error, color: Colors.red),
                     const SizedBox(width: 8),
-                    Expanded(child: Text('Error loading stats: $_error')),
+                    Expanded(
+                        child: Text(
+                            '${localization.tr('admin_error_loading_stats')}: $_error')),
                     IconButton(
                       icon: const Icon(Icons.refresh),
                       onPressed: _loadStats,
@@ -464,7 +466,7 @@ class _SystemView extends StatelessWidget {
                     Icon(Icons.cloud, color: Colors.green[600], size: 28),
                     const SizedBox(width: 12),
                     Text(
-                      'Server Status',
+                      localization.tr('admin_server_status'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -474,7 +476,7 @@ class _SystemView extends StatelessWidget {
               ),
               const Divider(height: 1),
               ListTile(
-                title: const Text('API Server'),
+                title: Text(localization.tr('admin_api_server')),
                 subtitle: const Text('http://localhost:8000'),
                 trailing: Container(
                   padding:
@@ -483,9 +485,9 @@ class _SystemView extends StatelessWidget {
                     color: Colors.green.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Online',
-                    style: TextStyle(
+                  child: Text(
+                    localization.tr('admin_online'),
+                    style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w500,
                     ),
@@ -493,8 +495,8 @@ class _SystemView extends StatelessWidget {
                 ),
               ),
               ListTile(
-                title: const Text('Database'),
-                subtitle: const Text('PostgreSQL'),
+                title: Text(localization.tr('admin_database')),
+                subtitle: Text(localization.tr('admin_postgresql')),
                 trailing: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -502,9 +504,9 @@ class _SystemView extends StatelessWidget {
                     color: Colors.green.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Connected',
-                    style: TextStyle(
+                  child: Text(
+                    localization.tr('admin_connected'),
+                    style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w500,
                     ),
@@ -512,8 +514,8 @@ class _SystemView extends StatelessWidget {
                 ),
               ),
               ListTile(
-                title: const Text('MQTT Broker'),
-                subtitle: const Text('Hub Gateway'),
+                title: Text(localization.tr('admin_mqtt_broker')),
+                subtitle: Text(localization.tr('admin_hub_gateway')),
                 trailing: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -521,9 +523,9 @@ class _SystemView extends StatelessWidget {
                     color: Colors.grey.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Unknown',
-                    style: TextStyle(
+                  child: Text(
+                    localization.tr('admin_unknown'),
+                    style: const TextStyle(
                       color: Colors.grey,
                       fontWeight: FontWeight.w500,
                     ),
@@ -548,7 +550,7 @@ class _SystemView extends StatelessWidget {
                     Icon(Icons.memory, color: AppColors.info, size: 28),
                     const SizedBox(width: 12),
                     Text(
-                      'Resource Usage',
+                      localization.tr('admin_resource_usage'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -558,15 +560,15 @@ class _SystemView extends StatelessWidget {
               ),
               const Divider(height: 1),
               ListTile(
-                title: const Text('CPU'),
+                title: Text(localization.tr('admin_cpu')),
                 trailing: const Text('--'),
               ),
               ListTile(
-                title: const Text('Memory'),
+                title: Text(localization.tr('admin_memory')),
                 trailing: const Text('--'),
               ),
               ListTile(
-                title: const Text('Storage'),
+                title: Text(localization.tr('admin_storage')),
                 trailing: const Text('--'),
               ),
             ],
@@ -581,7 +583,7 @@ class _SystemView extends StatelessWidget {
             children: [
               ListTile(
                 leading: Icon(Icons.refresh, color: AppColors.info),
-                title: const Text('Check System Status'),
+                title: Text(localization.tr('admin_check_status')),
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(localization.tr('common_loading'))),
@@ -591,7 +593,7 @@ class _SystemView extends StatelessWidget {
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.download, color: Colors.green),
-                title: const Text('Export Data'),
+                title: Text(localization.tr('admin_export_data')),
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(localization.tr('common_loading'))),

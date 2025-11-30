@@ -610,10 +610,12 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   ),
                 )
               else
-                const Center(
+                Center(
                   child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Text('No sensor history available'),
+                    padding: const EdgeInsets.all(32),
+                    child: Text(context
+                        .read<LocalizationProvider>()
+                        .tr('plant_no_sensor_history')),
                   ),
                 ),
             ],
@@ -673,10 +675,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       '${dateTime.day}/${dateTime.month}/${dateTime.year}';
 
   Future<void> _handleWaterPlant() async {
+    final localization = context.read<LocalizationProvider>();
     if (widget.deviceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No water pump device assigned to this plant'),
+        SnackBar(
+          content: Text(localization.tr('plant_no_water_pump')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -693,8 +696,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
           .waterPlant(widget.plantId, widget.deviceId!);
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Plant watered successfully!'),
+          SnackBar(
+            content: Text(localization.tr('plant_watered_success')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -712,10 +715,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   }
 
   Future<void> _handleToggleLight() async {
+    final localization = context.read<LocalizationProvider>();
     if (widget.deviceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No light device assigned to this plant'),
+        SnackBar(
+          content: Text(localization.tr('plant_no_light_device')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -736,8 +740,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Light adjusted successfully!'),
+          SnackBar(
+            content: Text(localization.tr('plant_light_adjusted')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -752,10 +756,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   }
 
   Future<void> _handleAdjustTemperature() async {
+    final localization = context.read<LocalizationProvider>();
     if (widget.deviceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No temperature device assigned to this plant'),
+        SnackBar(
+          content: Text(localization.tr('plant_no_temp_device')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -776,8 +781,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Temperature adjusted successfully!'),
+          SnackBar(
+            content: Text(localization.tr('plant_temp_adjusted')),
             backgroundColor: AppColors.success,
           ),
         );

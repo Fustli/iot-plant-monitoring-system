@@ -363,7 +363,10 @@ class LocalizationProvider with ChangeNotifier {
     'admin_server_status': 'Server Status',
     'admin_api_server': 'API Server',
     'admin_online': 'Online',
+    'admin_connected': 'Connected',
+    'admin_unknown': 'Unknown',
     'admin_database': 'Database',
+    'admin_postgresql': 'PostgreSQL',
     'admin_mqtt_broker': 'MQTT Broker',
     'admin_hub_gateway': 'Hub Gateway',
     'admin_resource_usage': 'Resource Usage',
@@ -373,6 +376,36 @@ class LocalizationProvider with ChangeNotifier {
     'admin_check_status': 'Check System Status',
     'admin_export_data': 'Export Data',
     'admin_quick_actions': 'Quick Actions',
+    'admin_error_loading_stats': 'Error loading stats',
+
+    // User Dashboard - Hubs
+    'user_my_hubs': 'My Hubs',
+    'user_hubs_configured': '{count} hub(s) configured',
+    'user_no_hubs': 'No hubs configured',
+    'user_add_hub': 'Add Hub',
+    'user_edit_hub': 'Edit Hub',
+    'user_delete_hub': 'Delete Hub',
+    'user_delete_hub_confirm':
+        'Are you sure you want to delete "{name}"? All devices assigned to this hub will be unassigned.',
+    'user_hub_added': 'Hub added (local only - backend not connected)',
+    'user_hub_updated': 'Hub updated (local only - backend not connected)',
+    'user_hub_deleted': 'Hub deleted (local only - backend not connected)',
+    'user_hub_id': 'Hub ID',
+    'user_hub_id_mac': 'Hub ID (MAC/Serial)',
+    'user_hub_link': 'Hub Link (MQTT URL)',
+    'user_hub_name': 'Hub Name',
+    'user_location': 'Location',
+    'user_offline': 'Offline',
+    'user_plant_history': 'Plant History & Analytics',
+
+    // Plant Detail
+    'plant_no_sensor_history': 'No sensor history available',
+    'plant_no_water_pump': 'No water pump device assigned to this plant',
+    'plant_watered_success': 'Plant watered successfully!',
+    'plant_no_light_device': 'No light device assigned to this plant',
+    'plant_light_adjusted': 'Light adjusted successfully!',
+    'plant_no_temp_device': 'No temperature device assigned to this plant',
+    'plant_temp_adjusted': 'Temperature adjusted successfully!',
 
     // History Screen
     'history_title': 'Plant History & Analytics',
@@ -781,6 +814,45 @@ class LocalizationProvider with ChangeNotifier {
     'admin_check_status': 'Rendszer Állapot Ellenőrzése',
     'admin_export_data': 'Adatok Exportálása',
     'admin_quick_actions': 'Gyors Műveletek',
+    'admin_connected': 'Csatlakozva',
+    'admin_unknown': 'Ismeretlen',
+    'admin_postgresql': 'PostgreSQL',
+    'admin_error_loading_stats': 'Hiba a statisztikák betöltésekor',
+
+    // User Dashboard - Hubs
+    'user_my_hubs': 'Hubok',
+    'user_hubs_configured': '{count} hub konfigurálva',
+    'user_no_hubs': 'Nincs hub konfigurálva',
+    'user_add_hub': 'Hub Hozzáadása',
+    'user_edit_hub': 'Hub Szerkesztése',
+    'user_delete_hub': 'Hub Törlése',
+    'user_delete_hub_confirm':
+        'Biztosan törölni szeretné a(z) "{name}" hubot? Az ehhez a hubhoz tartozó eszközök hozzárendelése megszűnik.',
+    'user_hub_added':
+        'Hub hozzáadva (csak lokálisan - backend nincs csatlakoztatva)',
+    'user_hub_updated':
+        'Hub frissítve (csak lokálisan - backend nincs csatlakoztatva)',
+    'user_hub_deleted':
+        'Hub törölve (csak lokálisan - backend nincs csatlakoztatva)',
+    'user_hub_id': 'Hub ID',
+    'user_hub_id_mac': 'Hub ID (MAC/Sorozatszám)',
+    'user_hub_link': 'Hub Link (MQTT URL)',
+    'user_hub_name': 'Hub Név',
+    'user_location': 'Hely',
+    'user_offline': 'Offline',
+    'user_plant_history': 'Növény Előzmények és Analitika',
+
+    // Plant Detail
+    'plant_no_sensor_history': 'Nincs szenzor előzmény',
+    'plant_no_water_pump':
+        'Nincs öntözőpumpa eszköz hozzárendelve ehhez a növényhez',
+    'plant_watered_success': 'Növény sikeresen öntözve!',
+    'plant_no_light_device':
+        'Nincs világítás eszköz hozzárendelve ehhez a növényhez',
+    'plant_light_adjusted': 'Világítás sikeresen beállítva!',
+    'plant_no_temp_device':
+        'Nincs hőmérséklet eszköz hozzárendelve ehhez a növényhez',
+    'plant_temp_adjusted': 'Hőmérséklet sikeresen beállítva!',
 
     // History Screen
     'history_title': 'Növény Előzmények és Analitika',

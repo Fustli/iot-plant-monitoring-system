@@ -295,7 +295,7 @@ class _HomeView extends StatelessWidget {
                   child: Icon(Icons.analytics, color: AppColors.info),
                 ),
                 title: Text(localization.tr('common_view_details')),
-                subtitle: const Text('Plant History & Analytics'),
+                subtitle: Text(localization.tr('user_plant_history')),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
                   Navigator.of(context).push(
@@ -1024,7 +1024,8 @@ class _DevicesViewState extends State<_DevicesView> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Device ID: ${device.uniqueIdentifier}'),
+                      Text(
+                          '${localization.tr('user_hub_id')}: ${device.uniqueIdentifier}'),
                       const SizedBox(height: 4),
                       Row(
                         children: [
@@ -1181,43 +1182,43 @@ class _SettingsViewState extends State<_SettingsView> {
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Hub'),
+        title: Text(localization.tr('user_add_hub')),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: hubIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Hub ID (MAC/Serial)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_id_mac'),
+                  border: const OutlineInputBorder(),
                   hintText: 'e.g., AA:BB:CC:DD:EE:FF',
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: hubLinkController,
-                decoration: const InputDecoration(
-                  labelText: 'Hub Link (MQTT URL)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_link'),
+                  border: const OutlineInputBorder(),
                   hintText: 'e.g., mqtt://192.168.1.100:1883',
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Hub Name',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_name'),
+                  border: const OutlineInputBorder(),
                   hintText: 'e.g., Living Room Hub',
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: locationController,
-                decoration: const InputDecoration(
-                  labelText: 'Location',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_location'),
+                  border: const OutlineInputBorder(),
                   hintText: 'e.g., Home, Office',
                 ),
               ),
@@ -1257,8 +1258,8 @@ class _SettingsViewState extends State<_SettingsView> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Hub added (local only - backend not connected)'),
+          SnackBar(
+            content: Text(localization.tr('user_hub_added')),
             backgroundColor: Colors.orange,
           ),
         );
@@ -1275,7 +1276,7 @@ class _SettingsViewState extends State<_SettingsView> {
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Edit Hub'),
+        title: Text(localization.tr('user_edit_hub')),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1283,7 +1284,7 @@ class _SettingsViewState extends State<_SettingsView> {
               TextField(
                 enabled: false,
                 decoration: InputDecoration(
-                  labelText: 'Hub ID',
+                  labelText: localization.tr('user_hub_id'),
                   border: const OutlineInputBorder(),
                   hintText: hub.hubId,
                 ),
@@ -1292,25 +1293,25 @@ class _SettingsViewState extends State<_SettingsView> {
               const SizedBox(height: 12),
               TextField(
                 controller: hubLinkController,
-                decoration: const InputDecoration(
-                  labelText: 'Hub Link (MQTT URL)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_link'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Hub Name',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_name'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: locationController,
-                decoration: const InputDecoration(
-                  labelText: 'Location',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_location'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
             ],
@@ -1346,8 +1347,8 @@ class _SettingsViewState extends State<_SettingsView> {
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Hub updated (local only - backend not connected)'),
+          SnackBar(
+            content: Text(localization.tr('user_hub_updated')),
             backgroundColor: Colors.orange,
           ),
         );
@@ -1361,9 +1362,10 @@ class _SettingsViewState extends State<_SettingsView> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Hub'),
-        content: Text(
-            'Are you sure you want to delete "${hub.name}"? All devices assigned to this hub will be unassigned.'),
+        title: Text(localization.tr('user_delete_hub')),
+        content: Text(localization
+            .tr('user_delete_hub_confirm')
+            .replaceAll('{name}', hub.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1385,8 +1387,8 @@ class _SettingsViewState extends State<_SettingsView> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Hub deleted (local only - backend not connected)'),
+          SnackBar(
+            content: Text(localization.tr('user_hub_deleted')),
             backgroundColor: Colors.orange,
           ),
         );
@@ -1462,8 +1464,10 @@ class _SettingsViewState extends State<_SettingsView> {
             children: [
               ListTile(
                 leading: const Icon(Icons.router, color: AppColors.info),
-                title: const Text('My Hubs'),
-                subtitle: Text('${_hubs.length} hub(s) configured'),
+                title: Text(localization.tr('user_my_hubs')),
+                subtitle: Text(localization
+                    .tr('user_hubs_configured')
+                    .replaceAll('{count}', _hubs.length.toString())),
                 trailing: IconButton(
                   icon: const Icon(Icons.add_circle, color: AppColors.primary),
                   onPressed: () => _showAddHubDialog(context),
@@ -1482,14 +1486,14 @@ class _SettingsViewState extends State<_SettingsView> {
                       Icon(Icons.router, size: 48, color: Colors.grey[400]),
                       const SizedBox(height: 8),
                       Text(
-                        'No hubs configured',
+                        localization.tr('user_no_hubs'),
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
                         onPressed: () => _showAddHubDialog(context),
                         icon: const Icon(Icons.add),
-                        label: const Text('Add Hub'),
+                        label: Text(localization.tr('user_add_hub')),
                       ),
                     ],
                   ),
@@ -1512,9 +1516,11 @@ class _SettingsViewState extends State<_SettingsView> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('ID: ${hub.hubId}'),
+                              Text(
+                                  '${localization.tr('user_hub_id')}: ${hub.hubId}'),
                               if (hub.location != null)
-                                Text('Location: ${hub.location}'),
+                                Text(
+                                    '${localization.tr('user_location')}: ${hub.location}'),
                               Row(
                                 children: [
                                   Icon(
@@ -1528,7 +1534,9 @@ class _SettingsViewState extends State<_SettingsView> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    hub.isOnline ? 'Online' : 'Offline',
+                                    hub.isOnline
+                                        ? localization.tr('admin_online')
+                                        : localization.tr('user_offline'),
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: hub.isOnline
@@ -1549,25 +1557,26 @@ class _SettingsViewState extends State<_SettingsView> {
                               }
                             },
                             itemBuilder: (context) => [
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'edit',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.edit, size: 20),
-                                    SizedBox(width: 8),
-                                    Text('Edit'),
+                                    const Icon(Icons.edit, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(localization.tr('common_edit')),
                                   ],
                                 ),
                               ),
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'delete',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.delete,
+                                    const Icon(Icons.delete,
                                         size: 20, color: Colors.red),
-                                    SizedBox(width: 8),
-                                    Text('Delete',
-                                        style: TextStyle(color: Colors.red)),
+                                    const SizedBox(width: 8),
+                                    Text(localization.tr('common_delete'),
+                                        style:
+                                            const TextStyle(color: Colors.red)),
                                   ],
                                 ),
                               ),
