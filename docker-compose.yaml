@@ -51,6 +51,12 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-iot_plant_db}
       - POSTGRES_USER=${POSTGRES_USER:-iot_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-iot_password}
+      # legacy/alternate env names used by DBInterface
+      - POSTGRES_DB_HOST=postgres
+      - POSTGRES_DB_PORT=5432
+      - POSTGRES_DB_USER=${POSTGRES_USER:-iot_user}
+      - POSTGRES_DB_PASSWORD=${POSTGRES_PASSWORD:-iot_password}
+      - POSTGRES_DB_NAME=${POSTGRES_DB:-iot_plant_db}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-change-in-production}
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}

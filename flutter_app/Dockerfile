@@ -12,11 +12,11 @@ FROM ghcr.io/cirruslabs/flutter:3.24.0 AS builder
 
 WORKDIR /app
 
-# Copy pubspec files first for better caching
-COPY pubspec.yaml pubspec.lock ./
+# Copy pubspec for dependency resolution (pubspec.lock may not exist in fresh repos)
+COPY pubspec.yaml ./
 
 # Get dependencies
-RUN flutter pub get
+RUN flutter pub get || true
 
 # Copy the rest of the app
 COPY . .
@@ -29,11 +29,18 @@ RUN flutter build web --release --web-renderer html
 # ------------------------------------------------------------------------------
 FROM nginx:alpine AS production
 
+# Install envsubst (gettext) to allow runtime templating of nginx config
+RUN apk add --no-cache gettext
+
 # Remove default nginx config
 RUN rm -rf /etc/nginx/conf.d/default.conf
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx template (we'll substitute BACKEND_HOST into this at container start)
+COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Copy built Flutter web app
 COPY --from=builder /app/build/web /usr/share/nginx/html
@@ -45,5 +52,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Expose port 80
 EXPOSE 80
 
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Entrypoint will render nginx config and start nginx
+ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -2,8 +2,10 @@ from datetime import datetime, timedelta
 from typing import Dict, Generator, List
 
 import uvicorn
+import os
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, status
+from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
@@ -244,14 +246,26 @@ def serialize_runtime_manufacturer(manufacturer: Manufacturer) -> dict:
         "username": getattr(manufacturer, "username", None),
     }
 
-# CORS middleware - allow frontend to access the API
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# CORS middleware - configurable via the `CORS_ORIGINS` env var.
+# - Set `CORS_ORIGINS` to a comma-separated list of allowed origins in App Service
+#   (e.g. https://myfrontend.azurewebsites.net) or to '*' to allow all origins.
+cors_env = os.environ.get("CORS_ORIGINS", "")
+if cors_env:
+    if cors_env.strip() == "*":
+        allow_origins = ["*"]
+    else:
+        allow_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+else:
+    # Development defaults
+    allow_origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://0.0.0.0:3000",
-    ],
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -556,6 +570,12 @@ class SystemState:
 
 
 system_state = SystemState()
+
+
+@app.get("/health")
+async def health_check():
+    """Lightweight health endpoint for container/platform probes."""
+    return PlainTextResponse("healthy", status_code=200)
 
 # ---------------------------------------------------------------------------
 # 1. Authentication
