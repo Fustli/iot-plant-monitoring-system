@@ -54,7 +54,7 @@ class Plant:
         self.logger = Logger(name=self.name)
         self.devices: DeviceCollection = DeviceCollection(self.name, self.logger)
 
-        self.keep_alive: bool = False
+        self.keep_alive: bool = True
 
         self.logger.info(Textbook.plant_object_creation + self.name)
 
