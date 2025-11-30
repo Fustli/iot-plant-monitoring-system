@@ -546,10 +546,13 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
               TextField(
                 controller: functionsController,
                 decoration: const InputDecoration(
-                  labelText: 'Supported Functions (comma-separated) *',
+                  labelText: 'Supported Capabilities (comma-separated) *',
                   border: OutlineInputBorder(),
-                  hintText: 'temperature,humidity',
+                  hintText:
+                      'temperature:read, humidity:write, light:read, moisture:write',
+                  helperText: 'Format: metric:read or metric:write',
                 ),
+                maxLines: 2,
               ),
               const SizedBox(height: 12),
               TextField(
@@ -721,9 +724,12 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                 TextField(
                   controller: functionsController,
                   decoration: const InputDecoration(
-                    labelText: 'Supported Functions (comma-separated) *',
+                    labelText: 'Supported Capabilities (comma-separated) *',
                     border: OutlineInputBorder(),
+                    hintText: 'temperature:read, humidity:write',
+                    helperText: 'Format: metric:read or metric:write',
                   ),
+                  maxLines: 2,
                 ),
                 const SizedBox(height: 12),
                 TextField(

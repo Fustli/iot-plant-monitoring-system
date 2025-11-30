@@ -36,6 +36,7 @@ class Plant {
     required this.currentMoisture,
     required this.currentTemperature,
     required this.currentLight,
+    required this.currentHumidity,
   });
 
   // Updated to handle nested device/sensor data from a real API
@@ -65,8 +66,10 @@ class Plant {
           json['image_url'] ?? 'https://via.placeholder.com/150?text=Plant',
       // Get sensor values directly from plant data, or extract from devices
       currentMoisture: _getSensorValue(json, 'current_moisture', 'moisture'),
-      currentTemperature: _getSensorValueDouble(json, 'current_temperature', 'temperature'),
+      currentTemperature:
+          _getSensorValueDouble(json, 'current_temperature', 'temperature'),
       currentLight: _getSensorValue(json, 'current_light', 'light'),
+      currentHumidity: _getSensorValue(json, 'current_humidity', 'humidity'),
     );
   }
   final String id;
@@ -85,9 +88,11 @@ class Plant {
   int currentMoisture;
   double currentTemperature;
   int currentLight;
+  int currentHumidity;
 
   /// Get sensor value - first try direct field, then try nested device data
-  static int _getSensorValue(Map<String, dynamic> json, String directField, String sensorType) {
+  static int _getSensorValue(
+      Map<String, dynamic> json, String directField, String sensorType) {
     // First try direct field from plant data
     if (json[directField] != null) {
       return (json[directField] as num).round();
@@ -96,7 +101,8 @@ class Plant {
     return _extractSensorValue(json, sensorType).round();
   }
 
-  static double _getSensorValueDouble(Map<String, dynamic> json, String directField, String sensorType) {
+  static double _getSensorValueDouble(
+      Map<String, dynamic> json, String directField, String sensorType) {
     // First try direct field from plant data
     if (json[directField] != null) {
       return (json[directField] as num).toDouble();
@@ -146,6 +152,7 @@ class Plant {
         'current_moisture': currentMoisture,
         'current_temperature': currentTemperature,
         'current_light': currentLight,
+        'current_humidity': currentHumidity,
       };
 
   void updateMoisture(int newMoisture) {
@@ -158,6 +165,10 @@ class Plant {
 
   void updateLight(int newLight) {
     currentLight = newLight.clamp(0, 100);
+  }
+
+  void updateHumidity(int newHumidity) {
+    currentHumidity = newHumidity.clamp(0, 100);
   }
 
   Plant copyWith({
@@ -177,6 +188,7 @@ class Plant {
     int? currentMoisture,
     double? currentTemperature,
     int? currentLight,
+    int? currentHumidity,
   }) =>
       Plant(
         id: id ?? this.id,
@@ -195,5 +207,6 @@ class Plant {
         currentMoisture: currentMoisture ?? this.currentMoisture,
         currentTemperature: currentTemperature ?? this.currentTemperature,
         currentLight: currentLight ?? this.currentLight,
+        currentHumidity: currentHumidity ?? this.currentHumidity,
       );
 }

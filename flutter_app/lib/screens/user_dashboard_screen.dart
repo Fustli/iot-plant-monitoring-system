@@ -942,6 +942,195 @@ class _DevicesViewState extends State<_DevicesView> {
     }
   }
 
+  Future<void> _showDeviceDetailsDialog(
+      BuildContext context, Device device) async {
+    final localization = context.read<LocalizationProvider>();
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: device.isOnline
+                  ? Colors.green.withOpacity(0.2)
+                  : Colors.grey.withOpacity(0.2),
+              child: Icon(
+                Icons.sensors,
+                color: device.isOnline ? Colors.green : Colors.grey,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                device.deviceName,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow(
+                  localization.tr('devices_id'), device.uniqueIdentifier),
+              _buildDetailRow(localization.tr('devices_type'),
+                  device.deviceTypeId.toString()),
+              _buildDetailRow(
+                localization.tr('devices_status'),
+                device.isOnline
+                    ? localization.tr('devices_online')
+                    : localization.tr('devices_offline'),
+                valueColor: device.isOnline ? Colors.green : Colors.grey,
+              ),
+              if (device.batteryLevel != null)
+                _buildDetailRow(localization.tr('devices_battery'),
+                    '${device.batteryLevel}%'),
+              if (device.locationDescription != null)
+                _buildDetailRow(localization.tr('devices_location'),
+                    device.locationDescription!),
+              _buildDetailRow(
+                localization.tr('devices_registered'),
+                '${device.createdAt.day}/${device.createdAt.month}/${device.createdAt.year}',
+              ),
+              if (device.lastHeartbeat != null)
+                _buildDetailRow(
+                  localization.tr('devices_last_seen'),
+                  '${device.lastHeartbeat!.day}/${device.lastHeartbeat!.month}/${device.lastHeartbeat!.year}',
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(localization.tr('common_close')),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _showEditDeviceDialog(context, device);
+            },
+            icon: const Icon(Icons.edit),
+            label: Text(localization.tr('common_edit')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showEditDeviceDialog(
+      BuildContext context, Device device) async {
+    final localization = context.read<LocalizationProvider>();
+
+    final nameController = TextEditingController(text: device.deviceName);
+    final locationController =
+        TextEditingController(text: device.locationDescription ?? '');
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(localization.tr('devices_edit')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('devices_name'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: locationController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('devices_location'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(localization.tr('common_save')),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      try {
+        // Update device via API
+        final apiClient = context.read<AuthProvider>().apiClient;
+        await apiClient.updateDevice(device.id, {
+          'device_name': nameController.text,
+          'location_description': locationController.text.isNotEmpty
+              ? locationController.text
+              : null,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('devices_updated_success')),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadData();
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.messageHu),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
@@ -1048,11 +1237,29 @@ class _DevicesViewState extends State<_DevicesView> {
                       ),
                     ],
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () => _confirmDeleteDevice(context, device),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon:
+                            const Icon(Icons.info_outline, color: Colors.blue),
+                        onPressed: () =>
+                            _showDeviceDetailsDialog(context, device),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined,
+                            color: Colors.orange),
+                        onPressed: () => _showEditDeviceDialog(context, device),
+                      ),
+                      IconButton(
+                        icon:
+                            const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () => _confirmDeleteDevice(context, device),
+                      ),
+                    ],
                   ),
                   isThreeLine: true,
+                  onTap: () => _showDeviceDetailsDialog(context, device),
                 ),
               );
             },

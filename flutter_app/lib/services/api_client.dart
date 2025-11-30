@@ -509,6 +509,15 @@ class ApiService {
     await _put('/consumer/my-plants/$plantId', body: request.toJson());
   }
 
+  /// Update plant health status (current sensor readings)
+  /// healthStatus: [soil_moisture, temperature, light_level, humidity]
+  Future<void> updatePlantHealthStatus(
+      int plantId, List<int> healthStatus) async {
+    await _patch('/consumer/my-plants/$plantId/health', body: {
+      'health_status': healthStatus,
+    });
+  }
+
   /// Delete a plant
   Future<void> deletePlant(int plantId) async {
     await _delete('/consumer/my-plants/$plantId');
@@ -542,6 +551,11 @@ class ApiService {
       if (deviceId != null) 'device_id': deviceId,
       'command': activate,
     });
+  }
+
+  /// Update device details (name, location)
+  Future<void> updateDevice(int deviceId, Map<String, dynamic> updates) async {
+    await _put('/consumer/my-devices/$deviceId', body: updates);
   }
 
   /// Remove a device from user account

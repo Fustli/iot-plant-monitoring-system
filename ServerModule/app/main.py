@@ -9,6 +9,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from auth_jwt import create_access_token, decode_access_token
@@ -1865,6 +1866,74 @@ async def plant_activation(
     }
 
 
+class PlantHealthUpdate(BaseModel):
+    """Schema for updating plant health readings only."""
+    health_status: List[int]  # [soil_moisture, temperature, light_level, humidity]
+
+
+@app.patch("/api/consumer/my-plants/{plant_id}/health")
+async def update_plant_health(
+    plant_id: int,
+    payload: PlantHealthUpdate,
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    """
+    Update only the health status readings of a plant.
+
+    Parameters:
+        plant_id: Identifier of the plant to update.
+        payload: PlantHealthUpdate containing [soil_moisture, temperature, light_level, humidity].
+        current_user: Authenticated consumer or admin performing the update.
+        db: Database session dependency.
+
+    Returns:
+        A dictionary containing the updated plant readings.
+    """
+    plant = db.query(PlantModel).get(plant_id)
+    if not plant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plant not found",
+        )
+
+    if current_user.role != "admin" and plant.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+
+    # Validate health_status array length
+    if len(payload.health_status) != 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="health_status must contain exactly 4 values: [soil_moisture, temperature, light_level, humidity]",
+        )
+
+    # Store as comma-separated string
+    health_str = ",".join(str(v) for v in payload.health_status)
+    plant.health_status = health_str
+
+    db.commit()
+    db.refresh(plant)
+
+    # Update in-memory state
+    consumer = system_state.get_consumer(current_user)
+    for p in consumer.plants:
+        if p.id == plant_id:
+            p.act_moisture = payload.health_status[0]
+            p.act_temperature = float(payload.health_status[1])
+            p.act_brightness = payload.health_status[2]
+            p.act_humidity = float(payload.health_status[3])
+            break
+
+    return {
+        "id": plant_id,
+        "health_status": payload.health_status,
+        "detail": "Plant health status updated successfully",
+    }
+
+
 @app.put("/api/consumer/my-plants/{plant_id}")
 async def update_my_plant(
     plant_id: int,
@@ -2130,6 +2199,67 @@ async def remove_my_device(
             detail="Device not found",
         )
     return {"detail": "Device removed"}
+
+
+class DeviceUpdate(BaseModel):
+    device_name: str | None = None
+    location_description: str | None = None
+
+
+@app.put("/api/consumer/my-devices/{device_id}")
+async def update_my_device(
+    device_id: int,
+    payload: DeviceUpdate,
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    """
+    General:
+        Update details of one of the current user's devices.
+
+    Parameters:
+        device_id:
+            Identifier of the device to update.
+        payload:
+            DeviceUpdate containing fields to update (device_name, location_description).
+        current_user:
+            Authenticated consumer or admin performing the update.
+        db:
+            Database session dependency used to persist changes.
+
+    Returns:
+        A dictionary containing the updated device data.
+
+    Raises:
+        HTTPException: If the device does not exist or access is forbidden.
+    """
+    device = db.query(DeviceModel).get(device_id)
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device not found",
+        )
+
+    if current_user.role != "admin" and device.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+
+    if payload.device_name is not None:
+        device.device_name = payload.device_name
+    if payload.location_description is not None:
+        device.location_description = payload.location_description
+
+    db.commit()
+    db.refresh(device)
+
+    return {
+        "id": device.id,
+        "device_name": device.device_name,
+        "location_description": device.location_description,
+        "detail": "Device updated successfully",
+    }
 
 
 # ---------------------------------------------------------------------------

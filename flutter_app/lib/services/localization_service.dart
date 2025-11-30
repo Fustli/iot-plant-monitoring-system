@@ -206,6 +206,10 @@ class LocalizationProvider with ChangeNotifier {
     'devices_no_types': 'No device types available',
     'devices_added_success': 'Device registered successfully!',
     'devices_deleted_success': 'Device removed successfully!',
+    'devices_updated_success': 'Device updated successfully!',
+    'devices_registered': 'Registered',
+    'devices_id': 'Device ID',
+    'devices_type': 'Device Type',
 
     // Hubs
     'hubs_title': 'My Hubs',
@@ -500,6 +504,10 @@ class LocalizationProvider with ChangeNotifier {
     'plant_water_action': 'Water',
     'plant_temp_action': 'Temp',
     'plant_light_action': 'Light',
+    'plant_humidity_action': 'Humid',
+    'plant_humidity': 'Humidity',
+    'plant_humidity_adjusted': 'Humidity adjusted successfully!',
+    'plant_no_humidity_device': 'No humidity controller connected',
     'plant_no_history': 'No sensor history available',
     'plant_chart_placeholder': 'Chart placeholder',
     'plant_location': 'Location',
@@ -517,6 +525,9 @@ class LocalizationProvider with ChangeNotifier {
     'plant_health_good': 'Good',
     'plant_health_attention': 'Needs attention',
     'plant_health_critical': 'Critical',
+    'plant_update_health': 'Update Health Status',
+    'plant_set_health_values': 'Set current sensor values for this plant',
+    'plant_readings_updated': 'Plant readings updated successfully!',
 
     // Manufacturer Screen
     'manufacturer_active': 'Active',
@@ -662,6 +673,10 @@ class LocalizationProvider with ChangeNotifier {
     'devices_no_types': 'Nincsenek elérhető eszköztípusok',
     'devices_added_success': 'Eszköz sikeresen regisztrálva!',
     'devices_deleted_success': 'Eszköz sikeresen eltávolítva!',
+    'devices_updated_success': 'Eszköz sikeresen frissítve!',
+    'devices_registered': 'Regisztrálva',
+    'devices_id': 'Eszköz ID',
+    'devices_type': 'Eszköz Típus',
 
     // Hubs
     'hubs_title': 'Hubjaim',
@@ -961,8 +976,12 @@ class LocalizationProvider with ChangeNotifier {
     'plant_adjusting': 'Beállítás...',
     'plant_adjust': 'Beállít',
     'plant_water_action': 'Öntöz',
-    'plant_temp_action': 'Hőmérséklet',
+    'plant_temp_action': 'Hőm.',
     'plant_light_action': 'Fény',
+    'plant_humidity_action': 'Párás.',
+    'plant_humidity': 'Páratartalom',
+    'plant_humidity_adjusted': 'Páratartalom sikeresen beállítva!',
+    'plant_no_humidity_device': 'Nincs páratartalom vezérlő csatlakoztatva',
     'plant_no_history': 'Nincs szenzor előzmény',
     'plant_chart_placeholder': 'Grafikon helyőrző',
     'plant_location': 'Hely',
@@ -980,6 +999,9 @@ class LocalizationProvider with ChangeNotifier {
     'plant_care_light': 'Biztosíts fényes, közvetett napfényt',
     'plant_care_temp': 'Tartsd a hőmérsékletet 18-26°C között',
     'plant_care_pests': 'Rendszeresen ellenőrizd a kártevőket és betegségeket',
+    'plant_update_health': 'Állapot Frissítése',
+    'plant_set_health_values': 'Állítsd be a növény aktuális szenzor értékeit',
+    'plant_readings_updated': 'Növény értékek sikeresen frissítve!',
 
     // Manufacturer Screen
     'manufacturer_active': 'Aktív',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/plant_model.dart';
 import '../services/plant_provider.dart';
+import '../services/plant_image_provider.dart';
 import '../constants/app_colors.dart';
 
 class PlantCard extends StatefulWidget {
@@ -65,26 +66,10 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
                       // Header with plant image and status
                       Row(
                         children: [
-                          // Plant image
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              widget.plant.imageUrl,
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: Colors.green.shade100,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(Icons.local_florist,
-                                    color: Colors.green.shade600, size: 30),
-                              ),
-                            ),
+                          // Plant image with Trefle fallback
+                          _PlantImage(
+                            plantName: widget.plant.name,
+                            defaultImageUrl: widget.plant.imageUrl,
                           ),
                           const SizedBox(width: 12),
 
@@ -436,5 +421,116 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
         });
       }
     }
+  }
+}
+
+/// Widget that displays plant image with Trefle API fallback
+/// If the default image is a placeholder, it tries to fetch from Trefle
+class _PlantImage extends StatefulWidget {
+  const _PlantImage({
+    required this.plantName,
+    required this.defaultImageUrl,
+  });
+
+  final String plantName;
+  final String defaultImageUrl;
+
+  @override
+  State<_PlantImage> createState() => _PlantImageState();
+}
+
+class _PlantImageState extends State<_PlantImage> {
+  String? _trefleImageUrl;
+  bool _hasFetched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTrefleImage();
+  }
+
+  bool get _isPlaceholder {
+    return widget.defaultImageUrl.contains('placeholder') ||
+        widget.defaultImageUrl.contains('via.placeholder');
+  }
+
+  Future<void> _fetchTrefleImage() async {
+    if (!_isPlaceholder || _hasFetched) return;
+
+    _hasFetched = true;
+
+    final imageProvider = context.read<PlantImageProvider>();
+    if (!imageProvider.isConfigured) return;
+
+    final imageUrl = await imageProvider.fetchImageUrl(widget.plantName);
+    if (mounted && imageUrl != null) {
+      setState(() {
+        _trefleImageUrl = imageUrl;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Determine which image URL to use
+    final imageUrl = _trefleImageUrl ?? widget.defaultImageUrl;
+    final isPlaceholder = _isPlaceholder && _trefleImageUrl == null;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: isPlaceholder
+          ? Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.green.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.local_florist,
+                color: Colors.green.shade600,
+                size: 30,
+              ),
+            )
+          : Image.network(
+              imageUrl,
+              width: 60,
+              height: 60,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) => Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.local_florist,
+                  color: Colors.green.shade600,
+                  size: 30,
+                ),
+              ),
+            ),
+    );
   }
 }
