@@ -453,7 +453,10 @@ class DBInterface:
     
     def get_plant_by_id(self, plant_id: int):
         query = """
-            SELECT * FROM plants WHERE id = %s
+            SELECT p.*, pt.optimal_temperature, pt.optimal_humidity, pt.optimal_light, pt.optimal_moisture
+            FROM plants p
+            LEFT JOIN plant_types pt ON p.plant_type_id = pt.id
+            WHERE p.id = %s
         """
 
         results = self.execute_query(query, (plant_id, ))
@@ -511,9 +514,14 @@ class DBInterface:
         constraint = ""
         params = None
         if user_id is not None:
-            constraint = "WHERE user_id = %s"
+            constraint = "WHERE p.user_id = %s"
             params = (user_id,)
-        query = f"SELECT * FROM plants {constraint}"
+        query = f"""
+            SELECT p.*, pt.optimal_temperature, pt.optimal_humidity, pt.optimal_light, pt.optimal_moisture
+            FROM plants p
+            LEFT JOIN plant_types pt ON p.plant_type_id = pt.id
+            {constraint}
+        """
         results = self.execute_query(query, params) if params else self.execute_query(query)
         return results if results else None
 

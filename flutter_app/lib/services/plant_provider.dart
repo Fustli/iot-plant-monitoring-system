@@ -330,21 +330,22 @@ class PlantProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Get plants grouped by health status
+  /// Get plants grouped by health status (using calculated status)
   Map<HealthStatus, List<Plant>> get plantsGroupedByHealth {
     final groups = <HealthStatus, List<Plant>>{};
     for (final status in HealthStatus.values) {
-      groups[status] =
-          _plants.where((plant) => plant.healthStatus == status).toList();
+      groups[status] = _plants
+          .where((plant) => plant.calculatedHealthStatus == status)
+          .toList();
     }
     return groups;
   }
 
-  /// Get plants that need attention (warning or critical)
+  /// Get plants that need attention (needsAttention or critical)
   List<Plant> get plantsNeedingAttention => _plants
       .where((plant) =>
-          plant.healthStatus == HealthStatus.warning ||
-          plant.healthStatus == HealthStatus.critical)
+          plant.calculatedHealthStatus == HealthStatus.needsAttention ||
+          plant.calculatedHealthStatus == HealthStatus.critical)
       .toList();
 
   /// Check if any plants need water (moisture < 30%)

@@ -10,6 +10,7 @@ import '../models/plant_type_model.dart';
 import '../models/device_model.dart';
 import '../models/alert_model.dart';
 import '../models/user_model.dart';
+import '../models/hub_model.dart';
 import 'api_exceptions.dart';
 
 /// Comprehensive API service for the IoT Plant Monitoring System
@@ -510,7 +511,7 @@ class ApiService {
   }
 
   /// Update plant health status (current sensor readings)
-  /// healthStatus: [soil_moisture, temperature, light_level, humidity]
+  /// healthStatus: [light_level, humidity, temperature, soil_moisture]
   Future<void> updatePlantHealthStatus(
       int plantId, List<int> healthStatus) async {
     await _patch('/consumer/my-plants/$plantId/health', body: {
@@ -564,7 +565,78 @@ class ApiService {
   }
 
   // ===========================================================================
-  // 7. MONITORING & CONTROL
+  // 7. CONSUMER - HUBS
+  // ===========================================================================
+
+  /// Get all hubs for current user
+  Future<List<Hub>> getMyHubs() async {
+    final response = await _get('/consumer/hubs');
+    return (response as List).map((json) => Hub.fromJson(json)).toList();
+  }
+
+  /// Register/claim a hub by serial number
+  /// The hub must be pre-provisioned by admin and activated by the physical device
+  Future<Map<String, dynamic>> registerHub({required String serial}) async {
+    final response = await _post('/consumer/hubs/register', body: {
+      'serial': serial,
+    });
+    return response as Map<String, dynamic>;
+  }
+
+  // ===========================================================================
+  // 8. ADMIN - HUBS
+  // ===========================================================================
+
+  /// List ALL hubs (admin only) - pre-provisioned, active, claimed, etc.
+  Future<List<Hub>> adminListAllHubs() async {
+    final response = await _get('/admin/hubs');
+    return (response as List).map((json) => Hub.fromJson(json)).toList();
+  }
+
+  /// Pre-provision a hub (admin only)
+  Future<Map<String, dynamic>> adminCreateHub({
+    required String serial,
+    String? name,
+  }) async {
+    final response = await _post('/admin/hubs', body: {
+      'serial': serial,
+      if (name != null) 'name': name,
+    });
+    return response as Map<String, dynamic>;
+  }
+
+  /// Delete a hub by ID (admin only)
+  Future<void> adminDeleteHub(int hubId) async {
+    await _delete('/admin/hubs/$hubId');
+  }
+
+  /// Delete a hub by serial (admin only)
+  Future<void> adminDeleteHubBySerial(String serial) async {
+    await _delete('/admin/hubs/serial/$serial');
+  }
+
+  // ===========================================================================
+  // 9. HUB COMMANDS
+  // ===========================================================================
+
+  /// Send command to hub via Azure IoT Hub direct method
+  Future<Map<String, dynamic>> sendHubCommand({
+    int? hubId,
+    String? hubSerial,
+    required String topic,
+    required Map<String, dynamic> payload,
+  }) async {
+    final response = await _post('/hub/commands', body: {
+      if (hubId != null) 'hub_id': hubId,
+      if (hubSerial != null) 'hub_serial': hubSerial,
+      'topic': topic,
+      'payload': payload,
+    });
+    return response as Map<String, dynamic>;
+  }
+
+  // ===========================================================================
+  // 10. MONITORING & CONTROL
   // ===========================================================================
 
   /// Get device sensor history for charts

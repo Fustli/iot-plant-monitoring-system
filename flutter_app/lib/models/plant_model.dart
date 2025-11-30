@@ -1,7 +1,7 @@
 enum HealthStatus {
   excellent,
   good,
-  warning,
+  needsAttention,
   critical;
 
   String get displayName {
@@ -10,8 +10,8 @@ enum HealthStatus {
         return 'Excellent';
       case HealthStatus.good:
         return 'Good';
-      case HealthStatus.warning:
-        return 'Needs Care';
+      case HealthStatus.needsAttention:
+        return 'Needs Attention';
       case HealthStatus.critical:
         return 'Critical';
     }
@@ -37,6 +37,10 @@ class Plant {
     required this.currentTemperature,
     required this.currentLight,
     required this.currentHumidity,
+    this.optimalTemperature,
+    this.optimalHumidity,
+    this.optimalLight,
+    this.optimalMoisture,
   });
 
   // Updated to handle nested device/sensor data from a real API
@@ -70,6 +74,11 @@ class Plant {
           _getSensorValueDouble(json, 'current_temperature', 'temperature'),
       currentLight: _getSensorValue(json, 'current_light', 'light'),
       currentHumidity: _getSensorValue(json, 'current_humidity', 'humidity'),
+      // Optimal values from plant_type join
+      optimalTemperature: (json['optimal_temperature'] as num?)?.toDouble(),
+      optimalHumidity: (json['optimal_humidity'] as num?)?.toDouble(),
+      optimalLight: (json['optimal_light'] as num?)?.toDouble(),
+      optimalMoisture: (json['optimal_moisture'] as num?)?.toDouble(),
     );
   }
   final String id;
@@ -89,6 +98,119 @@ class Plant {
   double currentTemperature;
   int currentLight;
   int currentHumidity;
+  // Optimal values from plant_type
+  final double? optimalTemperature;
+  final double? optimalHumidity;
+  final double? optimalLight;
+  final double? optimalMoisture;
+
+  // ============== Health Range Configuration ==============
+  // Each metric has specific tolerance ranges that make sense for plants
+
+  /// Temperature tolerance: ±5°C around optimal (e.g., optimal 22°C → range 17-27°C)
+  static const double _temperatureTolerance = 5.0;
+
+  /// Humidity tolerance: ±15% around optimal (e.g., optimal 60% → range 45-75%)
+  static const double _humidityTolerance = 15.0;
+
+  /// Light tolerance: ±30% of optimal value (light varies more throughout day)
+  static const double _lightTolerancePercent = 0.30;
+
+  /// Moisture tolerance: ±20% around optimal (e.g., optimal 50% → range 30-70%)
+  static const double _moistureTolerance = 20.0;
+
+  // ============== Range Getters ==============
+
+  /// Get acceptable temperature range [min, max]
+  (double, double)? get temperatureRange {
+    if (optimalTemperature == null) return null;
+    return (
+      optimalTemperature! - _temperatureTolerance,
+      optimalTemperature! + _temperatureTolerance
+    );
+  }
+
+  /// Get acceptable humidity range [min, max]
+  (double, double)? get humidityRange {
+    if (optimalHumidity == null) return null;
+    return (
+      (optimalHumidity! - _humidityTolerance).clamp(0, 100),
+      (optimalHumidity! + _humidityTolerance).clamp(0, 100)
+    );
+  }
+
+  /// Get acceptable light range [min, max]
+  (double, double)? get lightRange {
+    if (optimalLight == null) return null;
+    return (
+      (optimalLight! * (1 - _lightTolerancePercent)).clamp(0, double.infinity),
+      optimalLight! * (1 + _lightTolerancePercent)
+    );
+  }
+
+  /// Get acceptable moisture range [min, max]
+  (double, double)? get moistureRange {
+    if (optimalMoisture == null) return null;
+    return (
+      (optimalMoisture! - _moistureTolerance).clamp(0, 100),
+      (optimalMoisture! + _moistureTolerance).clamp(0, 100)
+    );
+  }
+
+  // ============== Health Calculation ==============
+
+  /// Calculate health status based on current vs optimal ranges.
+  /// Returns "Good" if all values are within their acceptable ranges,
+  /// "Needs Attention" otherwise.
+  HealthStatus get calculatedHealthStatus {
+    // If we don't have optimal values, can't calculate - use stored status
+    if (optimalTemperature == null ||
+        optimalHumidity == null ||
+        optimalLight == null ||
+        optimalMoisture == null) {
+      return healthStatus;
+    }
+
+    // Check if each sensor value is within its acceptable range
+    final tempRange = temperatureRange!;
+    final humRange = humidityRange!;
+    final ligRange = lightRange!;
+    final moiRange = moistureRange!;
+
+    final tempOk = currentTemperature >= tempRange.$1 &&
+        currentTemperature <= tempRange.$2;
+    final humidityOk =
+        currentHumidity >= humRange.$1 && currentHumidity <= humRange.$2;
+    final lightOk = currentLight >= ligRange.$1 && currentLight <= ligRange.$2;
+    final moistureOk =
+        currentMoisture >= moiRange.$1 && currentMoisture <= moiRange.$2;
+
+    // Debug: Print values to console
+    print('Health Check for $name:');
+    print(
+        '  Temp: $currentTemperature in [${tempRange.$1}, ${tempRange.$2}] = $tempOk');
+    print(
+        '  Humidity: $currentHumidity in [${humRange.$1}, ${humRange.$2}] = $humidityOk');
+    print(
+        '  Light: $currentLight in [${ligRange.$1}, ${ligRange.$2}] = $lightOk');
+    print(
+        '  Moisture: $currentMoisture in [${moiRange.$1}, ${moiRange.$2}] = $moistureOk');
+
+    // If any value is outside range, status is "Needs Attention"
+    if (!tempOk || !humidityOk || !lightOk || !moistureOk) {
+      print('  Result: Needs Attention');
+      return HealthStatus.needsAttention;
+    }
+
+    // All values are within range, status is "Good"
+    print('  Result: Good');
+    return HealthStatus.good;
+  }
+
+  /// Check if a value is within the given range [min, max]
+  static bool _isInRange(double value, (double, double) range) {
+    return value >= range.$1 && value <= range.$2;
+  }
 
   /// Get sensor value - first try direct field, then try nested device data
   static int _getSensorValue(
@@ -128,8 +250,9 @@ class Plant {
     if (status == null) return HealthStatus.good;
     final statusStr = status.toString().toLowerCase();
     if (statusStr.contains('excellent')) return HealthStatus.excellent;
-    if (statusStr.contains('warning') || statusStr.contains('care'))
-      return HealthStatus.warning;
+    if (statusStr.contains('attention') ||
+        statusStr.contains('warning') ||
+        statusStr.contains('care')) return HealthStatus.needsAttention;
     if (statusStr.contains('critical') || statusStr.contains('danger'))
       return HealthStatus.critical;
     return HealthStatus.good;
@@ -153,6 +276,10 @@ class Plant {
         'current_temperature': currentTemperature,
         'current_light': currentLight,
         'current_humidity': currentHumidity,
+        'optimal_temperature': optimalTemperature,
+        'optimal_humidity': optimalHumidity,
+        'optimal_light': optimalLight,
+        'optimal_moisture': optimalMoisture,
       };
 
   void updateMoisture(int newMoisture) {
@@ -189,6 +316,10 @@ class Plant {
     double? currentTemperature,
     int? currentLight,
     int? currentHumidity,
+    double? optimalTemperature,
+    double? optimalHumidity,
+    double? optimalLight,
+    double? optimalMoisture,
   }) =>
       Plant(
         id: id ?? this.id,
@@ -208,5 +339,9 @@ class Plant {
         currentTemperature: currentTemperature ?? this.currentTemperature,
         currentLight: currentLight ?? this.currentLight,
         currentHumidity: currentHumidity ?? this.currentHumidity,
+        optimalTemperature: optimalTemperature ?? this.optimalTemperature,
+        optimalHumidity: optimalHumidity ?? this.optimalHumidity,
+        optimalLight: optimalLight ?? this.optimalLight,
+        optimalMoisture: optimalMoisture ?? this.optimalMoisture,
       );
 }

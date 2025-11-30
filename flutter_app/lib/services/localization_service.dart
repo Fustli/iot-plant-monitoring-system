@@ -390,22 +390,44 @@ class LocalizationProvider with ChangeNotifier {
     'admin_export_data': 'Export Data',
     'admin_error_loading_stats': 'Error loading stats',
 
+    // Admin Hub Management
+    'admin_preprovision_hub': 'Pre-provision Hub',
+    'admin_preprovision_hub_info':
+        'Pre-provision a hub serial number so it can later be activated by the physical device and claimed by a consumer.',
+    'admin_hub_serial': 'Hub Serial',
+    'admin_hub_name_optional': 'Hub Name (optional)',
+    'admin_hub_created': 'Hub pre-provisioned successfully!',
+    'admin_delete_hub': 'Delete Hub',
+    'admin_delete_hub_confirm':
+        'Are you sure you want to delete hub "{serial}"? This action cannot be undone.',
+    'admin_hub_deleted': 'Hub deleted successfully!',
+    'admin_no_hubs': 'No hubs pre-provisioned',
+    'admin_activated': 'Activated',
+    'admin_pending_activation': 'Pending activation',
+    'admin_claimed': 'Claimed',
+
     // User Dashboard - Hubs
     'user_my_hubs': 'My Hubs',
     'user_hubs_configured': '{count} hub(s) configured',
     'user_no_hubs': 'No hubs configured',
-    'user_add_hub': 'Add Hub',
+    'user_add_hub': 'Claim Hub',
     'user_edit_hub': 'Edit Hub',
     'user_delete_hub': 'Delete Hub',
     'user_delete_hub_confirm':
         'Are you sure you want to delete "{name}"? All devices assigned to this hub will be unassigned.',
     'user_hub_added': 'Hub added (local only - backend not connected)',
-    'user_hub_updated': 'Hub updated (local only - backend not connected)',
+    'user_hub_updated': 'Hub updated',
     'user_hub_deleted': 'Hub deleted (local only - backend not connected)',
     'user_hub_id': 'Hub ID',
     'user_hub_id_mac': 'Hub ID (MAC/Serial)',
     'user_hub_link': 'Hub Link (MQTT URL)',
     'user_hub_name': 'Hub Name',
+    'user_hub_serial': 'Serial Number',
+    'user_hub_status': 'Status',
+    'user_hub_claim_info':
+        'Enter the serial number from your hub device to claim it. The hub must be pre-provisioned by an administrator and activated by the physical device.',
+    'user_claim_hub': 'Claim Hub',
+    'user_hub_claimed': 'Hub claimed successfully!',
     'user_location': 'Location',
     'user_offline': 'Offline',
     'user_plant_history': 'Plant History & Analytics',
@@ -857,25 +879,46 @@ class LocalizationProvider with ChangeNotifier {
     'admin_postgresql': 'PostgreSQL',
     'admin_error_loading_stats': 'Hiba a statisztikák betöltésekor',
 
+    // Admin Hub Management
+    'admin_preprovision_hub': 'Hub Előregisztrálása',
+    'admin_preprovision_hub_info':
+        'Előregisztráljon egy hub sorozatszámot, hogy később a fizikai eszköz aktiválhassa és a felhasználó igényelhesse.',
+    'admin_hub_serial': 'Hub Sorozatszám',
+    'admin_hub_name_optional': 'Hub Név (opcionális)',
+    'admin_hub_created': 'Hub sikeresen előregisztrálva!',
+    'admin_delete_hub': 'Hub Törlése',
+    'admin_delete_hub_confirm':
+        'Biztosan törölni szeretné a(z) "{serial}" hubot? Ez a művelet nem vonható vissza.',
+    'admin_hub_deleted': 'Hub sikeresen törölve!',
+    'admin_no_hubs': 'Nincs előregisztrált hub',
+    'admin_activated': 'Aktiválva',
+    'admin_pending_activation': 'Aktiválásra vár',
+    'admin_claimed': 'Igényelve',
+
     // User Dashboard - Hubs
     'user_my_hubs': 'Hubok',
     'user_hubs_configured': '{count} hub konfigurálva',
     'user_no_hubs': 'Nincs hub konfigurálva',
-    'user_add_hub': 'Hub Hozzáadása',
+    'user_add_hub': 'Hub Igénylése',
     'user_edit_hub': 'Hub Szerkesztése',
     'user_delete_hub': 'Hub Törlése',
     'user_delete_hub_confirm':
         'Biztosan törölni szeretné a(z) "{name}" hubot? Az ehhez a hubhoz tartozó eszközök hozzárendelése megszűnik.',
     'user_hub_added':
         'Hub hozzáadva (csak lokálisan - backend nincs csatlakoztatva)',
-    'user_hub_updated':
-        'Hub frissítve (csak lokálisan - backend nincs csatlakoztatva)',
+    'user_hub_updated': 'Hub frissítve',
     'user_hub_deleted':
         'Hub törölve (csak lokálisan - backend nincs csatlakoztatva)',
     'user_hub_id': 'Hub ID',
     'user_hub_id_mac': 'Hub ID (MAC/Sorozatszám)',
     'user_hub_link': 'Hub Link (MQTT URL)',
     'user_hub_name': 'Hub Név',
+    'user_hub_serial': 'Sorozatszám',
+    'user_hub_status': 'Állapot',
+    'user_hub_claim_info':
+        'Adja meg a hub eszköz sorozatszámát az igényléshez. A hubot az adminisztrátornak előzetesen regisztrálnia kell, és a fizikai eszköznek aktiválnia kell.',
+    'user_claim_hub': 'Hub Igénylése',
+    'user_hub_claimed': 'Hub sikeresen igényelve!',
     'user_location': 'Hely',
     'user_offline': 'Offline',
     'user_plant_history': 'Növény Előzmények és Analitika',

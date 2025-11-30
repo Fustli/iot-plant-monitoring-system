@@ -107,11 +107,12 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
                                       horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
                                     color: _getHealthColor(
-                                        widget.plant.healthStatus),
+                                        widget.plant.calculatedHealthStatus),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    widget.plant.healthStatus.displayName,
+                                    widget.plant.calculatedHealthStatus
+                                        .displayName,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 12,
@@ -298,7 +299,7 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
         return AppColors.healthyGreen;
       case HealthStatus.good:
         return AppColors.success;
-      case HealthStatus.warning:
+      case HealthStatus.needsAttention:
         return AppColors.warningYellow;
       case HealthStatus.critical:
         return AppColors.criticalRed;

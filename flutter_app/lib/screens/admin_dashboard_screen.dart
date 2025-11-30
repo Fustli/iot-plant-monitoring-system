@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/app_colors.dart';
+import '../models/hub_model.dart';
+import '../services/api_client.dart';
+import '../services/api_exceptions.dart';
 import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
 import '../widgets/animated_stats.dart';
@@ -411,8 +414,191 @@ class _PlantCatalogView extends StatelessWidget {
 // SYSTEM VIEW
 // =============================================================================
 
-class _SystemView extends StatelessWidget {
+class _SystemView extends StatefulWidget {
   const _SystemView();
+
+  @override
+  State<_SystemView> createState() => _SystemViewState();
+}
+
+class _SystemViewState extends State<_SystemView> {
+  final ApiService _apiService = ApiService();
+  List<Hub> _hubs = [];
+  bool _isLoadingHubs = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHubs();
+  }
+
+  Future<void> _loadHubs() async {
+    setState(() => _isLoadingHubs = true);
+    try {
+      final hubs = await _apiService.adminListAllHubs();
+      setState(() => _hubs = hubs);
+    } catch (e) {
+      // Silently handle - admin may not have hubs
+    } finally {
+      setState(() => _isLoadingHubs = false);
+    }
+  }
+
+  Future<void> _showPreProvisionHubDialog(BuildContext context) async {
+    final localization = context.read<LocalizationProvider>();
+    final serialController = TextEditingController();
+    final nameController = TextEditingController();
+    bool isCreating = false;
+    String? errorMessage;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(localization.tr('admin_preprovision_hub')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  localization.tr('admin_preprovision_hub_info'),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: serialController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('admin_hub_serial'),
+                    border: const OutlineInputBorder(),
+                    hintText: 'e.g., hub-serial-123',
+                    errorText: errorMessage,
+                  ),
+                  enabled: !isCreating,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('admin_hub_name_optional'),
+                    border: const OutlineInputBorder(),
+                    hintText: 'e.g., Kitchen Hub',
+                  ),
+                  enabled: !isCreating,
+                ),
+                if (isCreating)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed:
+                  isCreating ? null : () => Navigator.pop(dialogContext, false),
+              child: Text(localization.tr('common_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: isCreating || serialController.text.isEmpty
+                  ? null
+                  : () async {
+                      setDialogState(() {
+                        isCreating = true;
+                        errorMessage = null;
+                      });
+
+                      try {
+                        await _apiService.adminCreateHub(
+                          serial: serialController.text.trim(),
+                          name: nameController.text.isNotEmpty
+                              ? nameController.text.trim()
+                              : null,
+                        );
+                        if (context.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
+                      } on ApiException catch (e) {
+                        setDialogState(() {
+                          errorMessage = e.messageHu;
+                          isCreating = false;
+                        });
+                      } catch (e) {
+                        setDialogState(() {
+                          errorMessage = 'Failed to create hub';
+                          isCreating = false;
+                        });
+                      }
+                    },
+              child: Text(localization.tr('common_create')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      await _loadHubs();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(localization.tr('admin_hub_created')),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteHub(BuildContext context, Hub hub) async {
+    final localization = context.read<LocalizationProvider>();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(localization.tr('admin_delete_hub')),
+        content: Text(localization
+            .tr('admin_delete_hub_confirm')
+            .replaceAll('{serial}', hub.serial)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(localization.tr('common_delete')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      try {
+        await _apiService.adminDeleteHub(hub.id);
+        await _loadHubs();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('admin_hub_deleted')),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.messageHu),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -499,6 +685,129 @@ class _SystemView extends StatelessWidget {
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Hub Management
+        Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(Icons.router, color: AppColors.adminPrimary, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        localization.tr('admin_hub_management'),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle),
+                      color: AppColors.adminPrimary,
+                      onPressed: () => _showPreProvisionHubDialog(context),
+                      tooltip: localization.tr('admin_preprovision_hub'),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              if (_isLoadingHubs)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_hubs.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.router_outlined,
+                            size: 48, color: Colors.grey[400]),
+                        const SizedBox(height: 8),
+                        Text(
+                          localization.tr('admin_no_hubs'),
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _showPreProvisionHubDialog(context),
+                          icon: const Icon(Icons.add),
+                          label:
+                              Text(localization.tr('admin_preprovision_hub')),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ..._hubs.map((hub) => ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: hub.isActive
+                            ? Colors.green.withOpacity(0.2)
+                            : Colors.orange.withOpacity(0.2),
+                        child: Icon(
+                          Icons.router,
+                          color: hub.isActive ? Colors.green : Colors.orange,
+                        ),
+                      ),
+                      title: Text(hub.displayName),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Serial: ${hub.serial}'),
+                          Row(
+                            children: [
+                              Icon(
+                                hub.isActive
+                                    ? Icons.check_circle
+                                    : Icons.pending,
+                                size: 12,
+                                color:
+                                    hub.isActive ? Colors.green : Colors.orange,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                hub.isActive
+                                    ? localization.tr('admin_activated')
+                                    : localization
+                                        .tr('admin_pending_activation'),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: hub.isActive
+                                      ? Colors.green
+                                      : Colors.orange,
+                                ),
+                              ),
+                              if (hub.userId != null) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  '• ${localization.tr('admin_claimed')}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _confirmDeleteHub(context, hub),
+                      ),
+                    )),
             ],
           ),
         ),

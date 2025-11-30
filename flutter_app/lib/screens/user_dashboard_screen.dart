@@ -631,35 +631,7 @@ class _DevicesViewState extends State<_DevicesView> {
     try {
       final devices = await _apiService.getMyDevices();
       final deviceTypes = await _apiService.listAvailableDeviceTypes();
-      // TODO: Fetch hubs from API when endpoint is ready
-      // final hubs = await _apiService.getMyHubs();
-      final hubs = <Hub>[
-        // Mock hubs for now
-        Hub(
-          id: 1,
-          userId: 1,
-          hubId: 'HUB-001',
-          hubLink: 'mqtt://192.168.1.100:1883',
-          name: 'Home Hub',
-          location: 'Living Room',
-          isOnline: true,
-          isActive: true,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        Hub(
-          id: 2,
-          userId: 1,
-          hubId: 'HUB-002',
-          hubLink: 'mqtt://192.168.1.101:1883',
-          name: 'Garden Hub',
-          location: 'Backyard',
-          isOnline: false,
-          isActive: true,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      ];
+      final hubs = await _apiService.getMyHubs();
       setState(() {
         _devices = devices;
         _deviceTypes = deviceTypes;
@@ -762,7 +734,7 @@ class _DevicesViewState extends State<_DevicesView> {
                               color: hub.isOnline ? Colors.green : Colors.grey,
                             ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(hub.name)),
+                            Expanded(child: Text(hub.displayName)),
                           ],
                         ),
                       );
@@ -1281,7 +1253,7 @@ class _SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<_SettingsView> {
-  // Mock hub data - replace with API calls when backend is ready
+  final ApiService _apiService = ApiService();
   List<Hub> _hubs = [];
   bool _isLoadingHubs = false;
 
@@ -1293,106 +1265,117 @@ class _SettingsViewState extends State<_SettingsView> {
 
   Future<void> _loadHubs() async {
     setState(() => _isLoadingHubs = true);
-    // TODO: Replace with actual API call when backend endpoint is ready
-    // For now, use mock data
-    await Future.delayed(const Duration(milliseconds: 300));
-    setState(() {
-      _hubs = [
-        // Mock hub for demo
-      ];
-      _isLoadingHubs = false;
-    });
+    try {
+      final hubs = await _apiService.getMyHubs();
+      setState(() {
+        _hubs = hubs;
+      });
+    } catch (e) {
+      // Handle error silently or show toast
+    } finally {
+      setState(() {
+        _isLoadingHubs = false;
+      });
+    }
   }
 
   Future<void> _showAddHubDialog(BuildContext context) async {
     final localization = context.read<LocalizationProvider>();
-    final hubIdController = TextEditingController();
-    final hubLinkController = TextEditingController();
-    final nameController = TextEditingController();
-    final locationController = TextEditingController();
+    final serialController = TextEditingController();
+    bool isRegistering = false;
+    String? errorMessage;
+    String serialText = '';
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(localization.tr('user_add_hub')),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: hubIdController,
-                decoration: InputDecoration(
-                  labelText: localization.tr('user_hub_id_mac'),
-                  border: const OutlineInputBorder(),
-                  hintText: 'e.g., AA:BB:CC:DD:EE:FF',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(localization.tr('user_add_hub')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  localization.tr('user_hub_claim_info'),
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 13,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: hubLinkController,
-                decoration: InputDecoration(
-                  labelText: localization.tr('user_hub_link'),
-                  border: const OutlineInputBorder(),
-                  hintText: 'e.g., mqtt://192.168.1.100:1883',
+                const SizedBox(height: 16),
+                TextField(
+                  controller: serialController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('user_hub_serial'),
+                    border: const OutlineInputBorder(),
+                    hintText: 'e.g., hub-serial-123',
+                    errorText: errorMessage,
+                  ),
+                  enabled: !isRegistering,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      serialText = value;
+                    });
+                  },
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText: localization.tr('user_hub_name'),
-                  border: const OutlineInputBorder(),
-                  hintText: 'e.g., Living Room Hub',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: locationController,
-                decoration: InputDecoration(
-                  labelText: localization.tr('user_location'),
-                  border: const OutlineInputBorder(),
-                  hintText: 'e.g., Home, Office',
-                ),
-              ),
-            ],
+                if (isRegistering)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 16),
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: isRegistering
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
+              child: Text(localization.tr('common_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: isRegistering || serialText.isEmpty
+                  ? null
+                  : () async {
+                      setDialogState(() {
+                        isRegistering = true;
+                        errorMessage = null;
+                      });
+
+                      try {
+                        await _apiService.registerHub(
+                          serial: serialController.text.trim(),
+                        );
+                        if (context.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
+                      } on ApiException catch (e) {
+                        setDialogState(() {
+                          errorMessage = e.messageHu;
+                          isRegistering = false;
+                        });
+                      } catch (e) {
+                        setDialogState(() {
+                          errorMessage = 'Failed to claim hub';
+                          isRegistering = false;
+                        });
+                      }
+                    },
+              child: Text(localization.tr('user_claim_hub')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(localization.tr('common_cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(localization.tr('common_add')),
-          ),
-        ],
       ),
     );
 
     if (result == true && mounted) {
-      // TODO: Call API to create hub when backend is ready
-      final newHub = Hub(
-        id: DateTime.now().millisecondsSinceEpoch,
-        userId: 0,
-        hubId: hubIdController.text,
-        hubLink: hubLinkController.text,
-        name: nameController.text.isNotEmpty ? nameController.text : 'My Hub',
-        location:
-            locationController.text.isNotEmpty ? locationController.text : null,
-        isOnline: false,
-        isActive: true,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      setState(() {
-        _hubs.add(newHub);
-      });
+      // Reload hubs to get the newly claimed hub
+      await _loadHubs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(localization.tr('user_hub_added')),
-            backgroundColor: Colors.orange,
+            content: Text(localization.tr('user_hub_claimed')),
+            backgroundColor: Colors.green,
           ),
         );
       }
@@ -1401,9 +1384,7 @@ class _SettingsViewState extends State<_SettingsView> {
 
   Future<void> _showEditHubDialog(BuildContext context, Hub hub) async {
     final localization = context.read<LocalizationProvider>();
-    final hubLinkController = TextEditingController(text: hub.hubLink);
-    final nameController = TextEditingController(text: hub.name);
-    final locationController = TextEditingController(text: hub.location ?? '');
+    final nameController = TextEditingController(text: hub.name ?? '');
 
     final result = await showDialog<bool>(
       context: context,
@@ -1416,19 +1397,11 @@ class _SettingsViewState extends State<_SettingsView> {
               TextField(
                 enabled: false,
                 decoration: InputDecoration(
-                  labelText: localization.tr('user_hub_id'),
+                  labelText: localization.tr('user_hub_serial'),
                   border: const OutlineInputBorder(),
-                  hintText: hub.hubId,
+                  hintText: hub.serial,
                 ),
-                controller: TextEditingController(text: hub.hubId),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: hubLinkController,
-                decoration: InputDecoration(
-                  labelText: localization.tr('user_hub_link'),
-                  border: const OutlineInputBorder(),
-                ),
+                controller: TextEditingController(text: hub.serial),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -1439,13 +1412,23 @@ class _SettingsViewState extends State<_SettingsView> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: locationController,
-                decoration: InputDecoration(
-                  labelText: localization.tr('user_location'),
-                  border: const OutlineInputBorder(),
+              // Status info (read-only)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  hub.isActive ? Icons.check_circle : Icons.cancel,
+                  color: hub.isActive ? Colors.green : Colors.grey,
                 ),
+                title: Text(localization.tr('user_hub_status')),
+                subtitle: Text(hub.status ?? 'unknown'),
               ),
+              if (hub.lastSeen != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.access_time),
+                  title: Text(localization.tr('devices_last_seen')),
+                  subtitle: Text(hub.formattedLastSeen),
+                ),
             ],
           ),
         ),
@@ -1463,16 +1446,13 @@ class _SettingsViewState extends State<_SettingsView> {
     );
 
     if (result == true && mounted) {
-      // TODO: Call API to update hub when backend is ready
+      // Note: Backend doesn't have hub update endpoint yet,
+      // keeping local state update for future implementation
       final index = _hubs.indexWhere((h) => h.id == hub.id);
       if (index != -1) {
         setState(() {
           _hubs[index] = hub.copyWith(
-            hubLink: hubLinkController.text,
-            name: nameController.text,
-            location: locationController.text.isNotEmpty
-                ? locationController.text
-                : null,
+            name: nameController.text.isNotEmpty ? nameController.text : null,
             updatedAt: DateTime.now(),
           );
         });
@@ -1497,7 +1477,7 @@ class _SettingsViewState extends State<_SettingsView> {
         title: Text(localization.tr('user_delete_hub')),
         content: Text(localization
             .tr('user_delete_hub_confirm')
-            .replaceAll('{name}', hub.name)),
+            .replaceAll('{name}', hub.displayName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1644,15 +1624,15 @@ class _SettingsViewState extends State<_SettingsView> {
                               color: hub.isOnline ? Colors.green : Colors.grey,
                             ),
                           ),
-                          title: Text(hub.name),
+                          title: Text(hub.displayName),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                  '${localization.tr('user_hub_id')}: ${hub.hubId}'),
-                              if (hub.location != null)
+                                  '${localization.tr('user_hub_serial')}: ${hub.serial}'),
+                              if (hub.status != null)
                                 Text(
-                                    '${localization.tr('user_location')}: ${hub.location}'),
+                                    '${localization.tr('user_hub_status')}: ${hub.status}'),
                               Row(
                                 children: [
                                   Icon(
@@ -1676,6 +1656,16 @@ class _SettingsViewState extends State<_SettingsView> {
                                           : Colors.grey,
                                     ),
                                   ),
+                                  if (hub.lastSeen != null) ...[
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '• ${hub.formattedLastSeen}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ],

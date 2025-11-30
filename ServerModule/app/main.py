@@ -106,6 +106,7 @@ def serialize_plant(row: tuple) -> dict:
     """Convert plant tuple to dictionary.
     
     health_status contains CSV: "brightness,humidity,temperature,moisture"
+    Row includes joined plant_types data for optimal values.
     """
     if not row:
         return None
@@ -145,6 +146,11 @@ def serialize_plant(row: tuple) -> dict:
         "last_watered": row[9].isoformat() if row[9] else None,
         "created_at": row[10].isoformat() if row[10] else None,
         "updated_at": row[11].isoformat() if row[11] else None,
+        # Optimal values from plant_types join (indices 12-15)
+        "optimal_temperature": row[12] if len(row) > 12 else None,
+        "optimal_humidity": row[13] if len(row) > 13 else None,
+        "optimal_light": row[14] if len(row) > 14 else None,
+        "optimal_moisture": row[15] if len(row) > 15 else None,
     }
 
 def serialize_hub(row: tuple) -> dict:
@@ -1674,7 +1680,7 @@ async def get_my_plant(
     db_interface = DBInterface()
     plant = db_interface.get_plant_by_id(plant_id)
     if plant:
-        return plant
+        return serialize_plant(plant)
     else:
         main_logger.warning(
             f"[get_my_plant] Plant not found for user_id={current_user.id}, plant_id={plant_id}"
@@ -1720,7 +1726,7 @@ async def update_plant_health(
 
     Parameters:
         plant_id: Identifier of the plant to update.
-        payload: PlantHealthUpdate containing [soil_moisture, temperature, light_level, humidity].
+        payload: PlantHealthUpdate containing [light_level, humidity, temperature, soil_moisture].
         current_user: Authenticated consumer or admin performing the update.
         db: Database session dependency.
 
@@ -1744,24 +1750,26 @@ async def update_plant_health(
     if len(payload.health_status) != 4:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="health_status must contain exactly 4 values: [soil_moisture, temperature, light_level, humidity]",
+            detail="health_status must contain exactly 4 values: [light_level, humidity, temperature, soil_moisture]",
         )
 
-    # Store as comma-separated string
+    # Store as CSV: "brightness,humidity,temperature,moisture"
+    # Input order: [light, humidity, temperature, moisture]
     health_str = ",".join(str(v) for v in payload.health_status)
     plant.health_status = health_str
 
     db.commit()
     db.refresh(plant)
 
-    # Update in-memory state
+    # Update in-memory state  
+    # Input: [light, humidity, temperature, moisture]
     consumer = system_state.get_consumer(current_user)
     for p in consumer.plants:
         if p.id == plant_id:
-            p.act_moisture = payload.health_status[0]
-            p.act_temperature = float(payload.health_status[1])
-            p.act_brightness = payload.health_status[2]
-            p.act_humidity = float(payload.health_status[3])
+            p.act_brightness = payload.health_status[0]
+            p.act_humidity = float(payload.health_status[1])
+            p.act_temperature = float(payload.health_status[2])
+            p.act_moisture = payload.health_status[3]
             break
 
     return {
@@ -2086,6 +2094,18 @@ async def list_my_hubs(
     """
     db_interface = DBInterface()
     hubs = db_interface.list_hubs(user_id=current_user.id)
+    return hubs or []
+
+
+@app.get("/api/admin/hubs")
+async def admin_list_all_hubs(
+    current_admin: User = Depends(require_roles(["admin"])),
+):
+    """
+    Admin endpoint: list ALL hubs (pre-provisioned, active, claimed, etc.)
+    """
+    db_interface = DBInterface()
+    hubs = db_interface.list_hubs(user_id=None)
     return hubs or []
 
 

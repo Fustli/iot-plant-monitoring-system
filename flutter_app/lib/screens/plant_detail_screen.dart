@@ -71,7 +71,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     final locationController = TextEditingController(text: plant.location);
     final notesController = TextEditingController(text: plant.notes ?? '');
     bool isHealthy = plant.isHealthy;
-    String healthStatus = plant.healthStatus.displayName;
+    String healthStatus = plant.calculatedHealthStatus.displayName;
 
     final result = await showDialog<bool>(
       context: context,
@@ -313,7 +313,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               _buildInfoRow(
                   Icons.location_on, loc.tr('plant_location'), plant.location),
               _buildInfoRow(Icons.eco, loc.tr('plant_health_status'),
-                  plant.healthStatus.displayName),
+                  plant.calculatedHealthStatus.displayName),
               if (plant.lastWatered != null)
                 _buildInfoRow(Icons.water_drop, loc.tr('plant_last_watered'),
                     _formatDateTime(plant.lastWatered!)),
@@ -966,11 +966,13 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
     if (result == true && mounted) {
       try {
+        // Order: [light_level, humidity, temperature, soil_moisture]
+        // This matches the CSV format: "brightness,humidity,temperature,moisture"
         final healthStatus = [
-          int.tryParse(moistureController.text) ?? 0,
-          (double.tryParse(temperatureController.text) ?? 0).round(),
           int.tryParse(lightController.text) ?? 0,
           int.tryParse(humidityController.text) ?? 0,
+          (double.tryParse(temperatureController.text) ?? 0).round(),
+          int.tryParse(moistureController.text) ?? 0,
         ];
 
         final apiClient = context.read<AuthProvider>().apiClient;
@@ -984,8 +986,10 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               backgroundColor: AppColors.success,
             ),
           );
-          // Reload plant data
-          await _loadPlantData();
+          // Reload plant data - need to reload the full list so the updated plant is fetched
+          final plantProvider = context.read<PlantProvider>();
+          await plantProvider.loadPlants();
+          setState(() {}); // Force UI rebuild
         }
       } catch (e) {
         if (mounted) {

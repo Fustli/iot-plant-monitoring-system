@@ -302,7 +302,7 @@ class _PlantDropdownItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _HealthIndicator(status: plant.healthStatus),
+        _HealthIndicator(status: plant.calculatedHealthStatus),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -333,7 +333,7 @@ class _HealthIndicator extends StatelessWidget {
         return AppColors.success;
       case HealthStatus.good:
         return AppColors.primary;
-      case HealthStatus.warning:
+      case HealthStatus.needsAttention:
         return AppColors.warning;
       case HealthStatus.critical:
         return AppColors.error;
