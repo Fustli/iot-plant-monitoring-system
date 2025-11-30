@@ -13,6 +13,7 @@
 #   ./start_project.sh --reset      # Reset database and seed before starting
 #   ./start_project.sh --stop       # Stop all running services
 #   ./start_project.sh --debug      # Start in debug mode (foreground, verbose)
+#   ./start_project.sh --clean      # Clean Flutter cache before starting (use after SDK change)
 #
 # Requirements:
 #   - Docker and docker-compose
@@ -54,6 +55,7 @@ DB_PORT=5432
 DB_NAME=iot_plant_db
 DB_USER=iot_user
 DEBUG_MODE=false
+CLEAN_FLUTTER=false
 
 # PID file locations
 PID_DIR="$PROJECT_ROOT/.pids"
@@ -242,9 +244,22 @@ start_flutter() {
         return 0
     fi
     
-    # Get dependencies
+    # Clean Flutter cache if requested (useful when switching SDKs or after updates)
+    if [ "$CLEAN_FLUTTER" = true ]; then
+        log_info "Cleaning Flutter cache..."
+        $FLUTTER_CMD clean
+        rm -rf .dart_tool/ .packages pubspec.lock
+    fi
+    
+    # Get dependencies (always run to ensure packages are up to date)
     log_info "Getting Flutter dependencies..."
     $FLUTTER_CMD pub get
+    
+    # Verify critical packages are available
+    if ! grep -q "lottie" pubspec.lock 2>/dev/null; then
+        log_warning "Lottie package not found in lock file, running pub get again..."
+        $FLUTTER_CMD pub get
+    fi
     
     if [ "$DEBUG_MODE" = true ]; then
         # Debug mode: run in foreground with verbose output
@@ -390,6 +405,9 @@ main() {
             --debug)
                 DEBUG_MODE=true
                 ;;
+            --clean)
+                CLEAN_FLUTTER=true
+                ;;
             --help|-h)
                 echo "Usage: $0 [OPTIONS]"
                 echo
@@ -398,6 +416,7 @@ main() {
                 echo "  --reset   Reset and reseed the database"
                 echo "  --stop    Stop all running services"
                 echo "  --debug   Run in debug mode (foreground, verbose output)"
+                echo "  --clean   Clean Flutter cache (use after SDK change or package updates)"
                 echo "  --help    Show this help message"
                 exit 0
                 ;;
