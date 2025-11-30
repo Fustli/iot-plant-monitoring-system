@@ -185,31 +185,13 @@ class Plant {
     final moistureOk =
         currentMoisture >= moiRange.$1 && currentMoisture <= moiRange.$2;
 
-    // Debug: Print values to console
-    print('Health Check for $name:');
-    print(
-        '  Temp: $currentTemperature in [${tempRange.$1}, ${tempRange.$2}] = $tempOk');
-    print(
-        '  Humidity: $currentHumidity in [${humRange.$1}, ${humRange.$2}] = $humidityOk');
-    print(
-        '  Light: $currentLight in [${ligRange.$1}, ${ligRange.$2}] = $lightOk');
-    print(
-        '  Moisture: $currentMoisture in [${moiRange.$1}, ${moiRange.$2}] = $moistureOk');
-
     // If any value is outside range, status is "Needs Attention"
     if (!tempOk || !humidityOk || !lightOk || !moistureOk) {
-      print('  Result: Needs Attention');
       return HealthStatus.needsAttention;
     }
 
     // All values are within range, status is "Good"
-    print('  Result: Good');
     return HealthStatus.good;
-  }
-
-  /// Check if a value is within the given range [min, max]
-  static bool _isInRange(double value, (double, double) range) {
-    return value >= range.$1 && value <= range.$2;
   }
 
   /// Get sensor value - first try direct field, then try nested device data

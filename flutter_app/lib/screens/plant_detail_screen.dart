@@ -71,7 +71,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     final locationController = TextEditingController(text: plant.location);
     final notesController = TextEditingController(text: plant.notes ?? '');
     bool isHealthy = plant.isHealthy;
-    String healthStatus = plant.calculatedHealthStatus.displayName;
 
     final result = await showDialog<bool>(
       context: context,
@@ -117,33 +116,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                     });
                   },
                 ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: healthStatus,
-                  decoration: InputDecoration(
-                    labelText: localization.tr('plants_health_status'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: 'Good',
-                      child: Text(localization.tr('plant_health_good')),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Needs attention',
-                      child: Text(localization.tr('plant_health_attention')),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Critical',
-                      child: Text(localization.tr('plant_health_critical')),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      healthStatus = value ?? 'Good';
-                    });
-                  },
-                ),
+                // Health status is calculated automatically from sensor values
+                // No manual override needed
               ],
             ),
           ),
@@ -172,7 +146,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
             locationController.text.isNotEmpty ? locationController.text : null,
         notes: notesController.text.isNotEmpty ? notesController.text : null,
         isHealthy: isHealthy,
-        healthStatus: healthStatus,
+        // Don't send healthStatus - it's calculated from sensor values
       );
 
       final success =

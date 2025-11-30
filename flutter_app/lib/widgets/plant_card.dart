@@ -128,7 +128,7 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
 
                       const SizedBox(width: 16),
 
-                      // Sensor readings row
+                      // Sensor readings row - first row
                       Row(
                         children: [
                           // Moisture
@@ -152,14 +152,31 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
                               color: AppColors.info,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Sensor readings row - second row
+                      Row(
+                        children: [
                           // Light
                           Expanded(
                             child: _buildSensorTile(
                               icon: Icons.wb_sunny,
                               label: 'Light',
-                              value: '${widget.plant.currentLight}%',
+                              value: '${widget.plant.currentLight} lux',
                               color: Colors.orange.shade600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Humidity
+                          Expanded(
+                            child: _buildSensorTile(
+                              icon: Icons.water,
+                              label: 'Humidity',
+                              value: '${widget.plant.currentHumidity}%',
+                              color: Colors.teal,
                             ),
                           ),
                         ],

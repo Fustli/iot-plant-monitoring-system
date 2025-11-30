@@ -8,7 +8,7 @@
 # ------------------------------------------------------------------------------
 # Stage 1: Build
 # ------------------------------------------------------------------------------
-FROM ghcr.io/cirruslabs/flutter:3.24.0 AS builder
+FROM ghcr.io/cirruslabs/flutter:3.38.3 AS builder
 
 WORKDIR /app
 
@@ -22,7 +22,8 @@ RUN flutter pub get || true
 COPY . .
 
 # Build for web with release optimizations
-RUN flutter build web --release --web-renderer html
+# Note: --web-renderer was removed in Flutter 3.22+, use FLUTTER_WEB_RENDERER env var if needed
+RUN flutter build web --release
 
 # ------------------------------------------------------------------------------
 # Stage 2: Serve with Nginx

@@ -450,6 +450,7 @@ class _SystemViewState extends State<_SystemView> {
     final nameController = TextEditingController();
     bool isCreating = false;
     String? errorMessage;
+    String serialText = '';
 
     final result = await showDialog<bool>(
       context: context,
@@ -475,6 +476,11 @@ class _SystemViewState extends State<_SystemView> {
                     errorText: errorMessage,
                   ),
                   enabled: !isCreating,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      serialText = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -501,7 +507,7 @@ class _SystemViewState extends State<_SystemView> {
               child: Text(localization.tr('common_cancel')),
             ),
             ElevatedButton(
-              onPressed: isCreating || serialController.text.isEmpty
+              onPressed: isCreating || serialText.isEmpty
                   ? null
                   : () async {
                       setDialogState(() {

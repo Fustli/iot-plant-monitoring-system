@@ -1810,7 +1810,10 @@ async def update_my_plant(
     plant.plant_name = payload.name
     plant.location = payload.location
     plant.is_healthy = payload.is_healthy
-    plant.health_status = payload.health_status
+    # Only update health_status if explicitly provided (not None)
+    # This preserves the CSV sensor values when just editing name/location/notes
+    if payload.health_status is not None:
+        plant.health_status = payload.health_status
     plant.notes = payload.notes
 
     db.commit()
