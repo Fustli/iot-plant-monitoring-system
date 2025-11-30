@@ -22,23 +22,26 @@ class PlantThreadManager:
         self._manager_thread: threading.Thread | None = None
 
         self.logger = Logger(name="PlantThreadManager")
+        self.logger.info(f"Created PlantThreadManager.")
 
     def add_plant(self, plant: Plant):
         """Add a plant to be managed."""
         with self._lock:
             self._plants.append(plant)
+            self.logger.info(f"Added {plant.name} to PlantThreadManager.")
 
     def remove_plant(self, plant: Plant):
         """Remove a plant from being managed."""
         with self._lock:
             self._plants = [p for p in self._plants if p is not plant]
+            self.logger.info(f"Removed {plant.name} from PlantThreadManager.")
 
     def start(self):
         """
         Start the background manager thread (if not already running).
         """
         if self._manager_thread and self._manager_thread.is_alive():
-            # Main thread already running
+            self.logger.info(f"PlantThreadManager already running.")
             return
 
         self._stop_event.clear()
@@ -47,6 +50,7 @@ class PlantThreadManager:
             daemon=True,
         )
         self._manager_thread.start()
+        self.logger.info(f"Started PlantThreadManager.")
 
     def stop(self):
         """
@@ -55,6 +59,7 @@ class PlantThreadManager:
         self._stop_event.set()
         if self._manager_thread:
             self._manager_thread.join()
+        self.logger.info(f"Stopped PlantThreadManager.")
 
     def _run_loop(self):
         """
@@ -63,6 +68,7 @@ class PlantThreadManager:
         to finish, then sleeps again.
         """
         while not self._stop_event.is_set():
+            self.logger.info(f"Running PlantThreadManager loop.")
             # Take a snapshot of the plants under a lock
             with self._lock:
                 plants_snapshot = list(self._plants)

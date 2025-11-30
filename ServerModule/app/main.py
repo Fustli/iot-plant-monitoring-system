@@ -52,6 +52,7 @@ from src.users import Consumer, Manufacturer
 load_dotenv()
 
 app = FastAPI()
+main_logger = Logger("main")
 
 # =============================================================================
 # SERIALIZATION HELPERS
@@ -433,7 +434,7 @@ class SystemState:
     """
 
     def __init__(self):
-        self.thread_manager = PlantThreadManager(interval_seconds=300)
+        self.thread_manager = PlantThreadManager(interval_seconds=30)
         self.consumers: Dict[int, Consumer] = {}
         self.manufacturers: Dict[int, Manufacturer] = {}
         self.logger = Logger(name="SystemState")
