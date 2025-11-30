@@ -46,7 +46,6 @@ def send_alert(plant_name: str, metric: str, delta: float, msg: str, actuators_m
     msg['From'] = sender
     msg['To'] = ", ".join(targetemail_to)
     msg.set_content(emailtxt)
-    # SMTP szerverrel való kapcsolódás (pl. Gmail)
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(sender, APP_PASSWORD)
         smtp.send_message(msg)

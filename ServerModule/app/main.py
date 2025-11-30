@@ -38,6 +38,7 @@ from schemas import (
     UserUpdate,
     DeviceData,
     DeviceAnomaly,
+    PlantHealthUpdate,
 )
 from security import hash_password, verify_password
 from src.db.alert_models import Alert as AlertModel
@@ -479,7 +480,6 @@ class SystemState:
         # --- Consumers ---
         consumers_rows = db.list_consumers() or []
         for row in consumers_rows:
-            # users table: id, email, username, role, ...
             user_id = row[0]
             email = row[1]
             username = row[2]
@@ -1707,11 +1707,6 @@ async def plant_activation(
     return {
         "detail": "Plant care " + ("activated" if payload.command else "deactivated")
     }
-
-
-class PlantHealthUpdate(BaseModel):
-    """Schema for updating plant health readings only."""
-    health_status: List[int]  # [soil_moisture, temperature, light_level, humidity]
 
 
 @app.patch("/api/consumer/my-plants/{plant_id}/health")

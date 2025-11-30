@@ -1,14 +1,10 @@
-import requests
-from abc import ABC, abstractmethod
+from abc import ABC
 from types import MappingProxyType
 from src.db.db_utils import DBInterface
 from src.textbook import Textbook, MetricMessages
 from src.logger import Logger
 from src.alert_sender import send_alert
 
-# Bejön az üzenet egy adott eszköztől -> frissítjük annak az eszköznek az adatát
-# Le tudjuk kérni az eszköz által mért értéket
-# A növény az egyes azonos típusú eszközei által mért értékeket "átlagolja"
 
 # The metrics and operations we support
 _METRICS = ("temperature", "moisture", "brightness", "humidity")

@@ -1,6 +1,4 @@
-import time
 import threading
-import datetime
 
 from src.logger import Logger
 from src.plants import Plant
