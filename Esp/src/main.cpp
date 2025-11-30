@@ -390,10 +390,7 @@ void setup() {
 }
 
 void loop() {
-    // Check reset switch (works in both configured and unconfigured states)
-    if (isConfigured()) {
-        checkResetSwitch();
-    }
+    checkResetSwitch();
     
     // If device is not configured, handle BLE configuration and blink LED (500ms)
     if (!isConfigured()) {
