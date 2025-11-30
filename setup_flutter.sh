@@ -22,7 +22,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-FLUTTER_VERSION="3.24.0"  # Stable version
+FLUTTER_VERSION="3.38.3"  # Stable version
 FLUTTER_CHANNEL="stable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLUTTER_DIR="$SCRIPT_DIR/flutter_sdk"
