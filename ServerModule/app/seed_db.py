@@ -614,8 +614,8 @@ def seed_devices(session: Session, users: list, hubs: list, plants: list, device
         user_plants[plant.user_id].append(plant)
     
     for user in users:
-        if user.id not in user_hubs:
-            continue
+        # Allow device creation even if the user has no hubs (manual hub addition later)
+        # If the user has hubs, we'll prefer to assign devices to a hub; otherwise hub will be None
         
         # Each user gets 2-6 devices
         num_devices = random.randint(2, 6)
@@ -630,7 +630,7 @@ def seed_devices(session: Session, users: list, hubs: list, plants: list, device
                 continue
             
             device_type = random.choice(device_types)
-            hub = random.choice(user_hubs[user.id])
+            hub = None
             
             # 70% chance to assign to a plant
             plant = None
@@ -641,7 +641,7 @@ def seed_devices(session: Session, users: list, hubs: list, plants: list, device
             
             device = Device(
                 user_id=user.id,
-                hub_id=hub.id,
+                hub_id=hub.id if hub else None,
                 plant_id=plant.id if plant else None,
                 device_type_id=device_type.id,
                 unique_identifier=unique_id,
@@ -649,7 +649,7 @@ def seed_devices(session: Session, users: list, hubs: list, plants: list, device
                 is_active=is_active,
                 last_data_received=datetime.now() - timedelta(minutes=random.randint(0, 120)) if is_active else None,
                 last_heartbeat=datetime.now() - timedelta(seconds=random.randint(0, 300)) if is_active else None,
-                location_description=f"Near {plant.plant_name}" if plant else hub.location,
+                location_description=f"Near {plant.plant_name}" if plant else None,
                 battery_level=random.uniform(20.0, 100.0) if random.random() > 0.3 else None,
                 rssi=random.randint(-90, -30) if is_active else None,
             )
@@ -986,16 +986,11 @@ def main():
         print("\n[STEP 4/10] Creating device types...")
         device_types = seed_device_types(session, manufacturer_profile)
         
-        # Seed hubs for consumers
-        print("\n[STEP 5/10] Creating hubs...")
-        hubs = seed_hubs(session, consumers)
-        
-        # Seed hub metrics
-        print("\n[STEP 6/10] Creating hub metrics...")
-        seed_hub_metrics(session, hubs)
-        
-        # Seed devices
-        print("\n[STEP 7/10] Creating devices...")
+        # Skip automatic hub creation: hubs will be added manually by the operator
+        hubs = []
+
+        # Seed devices (will be created without hub assignment if no hubs exist)
+        print("\n[STEP 5/10] Creating devices...")
         devices = seed_devices(session, consumers, hubs, plants, device_types)
         
         # Seed sensor data
@@ -1027,7 +1022,6 @@ def main():
         print(f"   - {len(plant_types)} plant types")
         print(f"   - {len(plants)} plants")
         print(f"   - {len(device_types)} device types")
-        print(f"   - {len(hubs)} hubs")
         print(f"   - {len(devices)} devices")
         print(f"   - {len(alert_rules)} alert rules")
         print()

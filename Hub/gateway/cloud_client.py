@@ -13,30 +13,22 @@ class CloudClient:
     """Minimal cloud client used by the gateway.
 
     Behavior:
-    - Load a small JSON spec if `spec_path` is provided and exists.
-    - Allow overriding the endpoint via `endpoint_override` or `CLOUD_ENDPOINT` env var.
+    - Use a configured endpoint via `endpoint_override` or `CLOUD_ENDPOINT` env var.
     - Support an optional API key via env `CLOUD_API_KEY` and header name `CLOUD_API_KEY_HEADER`.
-    - Expose `send(payload)` and `get(path)` helpers.
+    - Expose `send(payload)`, `post(path, payload)` and `get(path)` helpers.
     """
 
-    def __init__(self, spec_path: Optional[str] = None, endpoint_override: Optional[str] = None):
+    def __init__(self, endpoint_override: Optional[str] = None):
         self.session = requests.Session()
-        self.spec = {}
-        if spec_path and os.path.exists(spec_path):
-            try:
-                with open(spec_path, "r", encoding="utf-8") as fh:
-                    self.spec = json.load(fh)
-            except Exception:
-                self.spec = {}
 
-        # Determine endpoint: explicit override -> env var -> spec default -> None
+        # Determine endpoint: explicit override -> env var -> None
         env_endpoint = os.getenv("CLOUD_ENDPOINT")
         if endpoint_override:
             self.endpoint = endpoint_override
         elif env_endpoint:
             self.endpoint = env_endpoint
         else:
-            self.endpoint = self.spec.get("default_endpoint")
+            self.endpoint = None
 
         self.default_headers = {"Content-Type": "application/json"}
         api_key = os.getenv("CLOUD_API_KEY")
@@ -55,6 +47,27 @@ class CloudClient:
         r = self.session.post(self.endpoint, json=payload, headers=self.default_headers, timeout=timeout)
         return r
 
+    def post(self, path: str, payload: dict, headers=None, timeout: int = 5):
+        """POST JSON payload to a path on the configured endpoint.
+
+        `path` may be a full URL or a path appended to the configured endpoint.
+        Returns requests.Response.
+        """
+        if not path:
+            raise ValueError("path is required for post")
+
+        if path.startswith("http"):
+            url = path
+        else:
+            if not self.endpoint:
+                raise RuntimeError("No cloud endpoint configured for POST requests")
+            url = f"{self.endpoint.rstrip('/')}/{path.lstrip('/')}"
+
+        if headers is None:
+            headers = self.default_headers
+
+        return self.session.post(url, json=payload, headers=headers, timeout=timeout)
+
     def get(self, path: str, timeout: int = 5):
         """GET helper. `path` may be a full URL or a path appended to the configured endpoint."""
         if not path:
@@ -70,12 +83,10 @@ class CloudClient:
 
     def register(self, callback_url: str, path: str | None = None, timeout: int = 5):
         """Register a gateway callback URL with the cloud.
-
         The registration path is chosen in this order:
         1. explicit `path` argument
         2. environment variable `CLOUD_REGISTRATION_PATH`
-        3. spec value `registration_path`
-        4. default 'register'
+        3. default 'register'
 
         The request body will be JSON: {"callback": <callback_url>}.
         Returns requests.Response.
@@ -83,7 +94,7 @@ class CloudClient:
         if not callback_url:
             raise ValueError("callback_url is required for register")
 
-        reg_path = path or os.getenv("CLOUD_REGISTRATION_PATH") or self.spec.get("registration_path") or "register"
+        reg_path = path or os.getenv("CLOUD_REGISTRATION_PATH") or "register"
 
         if reg_path.startswith("http"):
             url = reg_path

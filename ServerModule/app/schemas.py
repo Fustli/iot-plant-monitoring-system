@@ -39,6 +39,7 @@ class DeviceCreation(BaseModel):
     plant_id: int
     device_type_name: str
     unique_identifier: str
+    hub_id: int | None = None
     device_name: str
     is_active: bool = False
     last_data_received: str | None = None
@@ -46,6 +47,18 @@ class DeviceCreation(BaseModel):
     location_description: str | None = None
     battery_level: float | None = None
     rssi: float | None = None
+
+
+class HubRegistration(BaseModel):
+    serial: str
+    name: str | None = None
+
+
+class HubCommandCreate(BaseModel):
+    hub_id: int | None = None
+    hub_serial: str | None = None
+    topic: str
+    payload: dict | str
 
 class PlantActivation(BaseModel):
     """
@@ -131,3 +144,8 @@ class DeviceData(BaseModel):
     data_type: str
     data: float
     data_unit: str
+    
+class DeviceAnomaly(BaseModel):
+    device_id: int
+    last_seen: int | float | str | None = None
+    is_anomaly: bool = True

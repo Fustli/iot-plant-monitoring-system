@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 from typing import Dict, Generator, List
 
 import uvicorn
@@ -25,6 +26,8 @@ from schemas import (
     PlantTypeFromDB,
     PlantTypeFromScratch,
     RegisterDevice,
+    HubRegistration,
+    HubCommandCreate,
     ResetPasswordRequest,
     TokenResponse,
     UserDetails,
@@ -1907,6 +1910,7 @@ async def register_user_device(
         plant_id=payload.plant_id,
         device_type_name=payload.device_type_name,
         unique_identifier=payload.unique_identifier,
+        hub_id=payload.hub_id,
         device_name=payload.device_name,
         is_active=payload.is_active,
         last_data_received=payload.last_data_received,
@@ -2026,6 +2030,282 @@ async def remove_my_device(
             detail="Device not found",
         )
     return {"detail": "Device removed"}
+
+
+# ---------------- Hubs (Consumer-managed) ----------------
+
+
+@app.post("/api/consumer/hubs/register")
+async def register_hub(
+    payload: 'HubRegistration',
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+):
+    """
+    Claim an existing pre-provisioned hub for the current user by serial.
+
+    Flow:
+    - If a hub with the given serial exists and is active and unclaimed, assign it to the user.
+    - If it exists and is already claimed by the same user, return success.
+    - If it exists but is not active, return 400 (not activated yet).
+    - If it does not exist, return 404 (admin should pre-provision hubs).
+    """
+    db_interface = DBInterface()
+    # Find hub id by serial
+    hub_id = db_interface.get_hub_by_serial(payload.serial)
+    if not hub_id:
+        raise HTTPException(status_code=404, detail="Hub not found. Have admins pre-provisioned this hub?")
+
+    hub = db_interface.get_hub(hub_id)
+    if not hub:
+        raise HTTPException(status_code=404, detail="Hub not found")
+
+    is_active = bool(hub.get("is_active"))
+    owner_id = hub.get("user_id")
+
+    if not is_active:
+        raise HTTPException(status_code=400, detail="Hub has not been activated yet by the physical device")
+
+    if owner_id and owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Hub already claimed by another user")
+
+    # Assign to this user (if not already assigned)
+    if not owner_id:
+        try:
+            updated = db_interface.claim_hub_by_serial(payload.serial, current_user.id)
+            if not updated:
+                raise HTTPException(status_code=500, detail="Failed to claim hub")
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to claim hub: {exc}")
+
+    return {"detail": "Hub claimed", "hub_id": hub_id}
+
+
+@app.get("/api/consumer/hubs")
+async def list_my_hubs(
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+):
+    """
+    General:
+        List hubs that are owned by the current authenticated consumer.
+
+    Parameters:
+        current_user:
+            Authenticated consumer or admin requesting their hub list.
+
+    Returns:
+        A list of hub records (may be empty) as returned by DBInterface.list_hubs.
+    """
+    db_interface = DBInterface()
+    hubs = db_interface.list_hubs(user_id=current_user.id)
+    return hubs or []
+
+
+@app.post("/api/admin/hubs")
+async def admin_create_hub(
+    payload: 'HubRegistration',
+    current_admin: User = Depends(require_roles(["admin"])),
+):
+    """
+    Admin endpoint: pre-provision a hub (device id/serial) so it can later be activated
+    by the physical hub and claimed by a consumer.
+    """
+    db_interface = DBInterface()
+    try:
+        hub_id = db_interface.register_hub(
+            user_id=None,
+            serial=payload.serial,
+            name=payload.name,
+            is_active=False,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to create hub: {exc}")
+    return {"detail": "Hub pre-provisioned", "hub_id": hub_id}
+
+
+@app.delete("/api/admin/hubs/{hub_id}")
+async def admin_delete_hub(
+    hub_id: int,
+    current_admin: User = Depends(require_roles(["admin"])),
+):
+    """
+    Admin: delete a hub by its database id. Cascades should remove related rows if DB schema allows.
+    """
+    db_interface = DBInterface()
+    try:
+        ok = db_interface.remove_hub(hub_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to delete hub: {exc}")
+
+    if not ok:
+        raise HTTPException(status_code=404, detail="Hub not found")
+
+    return {"detail": "Hub deleted"}
+
+
+@app.delete("/api/admin/hubs/serial/{hub_serial}")
+async def admin_delete_hub_by_serial(
+    hub_serial: str,
+    current_admin: User = Depends(require_roles(["admin"])),
+):
+    """
+    Admin: delete a hub by its serial (convenience endpoint).
+    """
+    db_interface = DBInterface()
+    hub_id = db_interface.get_hub_by_serial(hub_serial)
+    if not hub_id:
+        raise HTTPException(status_code=404, detail="Hub not found")
+    try:
+        ok = db_interface.remove_hub(hub_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to delete hub: {exc}")
+
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to delete hub")
+
+    return {"detail": "Hub deleted"}
+
+
+@app.post("/api/hub/activate")
+async def hub_activate(payload: dict = Body(...)):
+    """
+    Activation endpoint for the physical hub to call when it first boots up.
+
+    Expected payload (JSON):
+      - serial: hub serial/device id
+      - iothub_device_id (optional): device id in Azure IoT Hub
+      - iothub_connection_string (optional): connection string for the device (sensitive)
+
+    This endpoint will mark the hub `is_active = true` and update last_seen.
+    """
+    serial = payload.get("serial")
+    if not serial:
+        raise HTTPException(status_code=400, detail="serial is required")
+
+    iothub_device_id = payload.get("iothub_device_id")
+    iothub_connection_string = payload.get("iothub_connection_string")
+
+    db_interface = DBInterface()
+    try:
+        db_interface.activate_hub(serial, iothub_device_id, iothub_connection_string)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to activate hub: {exc}")
+
+    # Fetch canonical hub record and return to hub for confirmation. Make this idempotent.
+    hub_id = db_interface.get_hub_by_serial(serial)
+    hub = db_interface.get_hub(hub_id) if hub_id else None
+    result = {"detail": "Hub activated", "serial": serial}
+    if hub:
+        result.update({
+            "hub_id": hub.get("id"),
+            "is_active": bool(hub.get("is_active")),
+            "user_id": hub.get("user_id"),
+            "iothub_device_id": hub.get("iothub_device_id"),
+            "last_seen": hub.get("last_seen").isoformat() if hub.get("last_seen") else None,
+        })
+
+    return result
+
+
+# ---------------- Hub command queue (cloud-mediated) ----------------
+
+
+@app.post("/api/hub/commands")
+async def invoke_hub_method(
+    payload: 'HubCommandCreate',
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+):
+    """
+    Invoke a direct method on a hub via Azure IoT Hub service API.
+
+    Behavior:
+    - Resolve the hub by `hub_id` or `hub_serial`.
+    - Require that the hub record contains a service-level IoT Hub connection string
+      (with SharedAccessKeyName) and the target device id (`iothub_device_id`).
+    - Construct a SAS token and call the IoT Hub direct method REST API.
+
+    Note: If the stored connection string is a device connection string (no
+    SharedAccessKeyName), direct method invocation from the cloud is not
+    supported and the call will return 400.
+    """
+    db_interface = DBInterface()
+    hub_id = payload.hub_id
+    if not hub_id and payload.hub_serial:
+        hub_id = db_interface.get_hub_by_serial(payload.hub_serial)
+        if not hub_id:
+            raise HTTPException(status_code=404, detail="Hub not found")
+
+    if not hub_id:
+        raise HTTPException(status_code=400, detail="hub_id or hub_serial required")
+
+    hub = db_interface.get_hub(hub_id)
+    if not hub:
+        raise HTTPException(status_code=404, detail="Hub not found")
+
+    iothub_conn = hub.get("iothub_connection_string")
+    device_id = hub.get("iothub_device_id")
+    if not iothub_conn or not device_id:
+        raise HTTPException(status_code=400, detail="Hub does not have IoT Hub credentials/device id configured")
+
+    # Parse connection string
+    # Expected formats:
+    #  - Service connection string: HostName=...;SharedAccessKeyName=...;SharedAccessKey=...
+    #  - Device connection string: HostName=...;DeviceId=...;SharedAccessKey=...
+    parts = dict([p.split("=", 1) for p in iothub_conn.split(";") if "=" in p])
+    host = parts.get("HostName")
+    sk_name = parts.get("SharedAccessKeyName")
+    sk = parts.get("SharedAccessKey")
+
+    if not host or not sk:
+        raise HTTPException(status_code=400, detail="Invalid IoT Hub connection string stored for hub")
+
+    if not sk_name:
+        # Device connection string cannot be used to invoke direct methods
+        raise HTTPException(status_code=400, detail="Stored connection string appears to be a device connection string; a service connection string with SharedAccessKeyName is required to invoke methods")
+
+    # Build SAS token for the resource: {host}/devices/{device_id}
+    import time, hmac, hashlib, base64, urllib.parse, requests
+
+    expiry = int(time.time()) + 60 * 5
+    resource = f"{host}/devices/{device_id}"
+    string_to_sign = urllib.parse.quote_plus(resource) + "\n" + str(expiry)
+    key = base64.b64decode(sk)
+    signature = base64.b64encode(hmac.new(key, string_to_sign.encode('utf-8'), hashlib.sha256).digest())
+    sas = f"SharedAccessSignature sr={urllib.parse.quote_plus(resource)}&sig={urllib.parse.quote_plus(signature.decode())}&se={expiry}&skn={urllib.parse.quote_plus(sk_name)}"
+
+    # Prepare direct method payload
+    method_topic = payload.topic
+    method_payload = payload.payload
+    api_version = os.getenv("IOTHUB_API_VERSION", "2020-09-30")
+    url = f"https://{host}/twins/{urllib.parse.quote(device_id)}/methods?api-version={api_version}"
+    body = {
+        "topic": method_topic,
+        "responseTimeoutInSeconds": 30,
+        "payload": method_payload,
+    }
+
+    headers = {
+        "Authorization": sas,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    try:
+        resp = requests.post(url, json=body, headers=headers, timeout=10)
+        if resp.status_code >= 200 and resp.status_code < 300:
+            return {"detail": "Method invoked", "status_code": resp.status_code, "response": resp.json()}
+        else:
+            raise HTTPException(status_code=502, detail=f"Invocation failed: status={resp.status_code} body={resp.text}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to invoke hub method: {exc}")
+
+
+
+
+
+# Note: legacy `/api/hub/anomaly` removed — gateways should POST to
+# `/api/device/anomaly` with a minimal payload `{device_id, last_seen, is_anomaly}`.
 
 
 # ---------------------------------------------------------------------------
@@ -2227,6 +2507,73 @@ async def receive_device_data(
         "unit": payload.data_unit,
         "timestamp": now.isoformat(),
         "health_status": new_health_status,
+    }
+
+
+@app.post("/api/device/anomaly")
+async def receive_device_anomaly(
+    payload: DeviceAnomaly,
+    db: Session = Depends(get_db),
+):
+    """
+    Minimal anomaly receiver. Accepts a small JSON payload with `device_id`,
+    optional `last_seen` (epoch seconds or ISO string) and `is_anomaly` bool.
+    Stores a short `sensor_data` row with `is_anomaly=True` and updates
+    the device last seen timestamps. Keeps logic intentionally minimal.
+    """
+    now = datetime.utcnow()
+
+    device_id = int(payload.device_id)
+    device = db.query(DeviceModel).get(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    # Interpret last_seen if provided
+    ts = now
+    if payload.last_seen is not None:
+        ls = payload.last_seen
+        try:
+            if isinstance(ls, (int, float)):
+                ts = datetime.utcfromtimestamp(float(ls))
+            else:
+                ts = datetime.fromisoformat(str(ls))
+        except Exception:
+            ts = now
+
+    # Minimal sensor record: use placeholder value 0.0 and mark anomaly
+    sensor_record = SensorDataModel(
+        device_id=device.id,
+        measurement_value=0.0,
+        measurement_unit="",
+        timestamp=ts,
+        is_anomaly=bool(payload.is_anomaly),
+        raw_data=json.dumps({"device_id": device.id, "last_seen": payload.last_seen, "is_anomaly": payload.is_anomaly}),
+    )
+    db.add(sensor_record)
+
+    # Update device timestamps
+    device.last_data_received = ts
+    device.last_heartbeat = ts
+
+    # Optionally update plant health_status minimally (no metric specifics)
+    plant = db.query(PlantModel).get(device.plant_id) if device.plant_id else None
+    if plant:
+        try:
+            # Keep existing health_status unchanged; only refresh plant row
+            pass
+        except Exception:
+            pass
+
+    db.commit()
+    db.refresh(device)
+    if plant:
+        db.refresh(plant)
+
+    return {
+        "detail": "Device anomaly recorded",
+        "device_id": device.id,
+        "timestamp": ts.isoformat(),
+        "is_anomaly": True,
     }
 
 

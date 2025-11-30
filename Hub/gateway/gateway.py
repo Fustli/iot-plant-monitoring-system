@@ -59,6 +59,9 @@ def _make_callbacks(hub_id: str, cloud_client: CloudClient | None, mqtt_topics: 
         else:
             logger.error("MQTT connection failed. RC: %s", rc)
 
+    # sensor state store to deduplicate and monitor last seen
+    sensor_state = {}
+
     def on_message(client, userdata, msg):
         """Handle incoming MQTT messages.
 
@@ -83,14 +86,95 @@ def _make_callbacks(hub_id: str, cloud_client: CloudClient | None, mqtt_topics: 
             # send raw payload if not JSON
             payload = {"raw": payload_str, "hub_id": hub_id}
 
+        # determine sensor key (prefer explicit device id fields, else topic)
+        device_id = None
+        if isinstance(payload, dict):
+            for k in ("device_id", "id", "sensor_id"):
+                if k in payload:
+                    device_id = str(payload[k])
+                    break
+        if not device_id:
+            # fallback to topic last segment
+            try:
+                device_id = msg.topic.split("/")[-1]
+            except Exception:
+                device_id = msg.topic
+
+        # check for change: assume payload contains a 'value' or send whole payload
+        new_val = None
+        if isinstance(payload, dict) and "value" in payload:
+            new_val = payload.get("value")
+        else:
+            # use JSON string as comparison key
+            try:
+                new_val = json.dumps(payload, sort_keys=True)
+            except Exception:
+                new_val = str(payload)
+
+        prev = sensor_state.get(device_id)
+        now_ts = time.time()
+        changed = True
+        if prev is not None:
+            if prev.get("value") == new_val:
+                changed = False
+
+        # update last seen and value
+        sensor_state[device_id] = {"value": new_val, "last_seen": now_ts, "anomaly_reported": prev.get("anomaly_reported") if prev else False}
+
+        if not changed:
+            logger.debug("No change for sensor %s; skipping cloud upload", device_id)
+            return
+
         if cloud_client and getattr(cloud_client, "endpoint", None):
             try:
-                resp = cloud_client.send(payload)
-                logger.info("Forwarded to cloud; status=%s", getattr(resp, "status_code", "?"))
+                # Post sensor telemetry to the backend device ingestion endpoint
+                resp = cloud_client.post("/api/device/receive-data", payload)
+                logger.info("Forwarded telemetry to cloud; status=%s", getattr(resp, "status_code", "?"))
+                # clear any previous anomaly flag on success
+                if sensor_state.get(device_id):
+                    sensor_state[device_id]["anomaly_reported"] = False
             except Exception:
                 logger.exception("Failed to forward payload to cloud")
         else:
             logger.debug("No cloud endpoint configured; skipping forward")
+
+    # background thread to detect silent sensors and post anomaly
+    def _anomaly_watcher():
+        CHECK_INTERVAL = 30
+        SILENCE_THRESHOLD = int(os.getenv("HUB_SILENCE_SECONDS", str(5 * 60)))
+        while True:
+            try:
+                now_ts = time.time()
+                for key, st in list(sensor_state.items()):
+                    last = st.get("last_seen")
+                    if last is None:
+                        continue
+                    if (now_ts - last) > SILENCE_THRESHOLD and not st.get("anomaly_reported"):
+                        # send anomaly to cloud if possible
+                        # Build a DeviceData-like anomaly payload so backend can
+                        # persist it similarly to normal telemetry but marked
+                        # as an anomaly. measurement value is placeholder 0.0.
+                        try:
+                            dev_id = int(key) if isinstance(key, str) and key.isdigit() else key
+                        except Exception:
+                            dev_id = key
+
+                        anomaly = {"device_id": dev_id, "last_seen": last, "is_anomaly": True}
+                        try:
+                            if cloud_client and getattr(cloud_client, "endpoint", None):
+                                cloud_client.post("/api/device/anomaly", anomaly)
+                                logger.info("Posted anomaly for %s", key)
+                                sensor_state[key]["anomaly_reported"] = True
+                        except Exception:
+                            logger.exception("Failed to post anomaly for %s", key)
+                time.sleep(CHECK_INTERVAL)
+            except Exception:
+                logger.exception("Anomaly watcher error, continuing")
+                time.sleep(CHECK_INTERVAL)
+
+    # start anomaly watcher thread
+    t = threading.Thread(target=_anomaly_watcher, daemon=True, name="anomaly-watcher")
+    t.start()
 
     return on_connect, on_message
 
@@ -99,8 +183,6 @@ def _parse_config(
     hub_id: str | None,
     cloud_endpoint: str | None,
     topics: list | None,
-    poll_path: str | None,
-    poll_interval: int,
     start_delay: int,
 ):
     """Collect configuration from args and environment variables."""
@@ -111,17 +193,18 @@ def _parse_config(
     cfg["cloud_endpoint"] = cloud_endpoint or os.getenv("CLOUD_ENDPOINT")
     topics_env = os.getenv("MQTT_TOPICS", "home/sensors/#")
     cfg["topics"] = topics or [t.strip() for t in topics_env.split(",") if t.strip()]
-    cfg["poll_path"] = poll_path or os.getenv("CLOUD_COMMANDS_ENDPOINT", os.getenv("CLOUD_COMMANDS_PATH", ""))
-    cfg["poll_interval"] = int(os.getenv("CLOUD_COMMANDS_POLL_INTERVAL", str(poll_interval)))
     cfg["start_delay"] = int(start_delay)
     return cfg
 
 
 def _init_cloud_client(cloud_endpoint: str | None) -> CloudClient | None:
-    """Create a CloudClient if an endpoint or spec path is available."""
-    spec = os.getenv("CLOUD_SPEC_PATH")
-    if cloud_endpoint or spec:
-        return CloudClient(spec_path=spec, endpoint_override=cloud_endpoint)
+    """Create a CloudClient if an endpoint is available."""
+    if cloud_endpoint:
+        return CloudClient(endpoint_override=cloud_endpoint)
+    # If no explicit endpoint was passed, CloudClient will look at CLOUD_ENDPOINT env var.
+    env_endpoint = os.getenv("CLOUD_ENDPOINT")
+    if env_endpoint:
+        return CloudClient(endpoint_override=None)
     return None
 
 
@@ -179,22 +262,6 @@ def _poller_loop(cloud_client: CloudClient, poll_path: str, poll_interval: int, 
         except Exception:
             logger.exception("Error polling commands from cloud")
         time.sleep(poll_interval)
-
-
-def _start_poller_if_needed(client: mqtt.Client, cloud_client: CloudClient | None, poll_path: str, poll_interval: int):
-    """Start a background poller thread that reads commands from cloud and publishes them."""
-    if not (poll_path and cloud_client):
-        return None
-
-    # Gateway now uses Azure IoT Hub direct methods only; do not start poller.
-    logger.debug("Cloud polling disabled; using IoT Hub direct methods")
-    return None
-
-    t = threading.Thread(
-        target=_poller_loop, args=(cloud_client, poll_path, poll_interval, client), daemon=True, name="cloud-poller"
-    )
-    t.start()
-    return t
 
 
 def _start_http_and_register(client: mqtt.Client, cloud_client: CloudClient | None, listen_host: str, listen_port: int, advertised_url: str | None):
@@ -306,18 +373,13 @@ def run(
     hub_id: str = None,
     cloud_endpoint: str = None,
     topics: list = None,
-    poll_path: str = None,
-    poll_interval: int = 5,
     start_delay: int = 1,
-    listen_host: str = None,
-    listen_port: int = None,
-    advertised_url: str = None,
 ):
     """Run gateway with simple, environment-driven defaults.
 
     See `_parse_config` for environment variables used when args are None.
     """
-    cfg = _parse_config(broker_host, hub_id, cloud_endpoint, topics, poll_path, poll_interval, start_delay)
+    cfg = _parse_config(broker_host, hub_id, cloud_endpoint, topics, start_delay)
 
     logger.info(
         "Gateway starting: broker=%s:%s hub_id=%s topics=%s",
@@ -332,6 +394,52 @@ def run(
     time.sleep(cfg["start_delay"])
 
     cloud_client = _init_cloud_client(cfg["cloud_endpoint"])
+
+    # If cloud client exists, attempt to activate/register this hub on startup.
+    def _activate_hub_on_startup():
+        if not cloud_client:
+            logger.debug("No cloud client configured; skipping hub activation")
+            return
+
+        serial = cfg.get("hub_id")
+        # Optionally include IoT Hub device id/connection string if available from secrets
+        iothub_device_id = _read_secret("DEVICE_ID", "device_id") or os.getenv("IOTHUB_DEVICE_ID")
+        iothub_connection_string = _read_secret("DEVICE_CONNECTION_STRING", "device_connection_string") or os.getenv("DEVICE_CONNECTION_STRING")
+
+        payload = {"serial": serial}
+        if iothub_device_id:
+            payload["iothub_device_id"] = iothub_device_id
+        if iothub_connection_string:
+            # Do not log connection string
+            payload["iothub_connection_string"] = iothub_connection_string
+
+        try:
+            if not getattr(cloud_client, "endpoint", None):
+                logger.debug("Cloud client has no endpoint set; skipping activation POST")
+                return
+            logger.info("Posting hub activation to %s", cloud_client.endpoint+"/api/hub/activate")
+            # Try a few times in case cloud is not yet reachable
+            for attempt in range(1, 4):
+                try:
+                    resp = cloud_client.post("/api/hub/activate", json=payload, headers=cloud_client.default_headers, timeout=5)
+                    logger.info("Activation response status=%s", getattr(resp, "status_code", "?"))
+                    if resp is not None and resp.status_code in (200, 201, 202):
+                        logger.info("Hub activation succeeded")
+                        return
+                    else:
+                        logger.warning("Activation attempt %s failed: status=%s body=%s", attempt, getattr(resp, "status_code", "?"), getattr(resp, "text", ""))
+                except Exception:
+                    logger.exception("Activation attempt %s exception", attempt)
+                time.sleep(2 * attempt)
+            logger.warning("Hub activation attempts exhausted")
+        except Exception:
+            logger.exception("Failed to post hub activation")
+
+    # Run activation in foreground before connecting so backend knows hub is coming up
+    try:
+        _activate_hub_on_startup()
+    except Exception:
+        logger.exception("Activation routine failed; continuing startup")
 
     client = _init_mqtt_client(cfg["hub_id"], cloud_client, cfg["topics"])
 

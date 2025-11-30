@@ -14,7 +14,6 @@ Environment variables used by the gateway (can be set in `docker-compose.yml` or
 - `MQTT_BROKER_PORT`: MQTT broker port (default: `1883`)
 - `HUB_ID`: identifier attached to forwarded payloads (default: `hub`)
 - `CLOUD_ENDPOINT`: HTTP endpoint to POST telemetry to (no default)
-- `CLOUD_SPEC_PATH`: optional JSON spec file the `CloudClient` can load (defaults to `gateway/specs/*`)
 - `MQTT_TOPICS`: comma-separated list of topics to subscribe to (default: `home/sensors/#`)
 - `CLOUD_COMMANDS_ENDPOINT` or `CLOUD_COMMANDS_PATH`: endpoint or API path used by the gateway poller for cloud->MQTT commands
 - `CLOUD_COMMANDS_POLL_INTERVAL`: poll interval in seconds (default: `5`)

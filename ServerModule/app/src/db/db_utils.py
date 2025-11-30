@@ -201,6 +201,7 @@ class DBInterface:
             device_type_id: int, 
             unique_identifier: str, 
             device_name: str, 
+            hub_id: int | None = None,
             is_active: bool = False, 
             last_data_received: str | None = None, 
             last_heartbeat: str | None = None, 
@@ -209,11 +210,12 @@ class DBInterface:
             rssi: str | None = None
         ):
         query = """
-            INSERT INTO devices (user_id, plant_id, device_type_id, unique_identifier, device_name, is_active, last_data_received, last_heartbeat, location_description, battery_level, rssi, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            INSERT INTO devices (user_id, hub_id, plant_id, device_type_id, unique_identifier, device_name, is_active, last_data_received, last_heartbeat, location_description, battery_level, rssi, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         """
         self.execute_update(query, (
-            user_id, 
+            user_id,
+            hub_id,
             plant_id,
             device_type_id, 
             unique_identifier, 
@@ -319,6 +321,126 @@ class DBInterface:
         results = self.execute_query(query, (unique_identifier, ))
 
         return results[0][0] if results else None
+
+    # ------------------ Hubs ------------------
+    def register_hub(
+        self,
+        user_id: int | None,
+        serial: str,
+        name: str | None = None,
+        is_active: bool = False,
+        iothub_device_id: str | None = None,
+        iothub_connection_string: str | None = None,
+    ):
+        """
+        Register a hub record. When called by admin to pre-provision a hub,
+        pass user_id=None and is_active=False. When called to claim a hub,
+        pass user_id and leave is_active as-is.
+        """
+        query = """
+            INSERT INTO hubs (user_id, serial, name, is_active, iothub_device_id, iothub_connection_string, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """
+        try:
+            self.execute_update(query, (user_id, serial, name, is_active, iothub_device_id, iothub_connection_string))
+        except Exception:
+            raise
+        # return hub id
+        return self.get_hub_by_serial(serial)
+
+    def claim_hub_by_serial(self, serial: str, user_id: int):
+        """
+        Assign an existing hub to a user (claim). Returns number of rows updated.
+        """
+        query = "UPDATE hubs SET user_id = %s, updated_at = NOW() WHERE serial = %s AND (user_id IS NULL OR user_id = %s)"
+        return self.execute_update(query, (user_id, serial, user_id))
+
+    def activate_hub(self, serial: str, iothub_device_id: str | None = None, iothub_connection_string: str | None = None):
+        """
+        Mark a hub as active when the physical hub calls the activation endpoint.
+        If the hub does not exist, create a new hub record in active state.
+        """
+        # Try to update existing hub
+        try:
+            params = [True, serial]
+            query = "UPDATE hubs SET is_active = %s, last_seen = NOW(), updated_at = NOW() WHERE serial = %s"
+            rows = self.execute_update(query, tuple(params))
+            if rows and (iothub_device_id or iothub_connection_string):
+                # update IoT Hub fields separately
+                upd = "UPDATE hubs SET iothub_device_id = %s, iothub_connection_string = %s WHERE serial = %s"
+                self.execute_update(upd, (iothub_device_id, iothub_connection_string, serial))
+            if rows:
+                return True
+
+            # If not found, insert a new active hub record (unclaimed)
+            insert = "INSERT INTO hubs (user_id, serial, name, is_active, iothub_device_id, iothub_connection_string, created_at, updated_at) VALUES (NULL, %s, NULL, %s, %s, %s, NOW(), NOW())"
+            self.execute_update(insert, (serial, True, iothub_device_id, iothub_connection_string))
+            return True
+        except Exception:
+            raise
+
+    def get_hub_by_serial(self, serial: str):
+        query = "SELECT id FROM hubs WHERE serial = %s"
+        results = self.execute_query(query, (serial,))
+        return results[0][0] if results else None
+
+    def get_hub(self, hub_id: int):
+        """
+        Return a hub record as a dict with explicit columns to keep order stable.
+        """
+        query = """
+            SELECT id, user_id, serial, iothub_device_id, iothub_connection_string, name, last_seen, status, is_active, created_at, updated_at
+            FROM hubs WHERE id = %s
+        """
+        results = self.execute_query(query, (hub_id,))
+        if not results:
+            return None
+        r = results[0]
+        return {
+            "id": r[0],
+            "user_id": r[1],
+            "serial": r[2],
+            "iothub_device_id": r[3],
+            "iothub_connection_string": r[4],
+            "name": r[5],
+            "last_seen": r[6],
+            "status": r[7],
+            "is_active": r[8],
+            "created_at": r[9],
+            "updated_at": r[10],
+        }
+
+    def list_hubs(self, user_id: int | None = None):
+        constraint = ""
+        params = None
+        if user_id is not None:
+            constraint = "WHERE user_id = %s"
+            params = (user_id,)
+        query = f"SELECT id, user_id, serial, iothub_device_id, iothub_connection_string, name, last_seen, status, is_active, created_at, updated_at FROM hubs {constraint}"
+        results = self.execute_query(query, params) if params else self.execute_query(query)
+        if not results:
+            return None
+        hubs = []
+        for r in results:
+            hubs.append({
+                "id": r[0],
+                "user_id": r[1],
+                "serial": r[2],
+                "iothub_device_id": r[3],
+                "iothub_connection_string": r[4],
+                "name": r[5],
+                "last_seen": r[6],
+                "status": r[7],
+                "is_active": r[8],
+                "created_at": r[9],
+                "updated_at": r[10],
+            })
+        return hubs
+
+    # Previously we had a hub_commands queue implementation (polling). That
+    # has been removed in favor of invoking hub methods directly via Azure IoT
+    # service APIs (direct method invocation). Keeping DB layer free of queue
+    # helpers to avoid accidental use.
     
     def get_device_type_id(self, name: str):
         query = """
@@ -448,6 +570,14 @@ class DBInterface:
     def remove_device(self, device_id: int):
         query = "DELETE FROM devices WHERE id = %s"
         rows = self.execute_update(query, (device_id,))
+        return rows > 0
+
+    def remove_hub(self, hub_id: int):
+        """
+        Remove a hub record by id. Returns True if a row was deleted.
+        """
+        query = "DELETE FROM hubs WHERE id = %s"
+        rows = self.execute_update(query, (hub_id,))
         return rows > 0
     
     def get_plant_type_requirements(self, plant_type_id: int):
