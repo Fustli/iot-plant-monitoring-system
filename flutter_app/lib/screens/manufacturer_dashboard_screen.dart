@@ -182,7 +182,7 @@ class _DashboardViewState extends State<_DashboardView> {
 
             // Quick actions
             Text(
-              'Quick Actions',
+              localization.tr('manufacturer_quick_actions'),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -397,7 +397,8 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                       Text(deviceType['device_type'] ?? ''),
                       const SizedBox(height: 4),
                       Text(
-                        deviceType['description'] ?? 'No description',
+                        deviceType['description'] ??
+                            localization.tr('manufacturer_no_description'),
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -418,8 +419,8 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                         ),
                         child: Text(
                           (deviceType['is_active'] == true)
-                              ? 'Active'
-                              : 'Inactive',
+                              ? localization.tr('manufacturer_active')
+                              : localization.tr('manufacturer_inactive'),
                           style: TextStyle(
                             fontSize: 12,
                             color: (deviceType['is_active'] == true)
@@ -566,9 +567,9 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                     child: TextField(
                       controller: minController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Min Value',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: localization.tr('manufacturer_min_value'),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
@@ -577,9 +578,9 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                     child: TextField(
                       controller: maxController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Max Value',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: localization.tr('manufacturer_max_value'),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
@@ -739,9 +740,9 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                       child: TextField(
                         controller: minController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Min Value',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: localization.tr('manufacturer_min_value'),
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -750,9 +751,9 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
                       child: TextField(
                         controller: maxController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Max Value',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: localization.tr('manufacturer_max_value'),
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),

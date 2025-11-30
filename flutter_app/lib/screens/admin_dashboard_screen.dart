@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
+import '../widgets/animated_stats.dart';
+import '../widgets/shimmer_loading.dart';
 import 'admin_users_screen.dart';
 import 'admin_plant_catalog_screen.dart';
 
@@ -214,7 +216,15 @@ class _DashboardViewState extends State<_DashboardView> {
 
           // Stats cards
           if (_isLoading)
-            const Center(child: CircularProgressIndicator())
+            Row(
+              children: const [
+                Expanded(child: ShimmerStatCard()),
+                SizedBox(width: 12),
+                Expanded(child: ShimmerStatCard()),
+                SizedBox(width: 12),
+                Expanded(child: ShimmerStatCard()),
+              ],
+            )
           else if (_error != null)
             Card(
               color: Colors.red[50],
@@ -239,29 +249,32 @@ class _DashboardViewState extends State<_DashboardView> {
             Row(
               children: [
                 Expanded(
-                  child: _StatCard(
+                  child: AnimatedStatCard(
                     icon: Icons.people,
-                    title: 'Users',
-                    value: _usersCount.toString(),
+                    title: localization.tr('admin_total_users'),
+                    value: _usersCount,
                     color: AppColors.adminPrimary,
+                    animationDuration: const Duration(milliseconds: 1200),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _StatCard(
+                  child: AnimatedStatCard(
                     icon: Icons.eco,
-                    title: 'Plants',
-                    value: _plantsCount.toString(),
+                    title: localization.tr('admin_total_plants'),
+                    value: _plantsCount,
                     color: AppColors.success,
+                    animationDuration: const Duration(milliseconds: 1500),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _StatCard(
+                  child: AnimatedStatCard(
                     icon: Icons.devices,
-                    title: 'Devices',
-                    value: _devicesCount.toString(),
+                    title: localization.tr('admin_total_devices'),
+                    value: _devicesCount,
                     color: AppColors.info,
+                    animationDuration: const Duration(milliseconds: 1800),
                   ),
                 ),
               ],
@@ -366,52 +379,6 @@ class _DashboardViewState extends State<_DashboardView> {
       ),
     );
   }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String title;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Card(
-        elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              CircleAvatar(
-                backgroundColor: color.withOpacity(0.1),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
 }
 
 // =============================================================================

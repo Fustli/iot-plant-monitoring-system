@@ -8,6 +8,8 @@ import '../models/plant_model.dart';
 import '../models/plant_type_model.dart';
 import '../widgets/plant_card.dart';
 import '../widgets/alert_banner.dart';
+import '../widgets/shimmer_loading.dart';
+import '../widgets/empty_state.dart';
 import '../services/api_client.dart';
 import '../services/api_exceptions.dart';
 import '../services/plant_provider.dart';
@@ -547,29 +549,21 @@ class _PlantsViewState extends State<_PlantsView> {
         Consumer<PlantProvider>(
           builder: (context, plantProvider, child) {
             if (plantProvider.isLoading) {
-              return Center(
-                  child: CircularProgressIndicator(color: AppColors.primary));
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: ShimmerList(itemCount: 4),
+              );
             }
 
             if (plantProvider.plants.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.local_florist,
-                        size: 64, color: Colors.grey[400]),
-                    const SizedBox(height: 16),
-                    Text(localization.tr('plants_empty')),
-                    const SizedBox(height: 8),
-                    Text(localization.tr('plants_add_first'),
-                        style: TextStyle(color: Colors.grey[600])),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAddPlantDialog(context),
-                      icon: const Icon(Icons.add),
-                      label: Text(localization.tr('plants_add')),
-                    ),
-                  ],
+              return EmptyStateWidget(
+                type: EmptyStateType.plant,
+                title: localization.tr('plants_empty'),
+                subtitle: localization.tr('plants_add_first'),
+                action: ElevatedButton.icon(
+                  onPressed: () => _showAddPlantDialog(context),
+                  icon: const Icon(Icons.add),
+                  label: Text(localization.tr('plants_add')),
                 ),
               );
             }
@@ -953,7 +947,10 @@ class _DevicesViewState extends State<_DevicesView> {
     final localization = context.watch<LocalizationProvider>();
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: ShimmerList(itemCount: 4),
+      );
     }
 
     if (_error != null) {
@@ -975,23 +972,14 @@ class _DevicesViewState extends State<_DevicesView> {
     }
 
     if (_devices.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.devices_other, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(localization.tr('devices_empty')),
-            const SizedBox(height: 8),
-            Text(localization.tr('devices_add_first'),
-                style: TextStyle(color: Colors.grey[600])),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => _showAddDeviceDialog(context),
-              icon: const Icon(Icons.add),
-              label: Text(localization.tr('devices_add')),
-            ),
-          ],
+      return EmptyStateWidget(
+        type: EmptyStateType.emptyBox,
+        title: localization.tr('devices_empty'),
+        subtitle: localization.tr('devices_add_first'),
+        action: ElevatedButton.icon(
+          onPressed: () => _showAddDeviceDialog(context),
+          icon: const Icon(Icons.add),
+          label: Text(localization.tr('devices_add')),
         ),
       );
     }
@@ -1098,23 +1086,18 @@ class _AlertsView extends StatelessWidget {
     return Consumer<AlertProvider>(
       builder: (context, alertProvider, child) {
         if (alertProvider.isLoading) {
-          return Center(
-              child: CircularProgressIndicator(color: AppColors.primary));
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: ShimmerList(itemCount: 3),
+          );
         }
 
         if (alertProvider.alerts.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.check_circle, size: 64, color: Colors.green),
-                const SizedBox(height: 16),
-                Text(localization.tr('alerts_none')),
-                const SizedBox(height: 8),
-                Text(localization.tr('home_no_alerts'),
-                    style: TextStyle(color: Colors.grey[600])),
-              ],
-            ),
+          return EmptyStateWidget(
+            type: EmptyStateType.success,
+            title: localization.tr('alerts_none'),
+            subtitle: localization.tr('home_no_alerts'),
+            repeat: false,
           );
         }
 
@@ -1458,7 +1441,7 @@ class _SettingsViewState extends State<_SettingsView> {
         const SizedBox(height: 16),
 
         // Hub Management Section
-        _buildSectionTitle('Hub Management'),
+        _buildSectionTitle(localization.tr('admin_hub_management')),
         Card(
           child: Column(
             children: [

@@ -250,7 +250,7 @@ class LocalizationProvider with ChangeNotifier {
     'settings_logout': 'Logout',
     'settings_logout_confirm': 'Are you sure you want to logout?',
 
-    // Admin
+    // Admin Dashboard Stats
     'admin_title': 'Administration',
     'admin_users': 'User Management',
     'admin_users_desc': 'Manage user accounts',
@@ -258,11 +258,20 @@ class LocalizationProvider with ChangeNotifier {
     'admin_plant_catalog_desc': 'Manage plant species database',
     'admin_system': 'System Status',
     'admin_system_desc': 'Monitor system health',
+    'admin_total_users': 'Users',
+    'admin_total_plants': 'Plants',
+    'admin_total_devices': 'Devices',
+    'admin_hub_management': 'Hub Management',
+    'admin_quick_actions': 'Quick Actions',
 
     // Manufacturer
     'manufacturer_title': 'Manufacturer Dashboard',
     'manufacturer_device_types': 'Device Types',
     'manufacturer_device_types_desc': 'Manage your device types',
+    'manufacturer_quick_actions': 'Quick Actions',
+    'manufacturer_no_description': 'No description',
+    'manufacturer_min_value': 'Min Value',
+    'manufacturer_max_value': 'Max Value',
     'manufacturer_register_device': 'Register Device',
     'manufacturer_register_device_desc': 'Register new device instances',
 
@@ -375,7 +384,6 @@ class LocalizationProvider with ChangeNotifier {
     'admin_storage': 'Storage',
     'admin_check_status': 'Check System Status',
     'admin_export_data': 'Export Data',
-    'admin_quick_actions': 'Quick Actions',
     'admin_error_loading_stats': 'Error loading stats',
 
     // User Dashboard - Hubs
@@ -499,6 +507,13 @@ class LocalizationProvider with ChangeNotifier {
     'plant_last_watered': 'Last Watered',
     'plant_planted_date': 'Planted',
     'plant_notes': 'Notes',
+    'plant_soil_moisture': 'Soil Moisture',
+    'plant_temperature': 'Temperature',
+    'plant_light_level': 'Light Level',
+    'plant_care_water': 'Water when soil moisture drops below 30%',
+    'plant_care_light': 'Provide bright, indirect sunlight',
+    'plant_care_temp': 'Maintain temperature between 18-26°C',
+    'plant_care_pests': 'Monitor for pests and diseases regularly',
     'plant_health_good': 'Good',
     'plant_health_attention': 'Needs attention',
     'plant_health_critical': 'Critical',
@@ -691,7 +706,7 @@ class LocalizationProvider with ChangeNotifier {
     'settings_logout': 'Kijelentkezés',
     'settings_logout_confirm': 'Biztosan ki szeretne jelentkezni?',
 
-    // Admin
+    // Admin Dashboard Stats
     'admin_title': 'Adminisztráció',
     'admin_users': 'Felhasználó Kezelés',
     'admin_users_desc': 'Felhasználói fiókok kezelése',
@@ -699,9 +714,18 @@ class LocalizationProvider with ChangeNotifier {
     'admin_plant_catalog_desc': 'Növényfajok adatbázisának kezelése',
     'admin_system': 'Rendszer Állapot',
     'admin_system_desc': 'Rendszer egészség monitorozása',
+    'admin_total_users': 'Felhasználók',
+    'admin_total_plants': 'Növények',
+    'admin_total_devices': 'Eszközök',
+    'admin_hub_management': 'Hub Kezelés',
+    'admin_quick_actions': 'Gyors Műveletek',
 
     // Manufacturer
     'manufacturer_title': 'Gyártói Irányítópult',
+    'manufacturer_quick_actions': 'Gyors Műveletek',
+    'manufacturer_no_description': 'Nincs leírás',
+    'manufacturer_min_value': 'Min Érték',
+    'manufacturer_max_value': 'Max Érték',
     'manufacturer_device_types': 'Eszköz Típusok',
     'manufacturer_device_types_desc': 'Eszköztípusok kezelése',
     'manufacturer_register_device': 'Eszköz Regisztrálása',
@@ -813,7 +837,6 @@ class LocalizationProvider with ChangeNotifier {
     'admin_storage': 'Tárhely',
     'admin_check_status': 'Rendszer Állapot Ellenőrzése',
     'admin_export_data': 'Adatok Exportálása',
-    'admin_quick_actions': 'Gyors Műveletek',
     'admin_connected': 'Csatlakozva',
     'admin_unknown': 'Ismeretlen',
     'admin_postgresql': 'PostgreSQL',
@@ -950,6 +973,13 @@ class LocalizationProvider with ChangeNotifier {
     'plant_health_good': 'Jó',
     'plant_health_attention': 'Figyelmet igényel',
     'plant_health_critical': 'Kritikus',
+    'plant_soil_moisture': 'Talajnedvesség',
+    'plant_temperature': 'Hőmérséklet',
+    'plant_light_level': 'Fényerő',
+    'plant_care_water': 'Öntözz, ha a talajnedvesség 30% alá csökken',
+    'plant_care_light': 'Biztosíts fényes, közvetett napfényt',
+    'plant_care_temp': 'Tartsd a hőmérsékletet 18-26°C között',
+    'plant_care_pests': 'Rendszeresen ellenőrizd a kártevőket és betegségeket',
 
     // Manufacturer Screen
     'manufacturer_active': 'Aktív',

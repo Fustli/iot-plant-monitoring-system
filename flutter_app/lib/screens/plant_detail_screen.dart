@@ -123,12 +123,20 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                     labelText: localization.tr('plants_health_status'),
                     border: const OutlineInputBorder(),
                   ),
-                  items: ['Good', 'Needs attention', 'Critical']
-                      .map((status) => DropdownMenuItem(
-                            value: status,
-                            child: Text(status),
-                          ))
-                      .toList(),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'Good',
+                      child: Text(localization.tr('plant_health_good')),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Needs attention',
+                      child: Text(localization.tr('plant_health_attention')),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Critical',
+                      child: Text(localization.tr('plant_health_critical')),
+                    ),
+                  ],
                   onChanged: (value) {
                     setDialogState(() {
                       healthStatus = value ?? 'Good';
@@ -392,7 +400,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Icon(Icons.sensors, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Current Readings',
+                    context
+                        .read<LocalizationProvider>()
+                        .tr('plant_current_readings'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -404,7 +414,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 children: [
                   Expanded(
                     child: _buildSensorGauge(
-                      'Soil Moisture',
+                      context
+                          .read<LocalizationProvider>()
+                          .tr('plant_soil_moisture'),
                       '${plant.currentMoisture}%',
                       plant.currentMoisture / 100,
                       AppColors.info,
@@ -414,7 +426,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: _buildSensorGauge(
-                      'Temperature',
+                      context
+                          .read<LocalizationProvider>()
+                          .tr('plant_temperature'),
                       '${plant.currentTemperature.toStringAsFixed(1)}°C',
                       (plant.currentTemperature - 15) /
                           15, // Scale 15-30°C to 0-1
@@ -425,7 +439,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: _buildSensorGauge(
-                      'Light Level',
+                      context
+                          .read<LocalizationProvider>()
+                          .tr('plant_light_level'),
                       '${plant.currentLight.toStringAsFixed(0)} lux',
                       (plant.currentLight / 10000).clamp(0.0, 1.0),
                       Colors.amber,
@@ -487,7 +503,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Icon(Icons.control_camera, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Plant Controls',
+                    context.read<LocalizationProvider>().tr('plant_controls'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -634,7 +650,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Icon(Icons.spa, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Care Instructions',
+                    context
+                        .read<LocalizationProvider>()
+                        .tr('plant_care_instructions'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -642,14 +660,14 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              _buildCareInstruction(
-                  Icons.water_drop, 'Water when soil moisture drops below 30%'),
-              _buildCareInstruction(
-                  Icons.wb_sunny, 'Provide bright, indirect sunlight'),
-              _buildCareInstruction(
-                  Icons.thermostat, 'Maintain temperature between 18-26°C'),
-              _buildCareInstruction(
-                  Icons.eco, 'Monitor for pests and diseases regularly'),
+              _buildCareInstruction(Icons.water_drop,
+                  context.read<LocalizationProvider>().tr('plant_care_water')),
+              _buildCareInstruction(Icons.wb_sunny,
+                  context.read<LocalizationProvider>().tr('plant_care_light')),
+              _buildCareInstruction(Icons.thermostat,
+                  context.read<LocalizationProvider>().tr('plant_care_temp')),
+              _buildCareInstruction(Icons.eco,
+                  context.read<LocalizationProvider>().tr('plant_care_pests')),
             ],
           ),
         ),

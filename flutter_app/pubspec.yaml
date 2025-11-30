@@ -33,6 +33,9 @@ dependencies:
 
   # Local Storage
   shared_preferences: ^2.2.0
+  shimmer: ^3.0.0
+  countup: ^0.1.4
+  lottie: ^3.3.2
 
 dev_dependencies:
   flutter_test:
@@ -46,3 +49,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  assets:
+    - assets/animations/
