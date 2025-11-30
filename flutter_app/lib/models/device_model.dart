@@ -1,5 +1,4 @@
 class Device {
-
   Device({
     required this.id,
     required this.userId,
@@ -7,6 +6,7 @@ class Device {
     required this.uniqueIdentifier,
     required this.deviceName,
     required this.isActive,
+    this.hubId,
     this.lastDataReceived,
     this.lastHeartbeat,
     this.locationDescription,
@@ -24,8 +24,13 @@ class Device {
       uniqueIdentifier: json['unique_identifier'],
       deviceName: json['device_name'],
       isActive: json['is_active'] ?? true,
-      lastDataReceived: json['last_data_received'] != null ? DateTime.parse(json['last_data_received']) : null,
-      lastHeartbeat: json['last_heartbeat'] != null ? DateTime.parse(json['last_heartbeat']) : null,
+      hubId: json['hub_id'],
+      lastDataReceived: json['last_data_received'] != null
+          ? DateTime.parse(json['last_data_received'])
+          : null,
+      lastHeartbeat: json['last_heartbeat'] != null
+          ? DateTime.parse(json['last_heartbeat'])
+          : null,
       locationDescription: json['location_description'],
       batteryLevel: (json['battery_level'] as num?)?.toDouble(),
       rssi: json['rssi'],
@@ -39,6 +44,7 @@ class Device {
   final String uniqueIdentifier;
   final String deviceName;
   final bool isActive;
+  final int? hubId;
   final DateTime? lastDataReceived;
   final DateTime? lastHeartbeat;
   final String? locationDescription;
@@ -56,18 +62,19 @@ class Device {
   String get statusText => isOnline ? 'Online' : 'Offline';
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'user_id': userId,
-    'device_type_id': deviceTypeId,
-    'unique_identifier': uniqueIdentifier,
-    'device_name': deviceName,
-    'is_active': isActive,
-    'last_data_received': lastDataReceived?.toIso8601String(),
-    'last_heartbeat': lastHeartbeat?.toIso8601String(),
-    'location_description': locationDescription,
-    'battery_level': batteryLevel,
-    'rssi': rssi,
-    'created_at': createdAt.toIso8601String(),
-    'updated_at': updatedAt.toIso8601String(),
-  };
+        'id': id,
+        'user_id': userId,
+        'device_type_id': deviceTypeId,
+        'unique_identifier': uniqueIdentifier,
+        'device_name': deviceName,
+        'is_active': isActive,
+        'hub_id': hubId,
+        'last_data_received': lastDataReceived?.toIso8601String(),
+        'last_heartbeat': lastHeartbeat?.toIso8601String(),
+        'location_description': locationDescription,
+        'battery_level': batteryLevel,
+        'rssi': rssi,
+        'created_at': createdAt.toIso8601String(),
+        'updated_at': updatedAt.toIso8601String(),
+      };
 }

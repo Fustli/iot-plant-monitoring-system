@@ -10,6 +10,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from auth_jwt import create_access_token, decode_access_token
@@ -18,6 +19,9 @@ from schemas import (
     DeviceActivation,
     DeviceCommand,
     DeviceCreation,
+    HubCreate,
+    HubUpdate,
+    HubDeviceAssign,
     LoginRequest,
     NewPlantType,
     PasswordChange,
@@ -39,6 +43,7 @@ from src.db.alert_models import Alert as AlertModel
 from src.db.base import AlertStatusEnum
 from src.db.db_utils import DBInterface, get_session
 from src.db.device_models import Device as DeviceModel, DeviceType as DeviceTypeModel, Manufacturer as ManufacturerModel
+from src.db.hub_models import Hub as HubModel
 from src.db.plant_models import Plant as PlantModel, PlantType as PlantTypeModel
 from src.db.sensor_models import SensorData as SensorDataModel
 from src.db.user_models import User
@@ -51,6 +56,7 @@ from src.users import Consumer, Manufacturer
 load_dotenv()
 
 app = FastAPI()
+main_logger = Logger("main")
 
 # =============================================================================
 # SERIALIZATION HELPERS
@@ -96,9 +102,31 @@ def serialize_plant_type(row: tuple) -> dict:
     }
 
 def serialize_plant(row: tuple) -> dict:
-    """Convert plant tuple to dictionary."""
+    """Convert plant tuple to dictionary.
+    
+    health_status contains CSV: "brightness,humidity,temperature,moisture"
+    """
     if not row:
         return None
+    
+    # Parse health_status CSV to extract sensor values
+    health_status = row[7]
+    brightness = None
+    humidity = None
+    temperature = None
+    moisture = None
+    
+    if health_status:
+        parts = health_status.split(',')
+        if len(parts) >= 4:
+            try:
+                brightness = float(parts[0]) if parts[0] else None
+                humidity = float(parts[1]) if parts[1] else None
+                temperature = float(parts[2]) if parts[2] else None
+                moisture = float(parts[3]) if parts[3] else None
+            except (ValueError, IndexError):
+                pass
+    
     return {
         "id": row[0],
         "user_id": row[1],
@@ -107,14 +135,42 @@ def serialize_plant(row: tuple) -> dict:
         "location": row[4],
         "planting_date": row[5].isoformat() if row[5] else None,
         "is_healthy": row[6],
-        "health_status": row[7],
+        "health_status": health_status,
         "notes": row[8],
-        "current_moisture": row[9],
-        "current_temperature": row[10],
-        "current_light": row[11],
-        "last_watered": row[12].isoformat() if row[12] else None,
-        "created_at": row[13].isoformat() if row[13] else None,
-        "updated_at": row[14].isoformat() if row[14] else None,
+        "current_light": brightness,
+        "current_humidity": humidity,
+        "current_temperature": temperature,
+        "current_moisture": moisture,
+        "last_watered": row[9].isoformat() if row[9] else None,
+        "created_at": row[10].isoformat() if row[10] else None,
+        "updated_at": row[11].isoformat() if row[11] else None,
+    }
+
+def serialize_hub(row: tuple) -> dict:
+    """Convert hub tuple to dictionary."""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "user_id": row[1],
+        "hub_id": row[2],
+        "hub_link": row[3],
+        "name": row[4],
+        "location": row[5],
+        "description": row[6],
+        "is_online": row[7],
+        "last_seen": row[8].isoformat() if row[8] else None,
+        "last_heartbeat": row[9].isoformat() if row[9] else None,
+        "ip_address": row[10],
+        "mac_address": row[11],
+        "firmware_version": row[12],
+        "uptime_seconds": row[13],
+        "messages_sent": row[14],
+        "messages_received": row[15],
+        "errors_count": row[16],
+        "is_active": row[17],
+        "created_at": row[18].isoformat() if row[18] else None,
+        "updated_at": row[19].isoformat() if row[19] else None,
     }
 
 def serialize_device(row: tuple) -> dict:
@@ -338,10 +394,12 @@ async def get_current_user(
         if user_id is None:
             raise credentials_exception
     except JWTError:
+        main_logger.error("Token decode failed in get_current_user")
         raise credentials_exception
 
     user = db.query(User).get(int(user_id))
     if user is None:
+        main_logger.warning(f"User not found for id={user_id} in get_current_user")
         raise credentials_exception
 
     return user
@@ -365,6 +423,10 @@ def require_roles(allowed_roles: List[str]):
 
     async def _require_roles(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in allowed_roles:
+            main_logger.warning(
+                f"Permission denied for user_id={current_user.id}, "
+                f"role={current_user.role}, required_roles={allowed_roles}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions",
@@ -382,7 +444,7 @@ class SystemState:
     """
 
     def __init__(self):
-        self.thread_manager = PlantThreadManager(interval_seconds=300)
+        self.thread_manager = PlantThreadManager(interval_seconds=60)
         self.consumers: Dict[int, Consumer] = {}
         self.manufacturers: Dict[int, Manufacturer] = {}
         self.logger = Logger(name="SystemState")
@@ -514,6 +576,7 @@ class SystemState:
         if consumer is None:
             consumer = Consumer(user.id, user.username, user.email, self.thread_manager)
             self.consumers[user.id] = consumer
+            self.logger.info(f"Created runtime Consumer for user_id={user.id}")
         return consumer
 
     def get_manufacturer(self, user: User) -> Manufacturer:
@@ -532,6 +595,7 @@ class SystemState:
         if manufacturer is None:
             manufacturer = Manufacturer(user.id, user.username)
             self.manufacturers[user.id] = manufacturer
+            self.logger.info(f"Created runtime Manufacturer for user_id={user.id}")
         return manufacturer
     
     def remove_user(self, user_id: int):
@@ -550,12 +614,13 @@ class SystemState:
         # Remove consumer and its plants from the manager
         consumer = self.consumers.pop(user_id, None)
         if consumer:
-            # Detach plants from the thread manager
             for plant in list(consumer.plants):
                 self.thread_manager.remove_plant(plant)
+            self.logger.info(f"Removed runtime Consumer and plants for user_id={user_id}")
 
         # Remove manufacturer, if present
-        self.manufacturers.pop(user_id, None)
+        if self.manufacturers.pop(user_id, None) is not None:
+            self.logger.info(f"Removed runtime Manufacturer for user_id={user_id}")
 
     def remove_manufacturer(self, manufacturer_id: int):
         """
@@ -569,7 +634,8 @@ class SystemState:
         Returns:
             None. Any matching manufacturer is removed from the cache.
         """
-        self.manufacturers.pop(manufacturer_id, None)
+        if self.manufacturers.pop(manufacturer_id, None) is not None:
+            self.logger.info(f"Removed runtime Manufacturer for user_id={manufacturer_id}")
 
 
 system_state = SystemState()
@@ -578,6 +644,7 @@ system_state = SystemState()
 @app.get("/health")
 async def health_check():
     """Lightweight health endpoint for container/platform probes."""
+    main_logger.info("Health check requested")
     return PlainTextResponse("healthy", status_code=200)
 
 # ---------------------------------------------------------------------------
@@ -590,27 +657,18 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)):
     """
     General:
         Authenticate a user with email and password and issue a JWT access token.
-
-    Parameters:
-        payload:
-            LoginRequest containing the user's email and password.
-        db:
-            Database session dependency used to look up the user.
-
-    Returns:
-        TokenResponse with an access token, token type, role and username.
-
-    Raises:
-        HTTPException: If the email or password is incorrect.
     """
+    main_logger.info(f"[login] Login attempt for email={payload.email}")
     user = db.query(User).filter(User.email == payload.email).first()
     if not user:
+        main_logger.warning(f"[login] Invalid email {payload.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
 
     if not verify_password(payload.password, user.password_hash):
+        main_logger.warning(f"[login] Invalid password for email={payload.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -621,6 +679,7 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)):
         "role": user.role,
     }
     access_token = create_access_token(token_data)
+    main_logger.info(f"[login] User logged in user_id={user.id}, role={user.role}")
 
     return TokenResponse(
         access_token=access_token,
@@ -638,25 +697,18 @@ async def register(
     """
     General:
         Create a new user account (admin-only operation).
-
-    Parameters:
-        payload:
-            UserDetails describing the new user, including role and password.
-        current_user:
-            Authenticated admin user performing the registration.
-        db:
-            Database session dependency used to create the user.
-
-    Returns:
-        A dictionary containing basic details of the newly created user.
-
-    Raises:
-        HTTPException: If a user with the same email or username already exists.
     """
+    main_logger.info(
+        f"[register] Admin user_id={current_user.id} creating user email={payload.email}, "
+        f"role={payload.role}"
+    )
     existing = db.query(User).filter(
         (User.email == payload.email) | (User.username == payload.username)
     ).first()
     if existing:
+        main_logger.warning(
+            f"[register] Duplicate user attempt email={payload.email}, username={payload.username}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User with this email or username already exists",
@@ -666,7 +718,6 @@ async def register(
         email=payload.email,
         username=payload.username,
         role=payload.role,
-        # password_hash field is treated as the plain password in the API layer.
         password_hash=hash_password(payload.password_hash),
         first_name=payload.first_name,
         last_name=payload.last_name,
@@ -681,7 +732,6 @@ async def register(
     if new_user.role == "consumer":
         system_state.get_consumer(new_user)
     elif new_user.role == "manufacturer":
-        # Create manufacturer profile in database
         company_name = payload.company_name or f"{new_user.username}'s Company"
         manufacturer_profile = ManufacturerModel(
             user_id=new_user.id,
@@ -694,6 +744,7 @@ async def register(
         db.commit()
         system_state.get_manufacturer(new_user)
 
+    main_logger.info(f"[register] Created user_id={new_user.id}, role={new_user.role}")
     return {
         "id": new_user.id,
         "email": new_user.email,
@@ -710,23 +761,15 @@ async def register_consumer(
     """
     General:
         Public registration endpoint for consumer users only.
-
-    Parameters:
-        payload:
-            ConsumerRegistration with consumer registration data.
-        db:
-            Database session dependency used to create the user.
-
-    Returns:
-        A dictionary with basic details of the newly registered consumer.
-
-    Raises:
-        HTTPException: If a user with the same email or username already exists.
     """
+    main_logger.info(f"[register_consumer] New consumer registration email={payload.email}")
     existing = db.query(User).filter(
         (User.email == payload.email) | (User.username == payload.username)
     ).first()
     if existing:
+        main_logger.warning(
+            f"[register_consumer] Duplicate consumer email={payload.email}, username={payload.username}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User with this email or username already exists",
@@ -748,6 +791,7 @@ async def register_consumer(
 
     system_state.get_consumer(new_user)
 
+    main_logger.info(f"[register_consumer] Created consumer user_id={new_user.id}")
     return {
         "id": new_user.id,
         "email": new_user.email,
@@ -764,14 +808,8 @@ async def get_user_profile(
     """
     General:
         Retrieve the profile and details of the current authenticated user.
-
-    Parameters:
-        current_user:
-            Authenticated user whose profile is being requested.
-
-    Returns:
-        User details as returned by DBInterface.list_users for this user.
     """
+    main_logger.info(f"[get_user_profile] user_id={current_user.id}")
     db_interface = DBInterface()
     user_details = db_interface.list_users(current_user.id)
     return user_details
@@ -788,18 +826,8 @@ async def update_user_profile(
     """
     General:
         Update the profile of the current authenticated user (excluding password).
-
-    Parameters:
-        payload:
-            UserDetails with updated profile information.
-        current_user:
-            Authenticated user whose profile is being updated.
-        db:
-            Database session dependency used to persist changes.
-
-    Returns:
-        A dictionary with the updated user profile data.
     """
+    main_logger.info(f"[update_user_profile] user_id={current_user.id}")
     current_user.email = payload.email
     current_user.username = payload.username
     current_user.first_name = payload.first_name
@@ -814,10 +842,14 @@ async def update_user_profile(
     db.refresh(current_user)
 
     if current_user.role == "consumer":
-        system_state.get_consumer(current_user)
+        consumer = system_state.get_consumer(current_user)
+        consumer.username = current_user.username
+        consumer.email = current_user.email
     elif current_user.role == "manufacturer":
-        system_state.get_manufacturer(current_user)
+        manufacturer = system_state.get_manufacturer(current_user)
+        manufacturer.username = current_user.username
 
+    main_logger.info(f"[update_user_profile] Updated profile for user_id={current_user.id}")
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -827,6 +859,7 @@ async def update_user_profile(
         "last_name": current_user.last_name,
         "phone_number": current_user.phone_number,
     }
+
 
 
 @app.post("/api/user/change-password")
@@ -840,22 +873,10 @@ async def change_password(
     """
     General:
         Change the password of the current authenticated user.
-
-    Parameters:
-        payload:
-            PasswordChange containing the old and new passwords.
-        current_user:
-            Authenticated user whose password is being changed.
-        db:
-            Database session dependency used to persist the new password.
-
-    Returns:
-        A dictionary with a success message if the password was changed.
-
-    Raises:
-        HTTPException: If the old password is incorrect.
     """
+    main_logger.info(f"[change_password] user_id={current_user.id}")
     if not verify_password(payload.old_password, current_user.password_hash):
+        main_logger.warning(f"[change_password] Invalid old password for user_id={current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Old password is incorrect",
@@ -863,6 +884,7 @@ async def change_password(
 
     current_user.password_hash = hash_password(payload.new_password)
     db.commit()
+    main_logger.info(f"[change_password] Password changed for user_id={current_user.id}")
     return {"detail": "Password changed successfully"}
 
 
@@ -874,19 +896,11 @@ async def forgot_password(
     """
     General:
         Initiate a password reset flow by generating a reset token.
-
-    Parameters:
-        email:
-            Email address of the account to reset the password for.
-        db:
-            Database session dependency used to locate the user.
-
-    Returns:
-        A dictionary with a generic detail message and, in development,
-        a reset_token if the account exists.
     """
+    main_logger.info(f"[forgot_password] Request for email={email}")
     user = db.query(User).filter(User.email == email).first()
     if not user:
+        main_logger.info("[forgot_password] Email not found, returning generic response")
         return {
             "detail": "If an account with this email exists, a reset link has been generated."
         }
@@ -894,6 +908,7 @@ async def forgot_password(
     token_data = {"sub": str(user.id), "scope": "password_reset"}
     reset_token = create_access_token(token_data, expires_delta=timedelta(minutes=30))
 
+    main_logger.info(f"[forgot_password] Reset token generated for user_id={user.id}")
     return {
         "detail": "Password reset token generated",
         "reset_token": reset_token,
@@ -908,28 +923,19 @@ async def reset_password(
     """
     General:
         Reset a user's password using a previously issued reset token.
-
-    Parameters:
-        payload:
-            ResetPasswordRequest containing the reset token and new password.
-        db:
-            Database session dependency used to update the user.
-
-    Returns:
-        A dictionary confirming that the password has been reset.
-
-    Raises:
-        HTTPException: If the token is invalid, expired, or the user cannot be found.
     """
+    main_logger.info("[reset_password] Attempt to reset password")
     try:
         data = decode_access_token(payload.token)
     except JWTError:
+        main_logger.error("[reset_password] Invalid or expired token")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired token",
         )
 
     if data.get("scope") != "password_reset":
+        main_logger.error("[reset_password] Invalid token scope")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid token scope",
@@ -937,6 +943,7 @@ async def reset_password(
 
     user_id = data.get("sub")
     if not user_id:
+        main_logger.error("[reset_password] Invalid token payload (no sub)")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid token payload",
@@ -944,6 +951,7 @@ async def reset_password(
 
     user = db.query(User).get(int(user_id))
     if not user:
+        main_logger.error(f"[reset_password] User not found user_id={user_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
@@ -951,6 +959,7 @@ async def reset_password(
 
     user.password_hash = hash_password(payload.new_password)
     db.commit()
+    main_logger.info(f"[reset_password] Password reset for user_id={user.id}")
     return {"detail": "Password has been reset"}
 
 
@@ -966,34 +975,16 @@ async def get_system_status(
     General:
         Inspect the current in-memory system state and list all “alive” domain
         objects (Users, Consumers, Manufacturers, Plants, Devices).
-
-        - Users are loaded from the database.
-        - Consumers and Manufacturers are the in-memory domain objects stored in
-          SystemState.
-        - Plants and Devices are taken from the currently loaded Consumer
-          domain objects and their attached Plant/Device instances.
-
-    Parameters:
-        current_admin:
-            Authenticated admin user requesting system state information.
-
-    Returns:
-        A dictionary with:
-            - users:       All user records from the database (serialized).
-            - consumers:   All in-memory Consumer domain objects with their plants
-                           and devices.
-            - manufacturers: All in-memory Manufacturer domain objects.
-            - plants:      All in-memory Plant domain objects (flattened list).
-            - devices:     All in-memory Device domain objects (flattened and
-                           de-duplicated by id).
     """
+    main_logger.info(f"[admin_system_status] Requested by admin user_id={current_admin.id}")
     db_interface = DBInterface()
 
     db_ok = False
     try:
         db_interface.execute_query("SELECT 1")
         db_ok = True
-    except Exception:
+    except Exception as e:
+        main_logger.error(f"[admin_system_status] Database health check failed: {e}")
         db_ok = False
 
     # --- Database-backed User instances ---
@@ -1035,14 +1026,48 @@ async def get_system_status(
             seen_device_ids.add(did)
         unique_runtime_devices.append(d)
 
+    # --- Database statistics ---
+    db_plants = db_interface.list_plants() or []
+    db_devices = db_interface.list_devices() or []
+    db_device_types = db_interface.list_device_types() or []
+    
+    consumers_count = sum(1 for u in user_rows if u[3] == 'consumer')
+    manufacturers_count = sum(1 for u in user_rows if u[3] == 'manufacturer')
+    admins_count = sum(1 for u in user_rows if u[3] == 'admin')
+    
+    device_types_formatted = []
+    for dt in db_device_types:
+        dt_dict = serialize_device_type(dt)
+        supported_funcs = dt_dict.get('supported_functions', '') or ''
+        funcs_list = [f.strip() for f in supported_funcs.split(',') if f.strip()]
+        device_type_str = dt_dict.get('device_type', 'sensor')
+        mode = 'read' if device_type_str == 'sensor' else 'write'
+        formatted_funcs = ','.join([f"{f}:{mode}" for f in funcs_list])
+        dt_dict['supported_functions_formatted'] = formatted_funcs
+        device_types_formatted.append(dt_dict)
+
+    main_logger.info(
+        f"[admin_system_status] users={len(user_rows)}, plants={len(db_plants)}, "
+        f"devices={len(db_devices)}, device_types={len(db_device_types)}"
+    )
     return {
         "application": "ok",
         "database": "ok" if db_ok else "error",
+        "stats": {
+            "users_total": len(user_rows),
+            "consumers_count": consumers_count,
+            "manufacturers_count": manufacturers_count,
+            "admins_count": admins_count,
+            "plants_count": len(db_plants),
+            "devices_count": len(db_devices),
+            "device_types_count": len(db_device_types),
+        },
         "users": users_data,
         "consumers": consumers_runtime,
         "manufacturers": manufacturers_runtime,
         "plants": runtime_plants,
         "devices": unique_runtime_devices,
+        "device_types": device_types_formatted,
     }
 
 
@@ -1053,14 +1078,8 @@ async def list_admin_users(
     """
     General:
         List all registered users for administrative review and maintenance.
-
-    Parameters:
-        current_admin:
-            Authenticated admin user requesting the listing.
-
-    Returns:
-        A list of users as returned by DBInterface.list_users.
     """
+    main_logger.info(f"[admin_list_users] Requested by admin user_id={current_admin.id}")
     db_interface = DBInterface()
     users = db_interface.list_users()
     return [serialize_user(u) for u in users] if users else []
@@ -1074,32 +1093,20 @@ async def delete_user(
     """
     General:
         Delete a user account and remove related domain objects from system state.
-
-    Parameters:
-        user_id:
-            Identifier of the user to delete.
-        current_admin:
-            Authenticated admin user performing the deletion.
-
-    Returns:
-        A dictionary with a detail message upon successful removal.
-
-    Raises:
-        HTTPException: If the user cannot be found.
     """
+    main_logger.info(f"[admin_delete_user] admin_id={current_admin.id} deleting user_id={user_id}")
     db_interface = DBInterface()
     result = db_interface.remove_user(user_id)
 
-    # If your DB helper returns something falsy when nothing was deleted:
     if not result:
+        main_logger.warning(f"[admin_delete_user] User not found user_id={user_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
 
-    # Keep in-memory state in sync
     system_state.remove_user(user_id)
-
+    main_logger.info(f"[admin_delete_user] User removed user_id={user_id}")
     return {"detail": "User removed"}
 
 
@@ -1113,39 +1120,25 @@ async def update_user(
     """
     General:
         Update user properties like role, is_active, or is_verified.
-        Used by admins to approve manufacturers or deactivate users.
-
-    Parameters:
-        user_id:
-            Identifier of the user to update.
-        payload:
-            UserUpdate schema with optional fields to update.
-        current_admin:
-            Authenticated admin user performing the update.
-        db:
-            Database session dependency.
-
-    Returns:
-        A dictionary with the updated user details.
-
-    Raises:
-        HTTPException: If the user cannot be found.
     """
+    main_logger.info(f"[admin_update_user] admin_id={current_admin.id} updating user_id={user_id}")
     user = db.query(User).get(user_id)
     if not user:
+        main_logger.warning(f"[admin_update_user] User not found user_id={user_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
 
-    # Prevent admin from demoting themselves
     if user_id == current_admin.id and payload.role and payload.role != "admin":
+        main_logger.warning(
+            f"[admin_update_user] admin user_id={current_admin.id} attempted self-demotion"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot change your own admin role",
         )
 
-    # Update only provided fields
     if payload.role is not None:
         user.role = payload.role
     if payload.is_active is not None:
@@ -1156,6 +1149,7 @@ async def update_user(
     db.commit()
     db.refresh(user)
 
+    main_logger.info(f"[admin_update_user] Updated user_id={user.id}")
     return {
         "id": user.id,
         "email": user.email,
@@ -1175,36 +1169,36 @@ async def update_user(
 async def delete_manufacturer(
     manufacturer_id: int,
     current_admin: User = Depends(require_roles(["admin"])),
+    db: Session = Depends(get_db),
 ):
     """
     General:
         Delete a manufacturer and remove it from system state.
-
-    Parameters:
-        manufacturer_id:
-            Identifier of the manufacturer to delete.
-        current_admin:
-            Authenticated admin user performing the deletion.
-
-    Returns:
-        A dictionary with a detail message upon successful removal.
-
-    Raises:
-        HTTPException: If the manufacturer cannot be found.
     """
-    db_interface = DBInterface()
-    result = db_interface.remove_manufacturer(manufacturer_id)
-
-    if not result:
+    main_logger.info(
+        f"[admin_delete_manufacturer] admin_id={current_admin.id} manufacturer_id={manufacturer_id}"
+    )
+    manufacturer = db.query(ManufacturerModel).get(manufacturer_id)
+    if not manufacturer:
+        main_logger.warning(
+            f"[admin_delete_manufacturer] Manufacturer not found id={manufacturer_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Manufacturer not found",
         )
 
-    # Keep in-memory state in sync
-    system_state.remove_manufacturer(manufacturer_id)
+    owner_user_id = manufacturer.user_id
 
+    db.delete(manufacturer)
+    db.commit()
+
+    system_state.manufacturers.pop(owner_user_id, None)
+    main_logger.info(
+        f"[admin_delete_manufacturer] Manufacturer removed id={manufacturer_id}, user_id={owner_user_id}"
+    )
     return {"detail": "Manufacturer removed"}
+
 
 
 @app.get("/api/admin/devices")
@@ -1214,14 +1208,8 @@ async def list_all_devices_admin(
     """
     General:
         List all devices registered in the system for administrative oversight.
-
-    Parameters:
-        current_admin:
-            Authenticated admin user requesting the listing.
-
-    Returns:
-        A list of devices as returned by DBInterface.list_devices.
     """
+    main_logger.info(f"[admin_list_devices] Requested by admin user_id={current_admin.id}")
     db_interface = DBInterface()
     devices = db_interface.list_devices()
     return [serialize_device(d) for d in devices] if devices else []
@@ -1234,14 +1222,8 @@ async def list_all_device_types_admin(
     """
     General:
         List all device types defined in the system for administrative oversight.
-
-    Parameters:
-        current_admin:
-            Authenticated admin user requesting the listing.
-
-    Returns:
-        A list of device types as returned by DBInterface.list_device_types.
     """
+    main_logger.info(f"[admin_list_device_types] Requested by admin user_id={current_admin.id}")
     db_interface = DBInterface()
     device_types = db_interface.list_device_types()
     return [serialize_device_type(dt) for dt in device_types] if device_types else []
@@ -1254,14 +1236,8 @@ async def list_all_plants_admin(
     """
     General:
         List all plants registered in the system for administrative oversight.
-
-    Parameters:
-        current_admin:
-            Authenticated admin user requesting the listing.
-
-    Returns:
-        A list of plants as returned by DBInterface.list_plants.
     """
+    main_logger.info(f"[admin_list_plants] Requested by admin user_id={current_admin.id}")
     db_interface = DBInterface()
     plants = db_interface.list_plants()
     return [serialize_plant(p) for p in plants] if plants else []
@@ -1282,16 +1258,11 @@ async def register_device_type(
     """
     General:
         Register a new device type with its capabilities and documentation.
-
-    Parameters:
-        payload:
-            RegisterDevice describing the device type and its capabilities.
-        current_manufacturer:
-            Authenticated manufacturer or admin creating the device type.
-
-    Returns:
-        A dictionary with a detail message confirming registration.
     """
+    main_logger.info(
+        f"[manufacturer_register_device_type] user_id={current_manufacturer.id}, "
+        f"name={payload.name}"
+    )
     manufacturer_domain = system_state.get_manufacturer(current_manufacturer)
 
     supported_functions_list = [
@@ -1312,6 +1283,10 @@ async def register_device_type(
         )
     except Exception as e:
         error_msg = str(e)
+        main_logger.error(
+            f"[manufacturer_register_device_type] Failed for user_id={current_manufacturer.id}, "
+            f"name={payload.name}, error={error_msg}"
+        )
         if "duplicate key" in error_msg or "unique" in error_msg.lower():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1322,6 +1297,10 @@ async def register_device_type(
             detail=f"Failed to register device type: {error_msg}",
         )
 
+    main_logger.info(
+        f"[manufacturer_register_device_type] Registered device type name={payload.name} "
+        f"by user_id={current_manufacturer.id}"
+    )
     return {"detail": "Device type registered successfully"}
 
 
@@ -1334,17 +1313,16 @@ async def list_device_types(
     """
     General:
         List device types created by the current manufacturer.
-
-    Parameters:
-        current_manufacturer:
-            Authenticated manufacturer or admin requesting the listing.
-
-    Returns:
-        A list of device types owned by the manufacturer.
     """
+    main_logger.info(
+        f"[manufacturer_list_device_types] user_id={current_manufacturer.id}"
+    )
     db_interface = DBInterface()
     manufacturer_profile_id = get_manufacturer_profile_id(current_manufacturer.id)
     if manufacturer_profile_id is None:
+        main_logger.info(
+            f"[manufacturer_list_device_types] No manufacturer profile for user_id={current_manufacturer.id}"
+        )
         return []
     device_types = db_interface.list_device_types(manufacturer_profile_id)
     return [serialize_device_type(dt) for dt in device_types] if device_types else []
@@ -1362,25 +1340,16 @@ async def update_device_type(
     """
     General:
         Update documentation and properties for an existing device type.
-
-    Parameters:
-        device_type_id:
-            Identifier of the device type to update.
-        payload:
-            RegisterDevice with updated device type data.
-        current_manufacturer:
-            Authenticated manufacturer or admin performing the update.
-        db:
-            Database session dependency used to persist changes.
-
-    Returns:
-        The updated DeviceType ORM instance.
-
-    Raises:
-        HTTPException: If the device type does not exist or the user lacks permission.
     """
+    main_logger.info(
+        f"[manufacturer_update_device_type] user_id={current_manufacturer.id}, "
+        f"device_type_id={device_type_id}"
+    )
     device_type = db.query(DeviceTypeModel).get(device_type_id)
     if not device_type:
+        main_logger.warning(
+            f"[manufacturer_update_device_type] Device type not found id={device_type_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device type not found",
@@ -1390,6 +1359,10 @@ async def update_device_type(
         current_manufacturer.role != "admin"
         and device_type.manufacturer_id != get_manufacturer_profile_id(current_manufacturer.id)
     ):
+        main_logger.warning(
+            f"[manufacturer_update_device_type] Permission denied user_id={current_manufacturer.id}, "
+            f"device_type_id={device_type_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -1407,6 +1380,9 @@ async def update_device_type(
 
     db.commit()
     db.refresh(device_type)
+    main_logger.info(
+        f"[manufacturer_update_device_type] Updated device_type_id={device_type_id}"
+    )
     return device_type
 
 
@@ -1419,23 +1395,16 @@ async def delete_device_type(
     """
     General:
         Remove a device type from the catalog.
-
-    Parameters:
-        device_type_id:
-            ID of the device type to delete.
-        current_manufacturer:
-            Authenticated manufacturer or admin performing the deletion.
-        db:
-            Database session dependency.
-
-    Returns:
-        Success message.
-
-    Raises:
-        HTTPException: If the device type does not exist or the user lacks permission.
     """
+    main_logger.info(
+        f"[manufacturer_delete_device_type] user_id={current_manufacturer.id}, "
+        f"device_type_id={device_type_id}"
+    )
     device_type = db.query(DeviceTypeModel).get(device_type_id)
     if not device_type:
+        main_logger.warning(
+            f"[manufacturer_delete_device_type] Device type not found id={device_type_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device type not found",
@@ -1445,6 +1414,10 @@ async def delete_device_type(
         current_manufacturer.role != "admin"
         and device_type.manufacturer_id != get_manufacturer_profile_id(current_manufacturer.id)
     ):
+        main_logger.warning(
+            f"[manufacturer_delete_device_type] Permission denied user_id={current_manufacturer.id}, "
+            f"device_type_id={device_type_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -1452,6 +1425,9 @@ async def delete_device_type(
 
     db.delete(device_type)
     db.commit()
+    main_logger.info(
+        f"[manufacturer_delete_device_type] Deleted device_type_id={device_type_id}"
+    )
     return {"message": "Device type deleted successfully"}
 
 
@@ -1468,18 +1444,12 @@ async def add_new_plant_type(
     """
     General:
         Add a new plant species to the public catalog with its care requirements.
-
-    Parameters:
-        payload:
-            NewPlantType defining the species name and required conditions.
-        current_admin:
-            Authenticated admin user creating the plant type.
-
-    Returns:
-        The result of DBInterface.register_new_plant_type for the new species.
     """
+    main_logger.info(
+        f"[add_new_plant_type] admin_id={current_admin.id}, name={payload.name}"
+    )
     db_interface = DBInterface()
-    return db_interface.register_new_plant_type(
+    result = db_interface.register_new_plant_type(
         payload.name,
         payload.scientific_name,
         payload.req_temperature,
@@ -1489,6 +1459,10 @@ async def add_new_plant_type(
         payload.description,
         payload.care_instructions,
     )
+    main_logger.info(
+        f"[add_new_plant_type] Plant type registered name={payload.name}"
+    )
+    return result
 
 
 @app.put("/api/plant-types/{species_id}")
@@ -1501,25 +1475,15 @@ async def update_plant_species(
     """
     General:
         Modify the requirements and details for an existing plant species.
-
-    Parameters:
-        species_id:
-            Identifier of the plant species to update.
-        payload:
-            NewPlantType with updated requirements and descriptions.
-        current_admin:
-            Authenticated admin user performing the update.
-        db:
-            Database session dependency used to persist changes.
-
-    Returns:
-        The updated PlantType ORM instance.
-
-    Raises:
-        HTTPException: If the plant type does not exist.
     """
+    main_logger.info(
+        f"[update_plant_species] admin_id={current_admin.id}, species_id={species_id}"
+    )
     plant_type = db.query(PlantTypeModel).get(species_id)
     if not plant_type:
+        main_logger.warning(
+            f"[update_plant_species] Plant type not found species_id={species_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Plant type not found",
@@ -1536,6 +1500,9 @@ async def update_plant_species(
 
     db.commit()
     db.refresh(plant_type)
+    main_logger.info(
+        f"[update_plant_species] Updated plant_type_id={species_id}"
+    )
     return plant_type
 
 
@@ -1547,26 +1514,23 @@ async def delete_plant_species(
     """
     General:
         Remove a plant species from the public catalog.
-
-    Parameters:
-        species_id:
-            Identifier of the plant species to remove.
-        current_admin:
-            Authenticated admin user performing the removal.
-
-    Returns:
-        A dictionary with a detail message upon successful removal.
-
-    Raises:
-        HTTPException: If the plant type cannot be found.
     """
+    main_logger.info(
+        f"[delete_plant_species] admin_id={current_admin.id}, species_id={species_id}"
+    )
     db_interface = DBInterface()
     ok = db_interface.remove_plant_type(species_id)
     if not ok:
+        main_logger.warning(
+            f"[delete_plant_species] Plant type not found species_id={species_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Plant type not found",
         )
+    main_logger.info(
+        f"[delete_plant_species] Removed plant_type_id={species_id}"
+    )
     return {"detail": "Plant type removed"}
 
 
@@ -1577,14 +1541,10 @@ async def list_plant_types(
     """
     General:
         List available plant types a consumer can choose from when adding plants.
-
-    Parameters:
-        current_user:
-            Authenticated consumer or admin requesting the list.
-
-    Returns:
-        A list of plant types as returned by DBInterface.list_plant_types.
     """
+    main_logger.info(
+        f"[list_plant_types] Requested by user_id={current_user.id}"
+    )
     db_interface = DBInterface()
     plant_types = db_interface.list_plant_types()
     return [serialize_plant_type(pt) for pt in plant_types] if plant_types else []
@@ -1598,16 +1558,11 @@ async def search_plant_types(
     """
     General:
         Search for plant types by common name or scientific name.
-
-    Parameters:
-        payload:
-            PlantSearch containing optional name or scientific_name to search.
-        current_user:
-            Authenticated consumer or admin performing the search.
-
-    Returns:
-        Plant type details if found, otherwise an informational string.
     """
+    main_logger.info(
+        f"[search_plant_types] user_id={current_user.id}, "
+        f"name={payload.name}, sci_name={payload.scientific_name}"
+    )
     db_interface = DBInterface()
     if payload.scientific_name:
         plant_type = db_interface.get_plant_details_by_sci_name(
@@ -1618,6 +1573,7 @@ async def search_plant_types(
         plant_type = db_interface.get_plant_details_by_name(payload.name)
         return serialize_plant_type_search(plant_type) if plant_type else None
     else:
+        main_logger.warning("[search_plant_types] No name or scientific name provided")
         return {"error": "No name or scientific name was given."}
 
 
@@ -1628,14 +1584,10 @@ async def list_user_plants(
     """
     General:
         List all plants registered to the current consumer.
-
-    Parameters:
-        current_user:
-            Authenticated consumer or admin requesting their plant list.
-
-    Returns:
-        A list of plants for the user or a message if none are registered.
     """
+    main_logger.info(
+        f"[list_user_plants] user_id={current_user.id}"
+    )
     db_interface = DBInterface()
     plants = db_interface.list_plants(current_user.id)
     if plants:
@@ -1653,16 +1605,10 @@ async def create_new_plant_from_scratch(
     """
     General:
         Register a new plant and its plant_type manually with custom requirements.
-
-    Parameters:
-        payload:
-            PlantTypeFromScratch defining requirements and initial plant details.
-        current_user:
-            Authenticated consumer or admin adding the plant.
-
-    Returns:
-        A dictionary with the generated plant_id for the new plant.
     """
+    main_logger.info(
+        f"[create_plant_from_scratch] user_id={current_user.id}, name={payload.name}"
+    )
     consumer = system_state.get_consumer(current_user)
     plant_id = consumer.register_plant(
         name=payload.name,
@@ -1678,6 +1624,9 @@ async def create_new_plant_from_scratch(
         health_status=payload.health_status,
         notes=payload.notes,
     )
+    main_logger.info(
+        f"[create_plant_from_scratch] Created plant_id={plant_id} for user_id={current_user.id}"
+    )
     return {"plant_id": plant_id}
 
 
@@ -1689,16 +1638,10 @@ async def create_new_plant_from_db(
     """
     General:
         Register a new plant by selecting a species from the existing catalog.
-
-    Parameters:
-        payload:
-            PlantTypeFromDB with selected plant type and plant details.
-        current_user:
-            Authenticated consumer or admin adding the plant.
-
-    Returns:
-        A dictionary with the generated plant_id for the new plant.
     """
+    main_logger.info(
+        f"[create_plant_from_db] user_id={current_user.id}, name={payload.name}"
+    )
     consumer = system_state.get_consumer(current_user)
     plant_id = consumer.register_plant_from_database(
         name=payload.name,
@@ -1707,6 +1650,9 @@ async def create_new_plant_from_db(
         location=payload.location,
         health_status=payload.health_status,
         notes=payload.notes,
+    )
+    main_logger.info(
+        f"[create_plant_from_db] Created plant_id={plant_id} for user_id={current_user.id}"
     )
     return {"plant_id": plant_id}
 
@@ -1720,21 +1666,18 @@ async def get_my_plant(
     """
     General:
         Retrieve details of a specific plant owned by the current user.
-
-    Parameters:
-        plant_id:
-            Identifier of the plant to retrieve.
-        current_user:
-            Authenticated consumer or admin requesting the plant.
-
-    Returns:
-        Plant details if found, otherwise an informational string.
     """
+    main_logger.info(
+        f"[get_my_plant] user_id={current_user.id}, plant_id={plant_id}"
+    )
     db_interface = DBInterface()
     plant = db_interface.get_plant_by_id(plant_id)
     if plant:
         return plant
     else:
+        main_logger.warning(
+            f"[get_my_plant] Plant not found for user_id={current_user.id}, plant_id={plant_id}"
+        )
         return f"User {current_user.username} has no plant with the id {plant_id}"
 
 
@@ -1747,20 +1690,83 @@ async def plant_activation(
     """
     General:
         Activate or deactivate automatic care for one or all of the user's plants.
-
-    Parameters:
-        payload:
-            PlantActivation specifying plant_id (optional) and command flag.
-        current_user:
-            Authenticated consumer or admin toggling plant care.
-
-    Returns:
-        A dictionary with a detail message about the new care status.
     """
+    main_logger.info(
+        f"[plant_activation] user_id={current_user.id}, plant_id={payload.plant_id}, "
+        f"command={payload.command}"
+    )
     consumer = system_state.get_consumer(current_user)
     consumer.plant_care_activation(plant_id=payload.plant_id, command=payload.command)
     return {
         "detail": "Plant care " + ("activated" if payload.command else "deactivated")
+    }
+
+
+class PlantHealthUpdate(BaseModel):
+    """Schema for updating plant health readings only."""
+    health_status: List[int]  # [soil_moisture, temperature, light_level, humidity]
+
+
+@app.patch("/api/consumer/my-plants/{plant_id}/health")
+async def update_plant_health(
+    plant_id: int,
+    payload: PlantHealthUpdate,
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    """
+    Update only the health status readings of a plant.
+
+    Parameters:
+        plant_id: Identifier of the plant to update.
+        payload: PlantHealthUpdate containing [soil_moisture, temperature, light_level, humidity].
+        current_user: Authenticated consumer or admin performing the update.
+        db: Database session dependency.
+
+    Returns:
+        A dictionary containing the updated plant readings.
+    """
+    plant = db.query(PlantModel).get(plant_id)
+    if not plant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plant not found",
+        )
+
+    if current_user.role != "admin" and plant.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+
+    # Validate health_status array length
+    if len(payload.health_status) != 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="health_status must contain exactly 4 values: [soil_moisture, temperature, light_level, humidity]",
+        )
+
+    # Store as comma-separated string
+    health_str = ",".join(str(v) for v in payload.health_status)
+    plant.health_status = health_str
+
+    db.commit()
+    db.refresh(plant)
+
+    # Update in-memory state
+    consumer = system_state.get_consumer(current_user)
+    for p in consumer.plants:
+        if p.id == plant_id:
+            p.act_moisture = payload.health_status[0]
+            p.act_temperature = float(payload.health_status[1])
+            p.act_brightness = payload.health_status[2]
+            p.act_humidity = float(payload.health_status[3])
+            break
+
+    return {
+        "id": plant_id,
+        "health_status": payload.health_status,
+        "detail": "Plant health status updated successfully",
     }
 
 
@@ -1774,31 +1780,24 @@ async def update_my_plant(
     """
     General:
         Update details of one of the current user's plants.
-
-    Parameters:
-        plant_id:
-            Identifier of the plant to update.
-        payload:
-            PlantTypeFromDB containing updated plant fields (name, health, etc.).
-        current_user:
-            Authenticated consumer or admin performing the update.
-        db:
-            Database session dependency used to persist changes.
-
-    Returns:
-        A dictionary containing the updated plant data.
-
-    Raises:
-        HTTPException: If the plant does not exist or access is forbidden.
     """
+    main_logger.info(
+        f"[update_my_plant] user_id={current_user.id}, plant_id={plant_id}"
+    )
     plant = db.query(PlantModel).get(plant_id)
     if not plant:
+        main_logger.warning(
+            f"[update_my_plant] Plant not found plant_id={plant_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Plant not found",
         )
 
     if current_user.role != "admin" and plant.user_id != current_user.id:
+        main_logger.warning(
+            f"[update_my_plant] Permission denied user_id={current_user.id}, plant_id={plant_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -1826,11 +1825,15 @@ async def update_my_plant(
                     p.act_humidity = humidity
                     p.act_temperature = temperature
                     p.act_moisture = moisture
-                except Exception:
-                    # Ignore malformed health_status
-                    pass
+                except Exception as e:
+                    main_logger.warning(
+                        f"[update_my_plant] Failed to parse health_status for plant_id={plant_id}: {e}"
+                    )
             break
 
+    main_logger.info(
+        f"[update_my_plant] Updated plant_id={plant_id} for user_id={current_user.id}"
+    )
     return {
         "id": plant.id,
         "plant_name": plant.plant_name,
@@ -1850,19 +1853,10 @@ async def delete_my_plant(
     """
     General:
         Remove one of the current user's plants from the system.
-
-    Parameters:
-        plant_id:
-            Identifier of the plant to delete.
-        current_user:
-            Authenticated consumer or admin performing the deletion.
-
-    Returns:
-        A dictionary with a detail message upon successful removal.
-
-    Raises:
-        HTTPException: If the plant cannot be found.
     """
+    main_logger.info(
+        f"[delete_my_plant] user_id={current_user.id}, plant_id={plant_id}"
+    )
     db_interface = DBInterface()
     ok = db_interface.remove_plant(plant_id)
 
@@ -1874,11 +1868,17 @@ async def delete_my_plant(
             break
 
     if not ok:
+        main_logger.warning(
+            f"[delete_my_plant] Plant not found plant_id={plant_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Plant not found",
         )
 
+    main_logger.info(
+        f"[delete_my_plant] Removed plant_id={plant_id} for user_id={current_user.id}"
+    )
     return {"detail": "Plant removed"}
 
 
@@ -1891,20 +1891,16 @@ async def delete_my_plant(
 async def register_user_device(
     payload: DeviceCreation,
     current_user: User = Depends(require_roles(["consumer", "admin"])),
+
 ):
     """
     General:
         Register a purchased device to the user's account and attach it to a plant.
-
-    Parameters:
-        payload:
-            DeviceCreation with device type, unique identifier, and plant mapping.
-        current_user:
-            Authenticated consumer or admin registering the device.
-
-    Returns:
-        A dictionary containing the unique_identifier and a detail message.
     """
+    main_logger.info(
+        f"[register_user_device] user_id={current_user.id}, "
+        f"device_type_name={payload.device_type_name}, plant_id={payload.plant_id}"
+    )
     consumer = system_state.get_consumer(current_user)
     unique_identifier = consumer.register_new_device(
         plant_id=payload.plant_id,
@@ -1919,6 +1915,10 @@ async def register_user_device(
         battery_level=payload.battery_level,
         rssi=payload.rssi,
     )
+    main_logger.info(
+        f"[register_user_device] Registered device unique_identifier={unique_identifier} "
+        f"for user_id={current_user.id}"
+    )
     return {
         "unique_identifier": unique_identifier,
         "detail": "Device registered and attached to plant",
@@ -1932,14 +1932,10 @@ async def list_available_device_types(
     """
     General:
         List all device types that can be used in the system.
-
-    Parameters:
-        current_user:
-            Authenticated user (consumer, manufacturer, or admin).
-
-    Returns:
-        A list of device types as returned by DBInterface.list_device_types.
     """
+    main_logger.info(
+        f"[list_available_device_types] user_id={current_user.id}, role={current_user.role}"
+    )
     db_interface = DBInterface()
     device_types = db_interface.list_device_types()
     return [serialize_device_type(dt) for dt in device_types] if device_types else []
@@ -1948,18 +1944,15 @@ async def list_available_device_types(
 @app.get("/api/consumer/my-devices")
 async def list_my_devices(
     current_user: User = Depends(require_roles(["consumer", "admin"])),
+
 ):
     """
     General:
         List all devices owned by the current user.
-
-    Parameters:
-        current_user:
-            Authenticated consumer or admin requesting the list.
-
-    Returns:
-        A list of devices or a message if none are registered.
     """
+    main_logger.info(
+        f"[list_my_devices] user_id={current_user.id}"
+    )
     db_interface = DBInterface()
     devices = db_interface.list_devices(current_user.id)
     if devices:
@@ -1972,20 +1965,16 @@ async def list_my_devices(
 async def device_activation(
     payload: DeviceActivation,
     current_user: User = Depends(require_roles(["consumer", "admin"])),
+
 ):
     """
     General:
         Activate or deactivate all or a specific device owned by the user.
-
-    Parameters:
-        payload:
-            DeviceActivation specifying device_id (optional) and command flag.
-        current_user:
-            Authenticated consumer or admin toggling device activation.
-
-    Returns:
-        A dictionary with a detail message describing the new device state.
     """
+    main_logger.info(
+        f"[device_activation] user_id={current_user.id}, device_id={payload.device_id}, "
+        f"command={payload.command}"
+    )
     consumer = system_state.get_consumer(current_user)
     consumer.device_activation(device_id=payload.device_id, command=payload.command)
     return {
@@ -1997,23 +1986,15 @@ async def device_activation(
 async def remove_my_device(
     device_id: int,
     current_user: User = Depends(require_roles(["consumer", "admin"])),
+
 ):
     """
     General:
         Remove a device from the user's account and detach it from any plants.
-
-    Parameters:
-        device_id:
-            Identifier of the device to remove.
-        current_user:
-            Authenticated consumer or admin performing the removal.
-
-    Returns:
-        A dictionary with a detail message upon successful removal.
-
-    Raises:
-        HTTPException: If the device cannot be found.
     """
+    main_logger.info(
+        f"[remove_my_device] user_id={current_user.id}, device_id={device_id}"
+    )
     db_interface = DBInterface()
     ok = db_interface.remove_device(device_id)
 
@@ -2025,10 +2006,16 @@ async def remove_my_device(
                 break
 
     if not ok:
+        main_logger.warning(
+            f"[remove_my_device] Device not found device_id={device_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device not found",
         )
+    main_logger.info(
+        f"[remove_my_device] Removed device_id={device_id} for user_id={current_user.id}"
+    )
     return {"detail": "Device removed"}
 
 
@@ -2307,6 +2294,66 @@ async def invoke_hub_method(
 # Note: legacy `/api/hub/anomaly` removed — gateways should POST to
 # `/api/device/anomaly` with a minimal payload `{device_id, last_seen, is_anomaly}`.
 
+class DeviceUpdate(BaseModel):
+    device_name: str | None = None
+    location_description: str | None = None
+
+
+@app.put("/api/consumer/my-devices/{device_id}")
+async def update_my_device(
+    device_id: int,
+    payload: DeviceUpdate,
+    current_user: User = Depends(require_roles(["consumer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    """
+    General:
+        Update details of one of the current user's devices.
+
+    Parameters:
+        device_id:
+            Identifier of the device to update.
+        payload:
+            DeviceUpdate containing fields to update (device_name, location_description).
+        current_user:
+            Authenticated consumer or admin performing the update.
+        db:
+            Database session dependency used to persist changes.
+
+    Returns:
+        A dictionary containing the updated device data.
+
+    Raises:
+        HTTPException: If the device does not exist or access is forbidden.
+    """
+    device = db.query(DeviceModel).get(device_id)
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device not found",
+        )
+
+    if current_user.role != "admin" and device.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions",
+        )
+
+    if payload.device_name is not None:
+        device.device_name = payload.device_name
+    if payload.location_description is not None:
+        device.location_description = payload.location_description
+
+    db.commit()
+    db.refresh(device)
+
+    return {
+        "id": device.id,
+        "device_name": device.device_name,
+        "location_description": device.location_description,
+        "detail": "Device updated successfully",
+    }
+
 
 # ---------------------------------------------------------------------------
 # 7. Monitoring & Control
@@ -2322,29 +2369,25 @@ async def get_device_history(
     """
     General:
         Retrieve historical sensor data for a device for charting and analysis.
-
-    Parameters:
-        device_id:
-            Identifier of the device to fetch history for.
-        current_user:
-            Authenticated consumer or admin requesting history.
-        db:
-            Database session dependency used to query sensor data.
-
-    Returns:
-        A list of measurement records including value, unit, timestamp, and anomaly flag.
-
-    Raises:
-        HTTPException: If the device does not exist or access is forbidden.
     """
+    main_logger.info(
+        f"[get_device_history] user_id={current_user.id}, device_id={device_id}"
+    )
     device = db.query(DeviceModel).get(device_id)
     if not device:
+        main_logger.warning(
+            f"[get_device_history] Device not found device_id={device_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device not found",
         )
 
     if current_user.role != "admin" and device.user_id != current_user.id:
+        main_logger.warning(
+            f"[get_device_history] Permission denied user_id={current_user.id}, "
+            f"device_id={device_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -2370,6 +2413,7 @@ async def get_device_history(
         for r in rows
     ]
 
+
 @app.post("/api/device/receive-data")
 async def receive_device_data(
     payload: DeviceData,
@@ -2380,51 +2424,22 @@ async def receive_device_data(
         Receive telemetry data from a device, store it in the database, update
         the device metadata and refresh the corresponding plant's live metrics
         and health_status (moisture now stored as a percentage).
-
-    Parameters:
-        payload:
-            DeviceData containing:
-                - device_id: ID of the device sending data.
-                - data_type: Type of the metric (e.g. "temperature",
-                  "humidity", "brightness", "moisture").
-                - data: Measured value (for moisture this is a percentage).
-                - data_unit: Unit of the measurement (e.g. "°C", "%", "lux").
-        db:
-            Database session dependency used to update device, plant and sensor
-            data tables.
-
-    Returns:
-        A dictionary containing:
-            - detail: Status message.
-            - device_id: ID of the device that sent the data.
-            - plant_id: ID of the plant affected (if any).
-            - metric: Normalized metric name.
-            - value: Stored measurement value.
-            - unit: Measurement unit.
-            - timestamp: ISO-format timestamp when data was recorded.
-            - health_status: Updated health_status string of the plant
-              (if applicable).
-
-    Raises:
-        HTTPException:
-            - 404 if the device does not exist.
     """
-    # ------------------------------------------------------------------
-    # 1. Look up device
-    # ------------------------------------------------------------------
+    main_logger.info(
+        f"[receive_device_data] device_id={payload.device_id}, "
+        f"data_type={payload.data_type}, data={payload.data}, unit={payload.data_unit}"
+    )
     device = db.query(DeviceModel).get(payload.device_id)
     if not device:
+        main_logger.warning(
+            f"[receive_device_data] Device not found device_id={payload.device_id}"
+        )
         raise HTTPException(
             status_code=404,
             detail="Device not found",
         )
 
-    # Normalize metric name
     metric_name = payload.data_type.lower()
-
-    # ------------------------------------------------------------------
-    # 2. Store raw measurement in sensor_data
-    # ------------------------------------------------------------------
     now = datetime.utcnow()
 
     sensor_record = SensorDataModel(
@@ -2435,20 +2450,12 @@ async def receive_device_data(
     )
     db.add(sensor_record)
 
-    # ------------------------------------------------------------------
-    # 3. Update device metadata
-    # ------------------------------------------------------------------
     device.last_data_received = now
     device.last_heartbeat = now
-    # (If later you extend DeviceData with battery/rssi, update them here.)
 
-    # ------------------------------------------------------------------
-    # 4. Update plant health_status in DB & live PlantDomain
-    # ------------------------------------------------------------------
     plant = db.query(PlantModel).get(device.plant_id) if device.plant_id else None
     new_health_status = None
 
-    # Mapping indices in health_status: brightness, humidity, temperature, moisture(%)
     metric_index = None
     if metric_name in ("brightness", "light", "illumination"):
         metric_index = 0
@@ -2460,22 +2467,21 @@ async def receive_device_data(
         metric_index = 3
 
     if plant and metric_index is not None:
-        # health_status is "brightness,humidity,temperature,moisture"
         parts = [0.0, 0.0, 0.0, 0.0]
         if plant.health_status:
             try:
                 existing = [float(x) for x in str(plant.health_status).split(",")]
                 for i in range(min(4, len(existing))):
                     parts[i] = existing[i]
-            except Exception:
-                # If parsing fails, keep default zeros
-                pass
+            except Exception as e:
+                main_logger.warning(
+                    f"[receive_device_data] Failed to parse health_status for plant_id={plant.id}: {e}"
+                )
 
         parts[metric_index] = float(payload.data)
         new_health_status = ",".join(str(v) for v in parts)
         plant.health_status = new_health_status
 
-        # ----- Sync live PlantDomain object in SystemState -----
         consumer = system_state.consumers.get(device.user_id)
         if consumer:
             for runtime_plant in consumer.plants:
@@ -2490,14 +2496,15 @@ async def receive_device_data(
                         runtime_plant.act_moisture = float(payload.data)
                     break
 
-    # ------------------------------------------------------------------
-    # 5. Commit changes and return response
-    # ------------------------------------------------------------------
     db.commit()
     db.refresh(device)
     if plant:
         db.refresh(plant)
 
+    main_logger.info(
+        f"[receive_device_data] Stored data for device_id={device.id}, "
+        f"plant_id={plant.id if plant else None}, metric={metric_name}"
+    )
     return {
         "detail": "Device data received",
         "device_id": device.id,
@@ -2582,36 +2589,32 @@ async def send_device_command(
     device_id: int,
     payload: DeviceCommand,
     current_user: User = Depends(require_roles(["consumer", "admin"])),
+
     db: Session = Depends(get_db),
 ):
     """
     General:
         Send a manual control command to an actuator device (e.g. water now).
-
-    Parameters:
-        device_id:
-            Identifier of the target device.
-        payload:
-            DeviceCommand specifying the metric and delta to apply.
-        current_user:
-            Authenticated consumer or admin issuing the command.
-        db:
-            Database session dependency used to verify ownership.
-
-    Returns:
-        A dictionary with a detail message confirming that the command was sent.
-
-    Raises:
-        HTTPException: If the device does not exist, is not attached, or metric is unsupported.
     """
+    main_logger.info(
+        f"[send_device_command] user_id={current_user.id}, device_id={device_id}, "
+        f"metric={payload.metric}, delta={payload.delta}"
+    )
     device = db.query(DeviceModel).get(device_id)
     if not device:
+        main_logger.warning(
+            f"[send_device_command] Device not found device_id={device_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device not found",
         )
 
     if current_user.role != "admin" and device.user_id != current_user.id:
+        main_logger.warning(
+            f"[send_device_command] Permission denied user_id={current_user.id}, "
+            f"device_id={device_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -2628,6 +2631,9 @@ async def send_device_command(
             break
 
     if not target_device:
+        main_logger.warning(
+            f"[send_device_command] Device not attached to any loaded plant device_id={device_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device is not attached to any loaded plant",
@@ -2636,12 +2642,18 @@ async def send_device_command(
     method_name = f"change_{payload.metric}"
     method = getattr(target_device, method_name, None)
     if method is None:
+        main_logger.warning(
+            f"[send_device_command] Unsupported metric='{payload.metric}' for device_id={device_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Device does not support metric '{payload.metric}'",
         )
 
     method(payload.delta)
+    main_logger.info(
+        f"[send_device_command] Command sent to device_id={device_id}, metric={payload.metric}"
+    )
     return {"detail": "Command sent"}
 
 
@@ -2649,27 +2661,21 @@ async def send_device_command(
 async def get_alerts(
     user_id: int,
     current_user: User = Depends(require_roles(["consumer", "admin"])),
+
     db: Session = Depends(get_db),
 ):
     """
     General:
         Retrieve active alerts for a given user (e.g. low moisture, device failure).
-
-    Parameters:
-        user_id:
-            Identifier of the user whose alerts are being retrieved.
-        current_user:
-            Authenticated consumer or admin requesting alerts.
-        db:
-            Database session dependency used to query alerts.
-
-    Returns:
-        A list of active alerts with status, message, values, and timestamps.
-
-    Raises:
-        HTTPException: If access is forbidden for the requested user_id.
     """
+    main_logger.info(
+        f"[get_alerts] current_user_id={current_user.id} requested alerts for user_id={user_id}"
+    )
     if current_user.role != "admin" and current_user.id != user_id:
+        main_logger.warning(
+            f"[get_alerts] Permission denied current_user_id={current_user.id}, "
+            f"target_user_id={user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -2704,34 +2710,31 @@ async def get_alerts(
 async def acknowledge_alert(
     alert_id: int,
     current_user: User = Depends(require_roles(["consumer", "admin"])),
+
     db: Session = Depends(get_db),
 ):
     """
     General:
         Mark a specific alert as acknowledged by the user.
-
-    Parameters:
-        alert_id:
-            Identifier of the alert to acknowledge.
-        current_user:
-            Authenticated consumer or admin acknowledging the alert.
-        db:
-            Database session dependency used to update the alert.
-
-    Returns:
-        A dictionary with a detail message confirming acknowledgment.
-
-    Raises:
-        HTTPException: If the alert does not exist or access is forbidden.
     """
+    main_logger.info(
+        f"[acknowledge_alert] user_id={current_user.id}, alert_id={alert_id}"
+    )
     alert = db.query(AlertModel).get(alert_id)
     if not alert:
+        main_logger.warning(
+            f"[acknowledge_alert] Alert not found alert_id={alert_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Alert not found",
         )
 
     if current_user.role != "admin" and alert.user_id != current_user.id:
+        main_logger.warning(
+            f"[acknowledge_alert] Permission denied user_id={current_user.id}, "
+            f"alert_id={alert_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -2742,6 +2745,9 @@ async def acknowledge_alert(
     db.commit()
     db.refresh(alert)
 
+    main_logger.info(
+        f"[acknowledge_alert] Alert acknowledged alert_id={alert_id}, user_id={current_user.id}"
+    )
     return {"detail": "Alert acknowledged"}
 
 
@@ -2749,34 +2755,31 @@ async def acknowledge_alert(
 async def resolve_alert(
     alert_id: int,
     current_user: User = Depends(require_roles(["consumer", "admin"])),
+
     db: Session = Depends(get_db),
 ):
     """
     General:
         Mark a specific alert as resolved, optionally acknowledging it as well.
-
-    Parameters:
-        alert_id:
-            Identifier of the alert to resolve.
-        current_user:
-            Authenticated consumer or admin resolving the alert.
-        db:
-            Database session dependency used to update the alert.
-
-    Returns:
-        A dictionary with a detail message confirming resolution.
-
-    Raises:
-        HTTPException: If the alert does not exist or access is forbidden.
     """
+    main_logger.info(
+        f"[resolve_alert] user_id={current_user.id}, alert_id={alert_id}"
+    )
     alert = db.query(AlertModel).get(alert_id)
     if not alert:
+        main_logger.warning(
+            f"[resolve_alert] Alert not found alert_id={alert_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Alert not found",
         )
 
     if current_user.role != "admin" and alert.user_id != current_user.id:
+        main_logger.warning(
+            f"[resolve_alert] Permission denied user_id={current_user.id}, "
+            f"alert_id={alert_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -2789,6 +2792,9 @@ async def resolve_alert(
     db.commit()
     db.refresh(alert)
 
+    main_logger.info(
+        f"[resolve_alert] Alert resolved alert_id={alert_id}, user_id={current_user.id}"
+    )
     return {"detail": "Alert resolved"}
 
 
@@ -2797,22 +2803,18 @@ def init():
     General:
         Initialize the system state by loading domain objects from the database
         and starting background threads if needed.
-
-    Parameters:
-        (none)
-
-    Returns:
-        None. Any initialization errors are printed to the console.
     """
     try:
+        main_logger.info("[init] Initializing SystemState from database")
         system_state.load_from_db()
+        main_logger.info("[init] Initialization completed")
     except Exception as exc:
-        # Don't crash import on init failures; they will show up quickly anyway.
-        print(f"[INIT] Failed to initialize domain model: {exc}")
+        main_logger.error(f"[init] Failed to initialize domain model: {exc}")
 
 
 @app.on_event("startup")
 def on_startup():
+    main_logger.info("[startup] FastAPI application startup")
     init()
 
 

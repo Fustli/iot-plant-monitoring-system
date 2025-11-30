@@ -3,14 +3,15 @@ import 'package:provider/provider.dart';
 
 import '../constants/app_colors.dart';
 import '../models/device_model.dart';
+import '../models/hub_model.dart';
 import '../models/plant_model.dart';
 import '../models/plant_type_model.dart';
 import '../widgets/plant_card.dart';
-import '../widgets/alert_banner.dart';
+import '../widgets/shimmer_loading.dart';
+import '../widgets/empty_state.dart';
 import '../services/api_client.dart';
 import '../services/api_exceptions.dart';
 import '../services/plant_provider.dart';
-import '../services/alert_provider.dart';
 import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
 import 'plant_detail_screen.dart';
@@ -33,7 +34,6 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PlantProvider>().loadPlants();
-      context.read<AlertProvider>().loadAlerts();
     });
   }
 
@@ -136,10 +136,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await Future.wait([
-      context.read<PlantProvider>().refresh(),
-      context.read<AlertProvider>().refresh(),
-    ]);
+    await context.read<PlantProvider>().refresh();
   }
 }
 
@@ -157,10 +154,7 @@ class _HomeView extends StatelessWidget {
     final username = authProvider.username ?? 'User';
 
     return RefreshIndicator(
-      onRefresh: () => Future.wait([
-        context.read<PlantProvider>().refresh(),
-        context.read<AlertProvider>().refresh(),
-      ]),
+      onRefresh: () => context.read<PlantProvider>().refresh(),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
@@ -177,25 +171,6 @@ class _HomeView extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Critical alerts banner
-            Consumer<AlertProvider>(
-              builder: (context, alertProvider, child) {
-                final criticalAlerts = alertProvider.criticalAlerts
-                    .where((alert) => alert.status.name == 'active')
-                    .toList();
-
-                if (criticalAlerts.isNotEmpty) {
-                  return Column(
-                    children: [
-                      AlertBanner(alert: criticalAlerts.first),
-                      const SizedBox(height: 16),
-                    ],
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-
             // Quick stats
             Text(
               localization.tr('home_quick_stats'),
@@ -204,8 +179,8 @@ class _HomeView extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 12),
-            Consumer2<PlantProvider, AlertProvider>(
-              builder: (context, plantProvider, alertProvider, child) {
+            Consumer<PlantProvider>(
+              builder: (context, plantProvider, child) {
                 return Row(
                   children: [
                     Expanded(
@@ -228,12 +203,10 @@ class _HomeView extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _StatCard(
-                        icon: Icons.warning,
-                        title: localization.tr('home_active_alerts'),
-                        value: alertProvider.activeAlertsCount.toString(),
-                        color: alertProvider.criticalAlertsCount > 0
-                            ? AppColors.error
-                            : AppColors.warning,
+                        icon: Icons.favorite,
+                        title: localization.tr('home_healthy_plants'),
+                        value: plantProvider.healthyPlants.toString(),
+                        color: AppColors.success,
                       ),
                     ),
                   ],
@@ -294,7 +267,7 @@ class _HomeView extends StatelessWidget {
                   child: Icon(Icons.analytics, color: AppColors.info),
                 ),
                 title: Text(localization.tr('common_view_details')),
-                subtitle: const Text('Plant History & Analytics'),
+                subtitle: Text(localization.tr('user_plant_history')),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
                   Navigator.of(context).push(
@@ -546,29 +519,21 @@ class _PlantsViewState extends State<_PlantsView> {
         Consumer<PlantProvider>(
           builder: (context, plantProvider, child) {
             if (plantProvider.isLoading) {
-              return Center(
-                  child: CircularProgressIndicator(color: AppColors.primary));
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: ShimmerList(itemCount: 4),
+              );
             }
 
             if (plantProvider.plants.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.local_florist,
-                        size: 64, color: Colors.grey[400]),
-                    const SizedBox(height: 16),
-                    Text(localization.tr('plants_empty')),
-                    const SizedBox(height: 8),
-                    Text(localization.tr('plants_add_first'),
-                        style: TextStyle(color: Colors.grey[600])),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAddPlantDialog(context),
-                      icon: const Icon(Icons.add),
-                      label: Text(localization.tr('plants_add')),
-                    ),
-                  ],
+              return EmptyStateWidget(
+                type: EmptyStateType.plant,
+                title: localization.tr('plants_empty'),
+                subtitle: localization.tr('plants_add_first'),
+                action: ElevatedButton.icon(
+                  onPressed: () => _showAddPlantDialog(context),
+                  icon: const Icon(Icons.add),
+                  label: Text(localization.tr('plants_add')),
                 ),
               );
             }
@@ -647,6 +612,7 @@ class _DevicesViewState extends State<_DevicesView> {
   final ApiService _apiService = ApiService();
   List<Device> _devices = [];
   List<Map<String, dynamic>> _deviceTypes = [];
+  List<Hub> _hubs = [];
   bool _isLoading = true;
   String? _error;
 
@@ -665,9 +631,39 @@ class _DevicesViewState extends State<_DevicesView> {
     try {
       final devices = await _apiService.getMyDevices();
       final deviceTypes = await _apiService.listAvailableDeviceTypes();
+      // TODO: Fetch hubs from API when endpoint is ready
+      // final hubs = await _apiService.getMyHubs();
+      final hubs = <Hub>[
+        // Mock hubs for now
+        Hub(
+          id: 1,
+          userId: 1,
+          hubId: 'HUB-001',
+          hubLink: 'mqtt://192.168.1.100:1883',
+          name: 'Home Hub',
+          location: 'Living Room',
+          isOnline: true,
+          isActive: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+        Hub(
+          id: 2,
+          userId: 1,
+          hubId: 'HUB-002',
+          hubLink: 'mqtt://192.168.1.101:1883',
+          name: 'Garden Hub',
+          location: 'Backyard',
+          isOnline: false,
+          isActive: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ];
       setState(() {
         _devices = devices;
         _deviceTypes = deviceTypes;
+        _hubs = hubs;
       });
     } on ApiException catch (e) {
       setState(() {
@@ -697,6 +693,7 @@ class _DevicesViewState extends State<_DevicesView> {
 
     Map<String, dynamic>? selectedType;
     Plant? selectedPlant;
+    Hub? selectedHub;
     final uniqueIdController = TextEditingController();
     final nameController = TextEditingController();
     final locationController = TextEditingController();
@@ -741,6 +738,39 @@ class _DevicesViewState extends State<_DevicesView> {
                   onChanged: (value) {
                     setDialogState(() {
                       selectedPlant = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<Hub?>(
+                  value: selectedHub,
+                  hint: Text(localization.tr('devices_select_hub')),
+                  isExpanded: true,
+                  items: [
+                    DropdownMenuItem<Hub?>(
+                      value: null,
+                      child: Text(localization.tr('devices_no_hub')),
+                    ),
+                    ..._hubs.map((hub) {
+                      return DropdownMenuItem<Hub?>(
+                        value: hub,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.router,
+                              size: 16,
+                              color: hub.isOnline ? Colors.green : Colors.grey,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(hub.name)),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedHub = value;
                     });
                   },
                 ),
@@ -808,6 +838,7 @@ class _DevicesViewState extends State<_DevicesView> {
           'location_description': locationController.text.isNotEmpty
               ? locationController.text
               : null,
+          'hub_id': selectedHub?.id,
         });
 
         if (mounted) {
@@ -881,12 +912,204 @@ class _DevicesViewState extends State<_DevicesView> {
     }
   }
 
+  Future<void> _showDeviceDetailsDialog(
+      BuildContext context, Device device) async {
+    final localization = context.read<LocalizationProvider>();
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: device.isOnline
+                  ? Colors.green.withOpacity(0.2)
+                  : Colors.grey.withOpacity(0.2),
+              child: Icon(
+                Icons.sensors,
+                color: device.isOnline ? Colors.green : Colors.grey,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                device.deviceName,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow(
+                  localization.tr('devices_id'), device.uniqueIdentifier),
+              _buildDetailRow(localization.tr('devices_type'),
+                  device.deviceTypeId.toString()),
+              _buildDetailRow(
+                localization.tr('devices_status'),
+                device.isOnline
+                    ? localization.tr('devices_online')
+                    : localization.tr('devices_offline'),
+                valueColor: device.isOnline ? Colors.green : Colors.grey,
+              ),
+              if (device.batteryLevel != null)
+                _buildDetailRow(localization.tr('devices_battery'),
+                    '${device.batteryLevel}%'),
+              if (device.locationDescription != null)
+                _buildDetailRow(localization.tr('devices_location'),
+                    device.locationDescription!),
+              _buildDetailRow(
+                localization.tr('devices_registered'),
+                '${device.createdAt.day}/${device.createdAt.month}/${device.createdAt.year}',
+              ),
+              if (device.lastHeartbeat != null)
+                _buildDetailRow(
+                  localization.tr('devices_last_seen'),
+                  '${device.lastHeartbeat!.day}/${device.lastHeartbeat!.month}/${device.lastHeartbeat!.year}',
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(localization.tr('common_close')),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _showEditDeviceDialog(context, device);
+            },
+            icon: const Icon(Icons.edit),
+            label: Text(localization.tr('common_edit')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showEditDeviceDialog(
+      BuildContext context, Device device) async {
+    final localization = context.read<LocalizationProvider>();
+
+    final nameController = TextEditingController(text: device.deviceName);
+    final locationController =
+        TextEditingController(text: device.locationDescription ?? '');
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(localization.tr('devices_edit')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('devices_name'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: locationController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('devices_location'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(localization.tr('common_save')),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      try {
+        // Update device via API
+        final apiClient = context.read<AuthProvider>().apiClient;
+        await apiClient.updateDevice(device.id, {
+          'device_name': nameController.text,
+          'location_description': locationController.text.isNotEmpty
+              ? locationController.text
+              : null,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('devices_updated_success')),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadData();
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.messageHu),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: ShimmerList(itemCount: 4),
+      );
     }
 
     if (_error != null) {
@@ -908,23 +1131,14 @@ class _DevicesViewState extends State<_DevicesView> {
     }
 
     if (_devices.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.devices_other, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(localization.tr('devices_empty')),
-            const SizedBox(height: 8),
-            Text(localization.tr('devices_add_first'),
-                style: TextStyle(color: Colors.grey[600])),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => _showAddDeviceDialog(context),
-              icon: const Icon(Icons.add),
-              label: Text(localization.tr('devices_add')),
-            ),
-          ],
+      return EmptyStateWidget(
+        type: EmptyStateType.emptyBox,
+        title: localization.tr('devices_empty'),
+        subtitle: localization.tr('devices_add_first'),
+        action: ElevatedButton.icon(
+          onPressed: () => _showAddDeviceDialog(context),
+          icon: const Icon(Icons.add),
+          label: Text(localization.tr('devices_add')),
         ),
       );
     }
@@ -957,7 +1171,8 @@ class _DevicesViewState extends State<_DevicesView> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Device ID: ${device.uniqueIdentifier}'),
+                      Text(
+                          '${localization.tr('user_hub_id')}: ${device.uniqueIdentifier}'),
                       const SizedBox(height: 4),
                       Row(
                         children: [
@@ -992,11 +1207,29 @@ class _DevicesViewState extends State<_DevicesView> {
                       ),
                     ],
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () => _confirmDeleteDevice(context, device),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon:
+                            const Icon(Icons.info_outline, color: Colors.blue),
+                        onPressed: () =>
+                            _showDeviceDetailsDialog(context, device),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined,
+                            color: Colors.orange),
+                        onPressed: () => _showEditDeviceDialog(context, device),
+                      ),
+                      IconButton(
+                        icon:
+                            const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () => _confirmDeleteDevice(context, device),
+                      ),
+                    ],
                   ),
                   isThreeLine: true,
+                  onTap: () => _showDeviceDetailsDialog(context, device),
                 ),
               );
             },
@@ -1017,7 +1250,7 @@ class _DevicesViewState extends State<_DevicesView> {
 }
 
 // =============================================================================
-// ALERTS VIEW
+// ALERTS VIEW (Placeholder - Feature coming soon)
 // =============================================================================
 
 class _AlertsView extends StatelessWidget {
@@ -1027,44 +1260,11 @@ class _AlertsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
-    return Consumer<AlertProvider>(
-      builder: (context, alertProvider, child) {
-        if (alertProvider.isLoading) {
-          return Center(
-              child: CircularProgressIndicator(color: AppColors.primary));
-        }
-
-        if (alertProvider.alerts.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.check_circle, size: 64, color: Colors.green),
-                const SizedBox(height: 16),
-                Text(localization.tr('alerts_none')),
-                const SizedBox(height: 8),
-                Text(localization.tr('home_no_alerts'),
-                    style: TextStyle(color: Colors.grey[600])),
-              ],
-            ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: alertProvider.refresh,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: alertProvider.alerts.length,
-            itemBuilder: (context, index) {
-              final alert = alertProvider.alerts[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: AlertBanner(alert: alert),
-              );
-            },
-          ),
-        );
-      },
+    return EmptyStateWidget(
+      type: EmptyStateType.success,
+      title: localization.tr('alerts_none'),
+      subtitle: localization.tr('home_no_alerts'),
+      repeat: false,
     );
   }
 }
@@ -1073,8 +1273,260 @@ class _AlertsView extends StatelessWidget {
 // SETTINGS VIEW
 // =============================================================================
 
-class _SettingsView extends StatelessWidget {
+class _SettingsView extends StatefulWidget {
   const _SettingsView();
+
+  @override
+  State<_SettingsView> createState() => _SettingsViewState();
+}
+
+class _SettingsViewState extends State<_SettingsView> {
+  // Mock hub data - replace with API calls when backend is ready
+  List<Hub> _hubs = [];
+  bool _isLoadingHubs = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHubs();
+  }
+
+  Future<void> _loadHubs() async {
+    setState(() => _isLoadingHubs = true);
+    // TODO: Replace with actual API call when backend endpoint is ready
+    // For now, use mock data
+    await Future.delayed(const Duration(milliseconds: 300));
+    setState(() {
+      _hubs = [
+        // Mock hub for demo
+      ];
+      _isLoadingHubs = false;
+    });
+  }
+
+  Future<void> _showAddHubDialog(BuildContext context) async {
+    final localization = context.read<LocalizationProvider>();
+    final hubIdController = TextEditingController();
+    final hubLinkController = TextEditingController();
+    final nameController = TextEditingController();
+    final locationController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(localization.tr('user_add_hub')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: hubIdController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_id_mac'),
+                  border: const OutlineInputBorder(),
+                  hintText: 'e.g., AA:BB:CC:DD:EE:FF',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: hubLinkController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_link'),
+                  border: const OutlineInputBorder(),
+                  hintText: 'e.g., mqtt://192.168.1.100:1883',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_name'),
+                  border: const OutlineInputBorder(),
+                  hintText: 'e.g., Living Room Hub',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: locationController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_location'),
+                  border: const OutlineInputBorder(),
+                  hintText: 'e.g., Home, Office',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(localization.tr('common_add')),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      // TODO: Call API to create hub when backend is ready
+      final newHub = Hub(
+        id: DateTime.now().millisecondsSinceEpoch,
+        userId: 0,
+        hubId: hubIdController.text,
+        hubLink: hubLinkController.text,
+        name: nameController.text.isNotEmpty ? nameController.text : 'My Hub',
+        location:
+            locationController.text.isNotEmpty ? locationController.text : null,
+        isOnline: false,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      setState(() {
+        _hubs.add(newHub);
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(localization.tr('user_hub_added')),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showEditHubDialog(BuildContext context, Hub hub) async {
+    final localization = context.read<LocalizationProvider>();
+    final hubLinkController = TextEditingController(text: hub.hubLink);
+    final nameController = TextEditingController(text: hub.name);
+    final locationController = TextEditingController(text: hub.location ?? '');
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(localization.tr('user_edit_hub')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                enabled: false,
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_id'),
+                  border: const OutlineInputBorder(),
+                  hintText: hub.hubId,
+                ),
+                controller: TextEditingController(text: hub.hubId),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: hubLinkController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_link'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_hub_name'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: locationController,
+                decoration: InputDecoration(
+                  labelText: localization.tr('user_location'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(localization.tr('common_save')),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      // TODO: Call API to update hub when backend is ready
+      final index = _hubs.indexWhere((h) => h.id == hub.id);
+      if (index != -1) {
+        setState(() {
+          _hubs[index] = hub.copyWith(
+            hubLink: hubLinkController.text,
+            name: nameController.text,
+            location: locationController.text.isNotEmpty
+                ? locationController.text
+                : null,
+            updatedAt: DateTime.now(),
+          );
+        });
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(localization.tr('user_hub_updated')),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteHub(BuildContext context, Hub hub) async {
+    final localization = context.read<LocalizationProvider>();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(localization.tr('user_delete_hub')),
+        content: Text(localization
+            .tr('user_delete_hub_confirm')
+            .replaceAll('{name}', hub.name)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(localization.tr('common_delete')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      // TODO: Call API to delete hub when backend is ready
+      setState(() {
+        _hubs.removeWhere((h) => h.id == hub.id);
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(localization.tr('user_hub_deleted')),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1132,6 +1584,141 @@ class _SettingsView extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Hub Management Section
+        _buildSectionTitle(localization.tr('admin_hub_management')),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.router, color: AppColors.info),
+                title: Text(localization.tr('user_my_hubs')),
+                subtitle: Text(localization
+                    .tr('user_hubs_configured')
+                    .replaceAll('{count}', _hubs.length.toString())),
+                trailing: IconButton(
+                  icon: const Icon(Icons.add_circle, color: AppColors.primary),
+                  onPressed: () => _showAddHubDialog(context),
+                ),
+              ),
+              if (_isLoadingHubs)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                )
+              else if (_hubs.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Icon(Icons.router, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 8),
+                      Text(
+                        localization.tr('user_no_hubs'),
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddHubDialog(context),
+                        icon: const Icon(Icons.add),
+                        label: Text(localization.tr('user_add_hub')),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ..._hubs.map((hub) => Column(
+                      children: [
+                        const Divider(height: 1),
+                        ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: hub.isOnline
+                                ? Colors.green.withOpacity(0.2)
+                                : Colors.grey.withOpacity(0.2),
+                            child: Icon(
+                              Icons.router,
+                              color: hub.isOnline ? Colors.green : Colors.grey,
+                            ),
+                          ),
+                          title: Text(hub.name),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                  '${localization.tr('user_hub_id')}: ${hub.hubId}'),
+                              if (hub.location != null)
+                                Text(
+                                    '${localization.tr('user_location')}: ${hub.location}'),
+                              Row(
+                                children: [
+                                  Icon(
+                                    hub.isOnline
+                                        ? Icons.check_circle
+                                        : Icons.cancel,
+                                    size: 12,
+                                    color: hub.isOnline
+                                        ? Colors.green
+                                        : Colors.grey,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    hub.isOnline
+                                        ? localization.tr('admin_online')
+                                        : localization.tr('user_offline'),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: hub.isOnline
+                                          ? Colors.green
+                                          : Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                _showEditHubDialog(context, hub);
+                              } else if (value == 'delete') {
+                                _confirmDeleteHub(context, hub);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.edit, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(localization.tr('common_edit')),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.delete,
+                                        size: 20, color: Colors.red),
+                                    const SizedBox(width: 8),
+                                    Text(localization.tr('common_delete'),
+                                        style:
+                                            const TextStyle(color: Colors.red)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          isThreeLine: true,
+                        ),
+                      ],
+                    )),
+            ],
           ),
         ),
 

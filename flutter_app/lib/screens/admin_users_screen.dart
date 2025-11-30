@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../services/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/api_exceptions.dart';
+import '../services/localization_service.dart';
 
 /// Admin panel for user management
 /// Only accessible by admin role
@@ -40,9 +41,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     try {
       _users = await _apiService.listAllUsers();
     } on ApiException catch (e) {
-      _error = e.messageHu;
+      _error = e.message;
     } catch (e) {
-      _error = 'Nem sikerült betölteni a felhasználókat';
+      _error = e.toString();
     }
 
     setState(() {
@@ -51,21 +52,23 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Future<void> _deleteUser(User user) async {
+    final localization = context.read<LocalizationProvider>();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Felhasználó törlése'),
-        content: Text(
-            'Biztosan törölni szeretné ${user.username} felhasználót?\n\nEz a művelet nem visszavonható.'),
+        title: Text(localization.tr('admin_delete_user')),
+        content: Text(localization
+            .tr('admin_delete_user_confirm')
+            .replaceAll('{name}', user.username)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Mégsem'),
+            child: Text(localization.tr('common_cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Törlés'),
+            child: Text(localization.tr('common_delete')),
           ),
         ],
       ),
@@ -76,9 +79,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         await _apiService.deleteUser(user.id);
         _loadUsers();
         if (mounted) {
+          final loc = context.read<LocalizationProvider>();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${user.username} torolve'),
+              content: Text(loc
+                  .tr('admin_user_deleted')
+                  .replaceAll('{name}', user.username)),
               backgroundColor: Colors.green,
             ),
           );
@@ -87,7 +93,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(e.messageHu),
+              content: Text(e.message),
               backgroundColor: Colors.red,
             ),
           );
@@ -101,11 +107,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       await _apiService.updateUser(user.id, isVerified: !user.isVerified);
       _loadUsers();
       if (mounted) {
+        final loc = context.read<LocalizationProvider>();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(user.isVerified
-                ? '${user.username} hitelesitese visszavonva'
-                : '${user.username} hitelesitve'),
+                ? loc
+                    .tr('admin_user_unverified')
+                    .replaceAll('{name}', user.username)
+                : loc
+                    .tr('admin_user_verified')
+                    .replaceAll('{name}', user.username)),
             backgroundColor: Colors.green,
           ),
         );
@@ -114,7 +125,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.messageHu),
+            content: Text(e.message),
             backgroundColor: Colors.red,
           ),
         );
@@ -127,11 +138,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       await _apiService.updateUser(user.id, isActive: !user.isActive);
       _loadUsers();
       if (mounted) {
+        final loc = context.read<LocalizationProvider>();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(user.isActive
-                ? '${user.username} deaktivalva'
-                : '${user.username} aktivalva'),
+                ? loc
+                    .tr('admin_user_deactivated')
+                    .replaceAll('{name}', user.username)
+                : loc
+                    .tr('admin_user_activated')
+                    .replaceAll('{name}', user.username)),
             backgroundColor: Colors.green,
           ),
         );
@@ -140,7 +156,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.messageHu),
+            content: Text(e.message),
             backgroundColor: Colors.red,
           ),
         );
@@ -151,12 +167,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final localization = context.watch<LocalizationProvider>();
 
     // Security check - only admin can access
     if (!authProvider.isAdmin) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: Text('Nincs jogosultsága ehhez az oldalhoz'),
+          child: Text(localization.tr('error_no_permission')),
         ),
       );
     }
@@ -165,7 +182,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     if (widget.embedded) {
       return Stack(
         children: [
-          _buildBody(),
+          _buildBody(localization),
           Positioned(
             bottom: 16,
             right: 16,
@@ -181,7 +198,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Felhasználók kezelése'),
+        title: Text(localization.tr('admin_users')),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
@@ -191,7 +208,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: _buildBody(localization),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddUserDialog,
         backgroundColor: AppColors.primary,
@@ -200,7 +217,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(LocalizationProvider localization) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -216,7 +233,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadUsers,
-              child: const Text('Újrapróbálás'),
+              child: Text(localization.tr('common_retry')),
             ),
           ],
         ),
@@ -224,13 +241,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     }
 
     if (_users.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Nincsenek felhasználók'),
+            const Icon(Icons.people_outline, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(localization.tr('admin_no_users')),
           ],
         ),
       );
@@ -241,12 +258,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _users.length,
-        itemBuilder: (context, index) => _buildUserCard(_users[index]),
+        itemBuilder: (context, index) =>
+            _buildUserCard(_users[index], localization),
       ),
     );
   }
 
-  Widget _buildUserCard(User user) {
+  Widget _buildUserCard(User user, LocalizationProvider localization) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -270,9 +288,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               children: [
                 _buildRoleBadge(user.role),
                 const SizedBox(width: 8),
-                if (!user.isActive) _buildStatusBadge('Inaktiv', Colors.red),
+                if (!user.isActive)
+                  _buildStatusBadge(
+                      localization.tr('admin_inactive'), Colors.red),
                 if (!user.isVerified)
-                  _buildStatusBadge('Nem hitelesite', Colors.orange),
+                  _buildStatusBadge(
+                      localization.tr('admin_not_verified'), Colors.orange),
               ],
             ),
           ],
@@ -291,46 +312,54 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 break;
             }
           },
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'verify',
-              child: Row(
-                children: [
-                  Icon(
-                    user.isVerified ? Icons.verified : Icons.verified_outlined,
-                    color: user.isVerified ? Colors.grey : Colors.green,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(user.isVerified
-                      ? 'Hitelesites visszavonas'
-                      : 'Hitelesites'),
-                ],
+          itemBuilder: (context) {
+            final loc = context.read<LocalizationProvider>();
+            return [
+              PopupMenuItem(
+                value: 'verify',
+                child: Row(
+                  children: [
+                    Icon(
+                      user.isVerified
+                          ? Icons.verified
+                          : Icons.verified_outlined,
+                      color: user.isVerified ? Colors.grey : Colors.green,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(user.isVerified
+                        ? loc.tr('admin_revoke_verify')
+                        : loc.tr('admin_verify')),
+                  ],
+                ),
               ),
-            ),
-            PopupMenuItem(
-              value: 'activate',
-              child: Row(
-                children: [
-                  Icon(
-                    user.isActive ? Icons.block : Icons.check_circle,
-                    color: user.isActive ? Colors.orange : Colors.green,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(user.isActive ? 'Deaktivalas' : 'Aktivalas'),
-                ],
+              PopupMenuItem(
+                value: 'activate',
+                child: Row(
+                  children: [
+                    Icon(
+                      user.isActive ? Icons.block : Icons.check_circle,
+                      color: user.isActive ? Colors.orange : Colors.green,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(user.isActive
+                        ? loc.tr('admin_deactivate')
+                        : loc.tr('admin_activate')),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Torles', style: TextStyle(color: Colors.red)),
-                ],
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    const Icon(Icons.delete, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Text(loc.tr('common_delete'),
+                        style: const TextStyle(color: Colors.red)),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ];
+          },
         ),
         isThreeLine: true,
       ),
@@ -401,12 +430,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     UserRole selectedRole = UserRole.consumer;
     final formKey = GlobalKey<FormState>();
     bool isLoading = false;
+    final loc = context.read<LocalizationProvider>();
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Új felhasználó'),
+          title: Text(loc.tr('admin_new_user')),
           content: Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -416,9 +446,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   // Role selector
                   DropdownButtonFormField<UserRole>(
                     value: selectedRole,
-                    decoration: const InputDecoration(
-                      labelText: 'Szerepkör *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: loc.tr('admin_role'),
+                      border: const OutlineInputBorder(),
                     ),
                     items: UserRole.values.map((role) {
                       return DropdownMenuItem(
@@ -441,16 +471,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Felhasználónév *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: loc.tr('admin_username'),
+                      border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Kötelező mező';
+                        return loc.tr('admin_required_field');
                       }
                       if (value.length < 3) {
-                        return 'Legalább 3 karakter';
+                        return loc
+                            .tr('admin_min_chars')
+                            .replaceAll('{count}', '3');
                       }
                       return null;
                     },
@@ -458,17 +490,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: loc.tr('admin_email'),
+                      border: const OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Kötelező mező';
+                        return loc.tr('admin_required_field');
                       }
                       if (!value.contains('@')) {
-                        return 'Érvénytelen email cím';
+                        return loc.tr('admin_invalid_email');
                       }
                       return null;
                     },
@@ -476,17 +508,19 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: passwordController,
-                    decoration: const InputDecoration(
-                      labelText: 'Jelszó *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: loc.tr('admin_password'),
+                      border: const OutlineInputBorder(),
                     ),
                     obscureText: true,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Kötelező mező';
+                        return loc.tr('admin_required_field');
                       }
                       if (value.length < 6) {
-                        return 'Legalább 6 karakter';
+                        return loc
+                            .tr('admin_min_chars')
+                            .replaceAll('{count}', '6');
                       }
                       return null;
                     },
@@ -494,17 +528,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: firstNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Keresztnév',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: loc.tr('admin_first_name'),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: lastNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Vezetéknév',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: loc.tr('admin_last_name'),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   // Company name field - only shown for manufacturer role
@@ -512,14 +546,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: companyNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Cég neve *',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: loc.tr('admin_company_name'),
+                        border: const OutlineInputBorder(),
                       ),
                       validator: (value) {
                         if (selectedRole == UserRole.manufacturer &&
                             (value == null || value.isEmpty)) {
-                          return 'Kötelező mező gyártóknál';
+                          return loc.tr('admin_required_manufacturer');
                         }
                         return null;
                       },
@@ -532,7 +566,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Mégsem'),
+              child: Text(loc.tr('common_cancel')),
             ),
             ElevatedButton(
               onPressed: isLoading
@@ -562,8 +596,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(
-                                    '${usernameController.text} létrehozva'),
+                                content: Text(loc
+                                    .tr('admin_user_created')
+                                    .replaceAll(
+                                        '{name}', usernameController.text)),
                                 backgroundColor: Colors.green,
                               ),
                             );
@@ -574,7 +610,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(e.messageHu),
+                                content: Text(e.message),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -584,7 +620,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Hiba: $e'),
+                                content: Text('${loc.tr('common_error')}: $e'),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -598,7 +634,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Létrehozás'),
+                  : Text(loc.tr('common_create')),
             ),
           ],
         ),

@@ -36,6 +36,7 @@ class Plant {
     required this.currentMoisture,
     required this.currentTemperature,
     required this.currentLight,
+    required this.currentHumidity,
   });
 
   // Updated to handle nested device/sensor data from a real API
@@ -63,10 +64,12 @@ class Plant {
           : DateTime.now(),
       imageUrl:
           json['image_url'] ?? 'https://via.placeholder.com/150?text=Plant',
-      // Extract sensor data from the first associated device, if available
-      currentMoisture: _extractSensorValue(json, 'moisture').round(),
-      currentTemperature: _extractSensorValue(json, 'temperature'),
-      currentLight: _extractSensorValue(json, 'light').round(),
+      // Get sensor values directly from plant data, or extract from devices
+      currentMoisture: _getSensorValue(json, 'current_moisture', 'moisture'),
+      currentTemperature:
+          _getSensorValueDouble(json, 'current_temperature', 'temperature'),
+      currentLight: _getSensorValue(json, 'current_light', 'light'),
+      currentHumidity: _getSensorValue(json, 'current_humidity', 'humidity'),
     );
   }
   final String id;
@@ -85,6 +88,28 @@ class Plant {
   int currentMoisture;
   double currentTemperature;
   int currentLight;
+  int currentHumidity;
+
+  /// Get sensor value - first try direct field, then try nested device data
+  static int _getSensorValue(
+      Map<String, dynamic> json, String directField, String sensorType) {
+    // First try direct field from plant data
+    if (json[directField] != null) {
+      return (json[directField] as num).round();
+    }
+    // Fallback to extracting from nested device data
+    return _extractSensorValue(json, sensorType).round();
+  }
+
+  static double _getSensorValueDouble(
+      Map<String, dynamic> json, String directField, String sensorType) {
+    // First try direct field from plant data
+    if (json[directField] != null) {
+      return (json[directField] as num).toDouble();
+    }
+    // Fallback to extracting from nested device data
+    return _extractSensorValue(json, sensorType);
+  }
 
   static double _extractSensorValue(Map<String, dynamic> json, String type) {
     if (json['devices'] is List && (json['devices'] as List).isNotEmpty) {
@@ -127,6 +152,7 @@ class Plant {
         'current_moisture': currentMoisture,
         'current_temperature': currentTemperature,
         'current_light': currentLight,
+        'current_humidity': currentHumidity,
       };
 
   void updateMoisture(int newMoisture) {
@@ -139,6 +165,10 @@ class Plant {
 
   void updateLight(int newLight) {
     currentLight = newLight.clamp(0, 100);
+  }
+
+  void updateHumidity(int newHumidity) {
+    currentHumidity = newHumidity.clamp(0, 100);
   }
 
   Plant copyWith({
@@ -158,6 +188,7 @@ class Plant {
     int? currentMoisture,
     double? currentTemperature,
     int? currentLight,
+    int? currentHumidity,
   }) =>
       Plant(
         id: id ?? this.id,
@@ -176,5 +207,6 @@ class Plant {
         currentMoisture: currentMoisture ?? this.currentMoisture,
         currentTemperature: currentTemperature ?? this.currentTemperature,
         currentLight: currentLight ?? this.currentLight,
+        currentHumidity: currentHumidity ?? this.currentHumidity,
       );
 }

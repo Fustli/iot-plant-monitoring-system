@@ -39,12 +39,8 @@ class Plant(Base):
     location = Column(String(255))
     planting_date = Column(DateTime(timezone=True))
     is_healthy = Column(Boolean, default=True, nullable=False, index=True)
-    health_status = Column(String(50))
+    health_status = Column(String(100))  # CSV format: "brightness,humidity,temperature,moisture"
     notes = Column(Text)
-    # Current sensor readings (dummy values that devices will overwrite)
-    current_moisture = Column(Float, default=50.0)
-    current_temperature = Column(Float, default=22.0)
-    current_light = Column(Float, default=1000.0)
     last_watered = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), 

@@ -4,17 +4,17 @@ import '../models/plant_model.dart';
 import '../models/plant_type_model.dart';
 import '../models/sensor_model.dart';
 import '../services/plant_provider.dart';
-import '../services/alert_provider.dart';
+import '../services/auth_provider.dart';
+import '../services/plant_image_provider.dart';
 import '../services/localization_service.dart';
 import '../constants/app_colors.dart';
-import '../widgets/alert_banner.dart';
 
 class PlantDetailScreen extends StatefulWidget {
   const PlantDetailScreen({
-    Key? key,
+    super.key,
     required this.plantId,
     this.deviceId,
-  }) : super(key: key);
+  });
   final String plantId;
   final int? deviceId;
 
@@ -25,6 +25,8 @@ class PlantDetailScreen extends StatefulWidget {
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
   bool _isWatering = false;
   bool _isControllingLight = false;
+  bool _isControllingTemperature = false;
+  bool _isControllingHumidity = false;
   List<SensorReading> _sensorHistory = [];
   bool _isLoadingHistory = false;
 
@@ -66,8 +68,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     final plantProvider = context.read<PlantProvider>();
 
     final nameController = TextEditingController(text: plant.name);
-    final locationController =
-        TextEditingController(text: plant.location ?? '');
+    final locationController = TextEditingController(text: plant.location);
     final notesController = TextEditingController(text: plant.notes ?? '');
     bool isHealthy = plant.isHealthy;
     String healthStatus = plant.healthStatus.displayName;
@@ -123,12 +124,20 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                     labelText: localization.tr('plants_health_status'),
                     border: const OutlineInputBorder(),
                   ),
-                  items: ['Good', 'Needs attention', 'Critical']
-                      .map((status) => DropdownMenuItem(
-                            value: status,
-                            child: Text(status),
-                          ))
-                      .toList(),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'Good',
+                      child: Text(localization.tr('plant_health_good')),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Needs attention',
+                      child: Text(localization.tr('plant_health_attention')),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Critical',
+                      child: Text(localization.tr('plant_health_critical')),
+                    ),
+                  ],
                   onChanged: (value) {
                     setDialogState(() {
                       healthStatus = value ?? 'Good';
@@ -189,6 +198,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         body: Consumer<PlantProvider>(
           builder: (context, plantProvider, child) {
             final plant = plantProvider.getPlantById(widget.plantId);
+            final localization = context.watch<LocalizationProvider>();
 
             if (plant == null) {
               return const Scaffold(
@@ -220,18 +230,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                     background: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.network(
-                          plant.imageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                            color: AppColors.primary,
-                            child: const Icon(
-                              Icons.local_florist,
-                              size: 100,
-                              color: Colors.white,
-                            ),
-                          ),
+                        _PlantHeaderImage(
+                          plantName: plant.name,
+                          defaultImageUrl: plant.imageUrl,
                         ),
                         // Gradient overlay
                         Container(
@@ -259,44 +260,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Plant info card
-                        _buildPlantInfoCard(plant),
+                        _buildPlantInfoCard(plant, localization),
 
                         const SizedBox(height: 16),
-
-                        // Active alerts for this plant
-                        Consumer<AlertProvider>(
-                          builder: (context, alertProvider, child) {
-                            final plantAlerts = alertProvider
-                                .getAlertsForPlant(plant.id)
-                                .where((alert) => alert.status.name == 'active')
-                                .toList();
-
-                            if (plantAlerts.isNotEmpty) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Active Alerts',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ...plantAlerts.map((alert) => Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 8),
-                                        child: AlertBanner(alert: alert),
-                                      )),
-                                  const SizedBox(height: 16),
-                                ],
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
 
                         // Sensor readings
                         _buildSensorReadingsCard(plant),
@@ -325,7 +291,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         ),
       );
 
-  Widget _buildPlantInfoCard(Plant plant) => Card(
+  Widget _buildPlantInfoCard(Plant plant, LocalizationProvider loc) => Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -336,7 +302,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Icon(Icons.info_outline, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Plant Information',
+                    loc.tr('plant_info'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -344,16 +310,17 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ],
               ),
               const Divider(),
-              _buildInfoRow(Icons.location_on, 'Location', plant.location),
               _buildInfoRow(
-                  Icons.eco, 'Health Status', plant.healthStatus.displayName),
+                  Icons.location_on, loc.tr('plant_location'), plant.location),
+              _buildInfoRow(Icons.eco, loc.tr('plant_health_status'),
+                  plant.healthStatus.displayName),
               if (plant.lastWatered != null)
-                _buildInfoRow(Icons.water_drop, 'Last Watered',
+                _buildInfoRow(Icons.water_drop, loc.tr('plant_last_watered'),
                     _formatDateTime(plant.lastWatered!)),
-              _buildInfoRow(Icons.calendar_today, 'Planted',
+              _buildInfoRow(Icons.calendar_today, loc.tr('plant_planted_date'),
                   _formatDateTime(plant.plantingDate)),
               if (plant.notes != null && plant.notes!.isNotEmpty)
-                _buildInfoRow(Icons.note, 'Notes', plant.notes!),
+                _buildInfoRow(Icons.note, loc.tr('plant_notes'), plant.notes!),
             ],
           ),
         ),
@@ -390,7 +357,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Icon(Icons.sensors, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Current Readings',
+                    context
+                        .read<LocalizationProvider>()
+                        .tr('plant_current_readings'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -402,17 +371,21 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 children: [
                   Expanded(
                     child: _buildSensorGauge(
-                      'Soil Moisture',
+                      context
+                          .read<LocalizationProvider>()
+                          .tr('plant_soil_moisture'),
                       '${plant.currentMoisture}%',
                       plant.currentMoisture / 100,
                       AppColors.info,
                       Icons.water_drop,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _buildSensorGauge(
-                      'Temperature',
+                      context
+                          .read<LocalizationProvider>()
+                          .tr('plant_temperature'),
                       '${plant.currentTemperature.toStringAsFixed(1)}°C',
                       (plant.currentTemperature - 15) /
                           15, // Scale 15-30°C to 0-1
@@ -420,14 +393,26 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       Icons.thermostat,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _buildSensorGauge(
-                      'Light Level',
-                      '${plant.currentLight}%',
-                      plant.currentLight / 100,
+                      context
+                          .read<LocalizationProvider>()
+                          .tr('plant_light_level'),
+                      '${plant.currentLight.toStringAsFixed(0)} lux',
+                      (plant.currentLight / 10000).clamp(0.0, 1.0),
                       Colors.amber,
                       Icons.wb_sunny,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildSensorGauge(
+                      context.read<LocalizationProvider>().tr('plant_humidity'),
+                      '${plant.currentHumidity}%',
+                      plant.currentHumidity / 100,
+                      Colors.teal,
+                      Icons.water,
                     ),
                   ),
                 ],
@@ -485,7 +470,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Icon(Icons.control_camera, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Plant Controls',
+                    context.read<LocalizationProvider>().tr('plant_controls'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -505,14 +490,46 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.water_drop),
-                      label: Text(_isWatering ? 'Watering...' : 'Water Plant'),
+                      label: Text(_isWatering
+                          ? context
+                              .read<LocalizationProvider>()
+                              .tr('plant_watering')
+                          : context
+                              .read<LocalizationProvider>()
+                              .tr('plant_water_action')),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.info,
                         foregroundColor: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isControllingTemperature
+                          ? null
+                          : _handleAdjustTemperature,
+                      icon: _isControllingTemperature
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.thermostat),
+                      label: Text(_isControllingTemperature
+                          ? context
+                              .read<LocalizationProvider>()
+                              .tr('plant_adjusting')
+                          : context
+                              .read<LocalizationProvider>()
+                              .tr('plant_temp_action')),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade400,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed:
@@ -525,15 +542,60 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                             )
                           : const Icon(Icons.wb_sunny),
                       label: Text(_isControllingLight
-                          ? 'Adjusting...'
-                          : 'Adjust Light'),
+                          ? context
+                              .read<LocalizationProvider>()
+                              .tr('plant_adjusting')
+                          : context
+                              .read<LocalizationProvider>()
+                              .tr('plant_light_action')),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          _isControllingHumidity ? null : _handleAdjustHumidity,
+                      icon: _isControllingHumidity
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.water),
+                      label: Text(_isControllingHumidity
+                          ? context
+                              .read<LocalizationProvider>()
+                              .tr('plant_adjusting')
+                          : context
+                              .read<LocalizationProvider>()
+                              .tr('plant_humidity_action')),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              // Update Health Status button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showUpdateHealthStatusDialog(context),
+                  icon: const Icon(Icons.edit_note),
+                  label: Text(context
+                      .read<LocalizationProvider>()
+                      .tr('plant_update_health')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(color: AppColors.primary),
+                  ),
+                ),
               ),
             ],
           ),
@@ -588,10 +650,12 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   ),
                 )
               else
-                const Center(
+                Center(
                   child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Text('No sensor history available'),
+                    padding: const EdgeInsets.all(32),
+                    child: Text(context
+                        .read<LocalizationProvider>()
+                        .tr('plant_no_sensor_history')),
                   ),
                 ),
             ],
@@ -610,7 +674,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   Icon(Icons.spa, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Care Instructions',
+                    context
+                        .read<LocalizationProvider>()
+                        .tr('plant_care_instructions'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -618,14 +684,14 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              _buildCareInstruction(
-                  Icons.water_drop, 'Water when soil moisture drops below 30%'),
-              _buildCareInstruction(
-                  Icons.wb_sunny, 'Provide bright, indirect sunlight'),
-              _buildCareInstruction(
-                  Icons.thermostat, 'Maintain temperature between 18-26°C'),
-              _buildCareInstruction(
-                  Icons.eco, 'Monitor for pests and diseases regularly'),
+              _buildCareInstruction(Icons.water_drop,
+                  context.read<LocalizationProvider>().tr('plant_care_water')),
+              _buildCareInstruction(Icons.wb_sunny,
+                  context.read<LocalizationProvider>().tr('plant_care_light')),
+              _buildCareInstruction(Icons.thermostat,
+                  context.read<LocalizationProvider>().tr('plant_care_temp')),
+              _buildCareInstruction(Icons.eco,
+                  context.read<LocalizationProvider>().tr('plant_care_pests')),
             ],
           ),
         ),
@@ -651,10 +717,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       '${dateTime.day}/${dateTime.month}/${dateTime.year}';
 
   Future<void> _handleWaterPlant() async {
+    final localization = context.read<LocalizationProvider>();
     if (widget.deviceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No water pump device assigned to this plant'),
+        SnackBar(
+          content: Text(localization.tr('plant_no_water_pump')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -671,14 +738,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
           .waterPlant(widget.plantId, widget.deviceId!);
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Plant watered successfully!'),
+          SnackBar(
+            content: Text(localization.tr('plant_watered_success')),
             backgroundColor: AppColors.success,
           ),
         );
-
-        // Reload alerts in case watering resolved any
-        context.read<AlertProvider>().loadAlerts();
       }
     } finally {
       if (mounted) {
@@ -690,10 +754,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   }
 
   Future<void> _handleToggleLight() async {
+    final localization = context.read<LocalizationProvider>();
     if (widget.deviceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No light device assigned to this plant'),
+        SnackBar(
+          content: Text(localization.tr('plant_no_light_device')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -714,8 +779,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Light adjusted successfully!'),
+          SnackBar(
+            content: Text(localization.tr('plant_light_adjusted')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -727,5 +792,298 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         });
       }
     }
+  }
+
+  Future<void> _handleAdjustTemperature() async {
+    final localization = context.read<LocalizationProvider>();
+    if (widget.deviceId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(localization.tr('plant_no_temp_device')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isControllingTemperature = true;
+    });
+
+    try {
+      final success = await context.read<PlantProvider>().controlDevice(
+            widget.plantId,
+            widget.deviceId!,
+            'temperature',
+            22.0, // Set temperature to 22°C
+          );
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(localization.tr('plant_temp_adjusted')),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isControllingTemperature = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleAdjustHumidity() async {
+    final localization = context.read<LocalizationProvider>();
+    if (widget.deviceId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(localization.tr('plant_no_humidity_device')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isControllingHumidity = true;
+    });
+
+    try {
+      final success = await context.read<PlantProvider>().controlDevice(
+            widget.plantId,
+            widget.deviceId!,
+            'humidity',
+            60.0, // Set humidity to 60%
+          );
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(localization.tr('plant_humidity_adjusted')),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isControllingHumidity = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showUpdateHealthStatusDialog(BuildContext context) async {
+    final localization = context.read<LocalizationProvider>();
+    final plantProvider = context.read<PlantProvider>();
+    final plant = plantProvider.plants.firstWhere(
+      (p) => p.id == widget.plantId,
+      orElse: () => throw Exception('Plant not found'),
+    );
+
+    final moistureController =
+        TextEditingController(text: plant.currentMoisture.toString());
+    final temperatureController = TextEditingController(
+        text: plant.currentTemperature.toStringAsFixed(1));
+    final lightController =
+        TextEditingController(text: plant.currentLight.toString());
+    final humidityController =
+        TextEditingController(text: plant.currentHumidity.toString());
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(localization.tr('plant_update_health')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                localization.tr('plant_set_health_values'),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: moistureController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: '${localization.tr('plant_soil_moisture')} (%)',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.water_drop),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: temperatureController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: '${localization.tr('plant_temperature')} (°C)',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.thermostat),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: lightController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: '${localization.tr('plant_light_level')} (lux)',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.wb_sunny),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: humidityController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: '${localization.tr('plant_humidity')} (%)',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.water),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(localization.tr('common_cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(localization.tr('common_save')),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      try {
+        final healthStatus = [
+          int.tryParse(moistureController.text) ?? 0,
+          (double.tryParse(temperatureController.text) ?? 0).round(),
+          int.tryParse(lightController.text) ?? 0,
+          int.tryParse(humidityController.text) ?? 0,
+        ];
+
+        final apiClient = context.read<AuthProvider>().apiClient;
+        await apiClient.updatePlantHealthStatus(
+            int.parse(widget.plantId), healthStatus);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('plant_readings_updated')),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          // Reload plant data
+          await _loadPlantData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${localization.tr('common_error')}: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+}
+
+/// Widget that displays plant header image with Trefle API fallback
+class _PlantHeaderImage extends StatefulWidget {
+  const _PlantHeaderImage({
+    required this.plantName,
+    required this.defaultImageUrl,
+  });
+
+  final String plantName;
+  final String defaultImageUrl;
+
+  @override
+  State<_PlantHeaderImage> createState() => _PlantHeaderImageState();
+}
+
+class _PlantHeaderImageState extends State<_PlantHeaderImage> {
+  String? _trefleImageUrl;
+  bool _hasFetched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTrefleImage();
+  }
+
+  bool get _isPlaceholder {
+    return widget.defaultImageUrl.contains('placeholder') ||
+        widget.defaultImageUrl.contains('via.placeholder');
+  }
+
+  Future<void> _fetchTrefleImage() async {
+    if (!_isPlaceholder || _hasFetched) return;
+
+    _hasFetched = true;
+
+    final imageProvider = context.read<PlantImageProvider>();
+    if (!imageProvider.isConfigured) return;
+
+    final imageUrl = await imageProvider.fetchImageUrl(widget.plantName);
+    if (mounted && imageUrl != null) {
+      setState(() {
+        _trefleImageUrl = imageUrl;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = _trefleImageUrl ?? widget.defaultImageUrl;
+    final isPlaceholder = _isPlaceholder && _trefleImageUrl == null;
+
+    if (isPlaceholder) {
+      return Container(
+        color: AppColors.primary,
+        child: const Icon(
+          Icons.local_florist,
+          size: 100,
+          color: Colors.white,
+        ),
+      );
+    }
+
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: AppColors.primary.withValues(alpha: 0.8),
+          child: const Center(
+            child: CircularProgressIndicator(
+              color: Colors.white,
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: AppColors.primary,
+        child: const Icon(
+          Icons.local_florist,
+          size: 100,
+          color: Colors.white,
+        ),
+      ),
+    );
   }
 }

@@ -28,6 +28,9 @@ class AuthProvider with ChangeNotifier {
   String? get username => _authState.username;
   String? get accessToken => _authState.accessToken;
 
+  /// Expose API service for direct API calls
+  ApiService get apiClient => _apiService;
+
   // Role-based access helpers
   bool get isAdmin => currentRole?.isAdmin ?? false;
   bool get isConsumer => currentRole == UserRole.consumer;
@@ -101,6 +104,10 @@ class AuthProvider with ChangeNotifier {
 
       // Store credentials
       await _storeCredentials(tokenResponse, expiry);
+
+      // Set token in API service for authenticated requests
+      _apiService.setToken(tokenResponse.accessToken);
+      _apiService.setRole(tokenResponse.role);
 
       _authState = AuthState.authenticated(tokenResponse, expiry: expiry);
       notifyListeners();

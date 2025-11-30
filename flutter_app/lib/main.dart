@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'config/app_config.dart';
 import 'constants/app_colors.dart';
 import 'models/auth_models.dart';
 import 'screens/login_screen.dart';
@@ -11,8 +12,8 @@ import 'screens/admin_dashboard_screen.dart';
 import 'screens/history_screen.dart';
 import 'services/auth_provider.dart';
 import 'services/plant_provider.dart';
-import 'services/alert_provider.dart';
 import 'services/localization_service.dart';
+import 'services/plant_image_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -29,7 +30,8 @@ class MyApp extends StatelessWidget {
           // Auth provider should be second as other providers may depend on it
           ChangeNotifierProvider(create: (_) => AuthProvider()),
           ChangeNotifierProvider(create: (_) => PlantProvider()),
-          ChangeNotifierProvider(create: (_) => AlertProvider()),
+          // Plant image provider for Trefle API
+          ChangeNotifierProvider(create: (_) => PlantImageProvider()),
         ],
         child: Consumer<LocalizationProvider>(
           builder: (context, localization, child) => MaterialApp(
@@ -46,7 +48,7 @@ class MyApp extends StatelessWidget {
                 foregroundColor: AppColors.neutral0,
                 elevation: 0,
               ),
-              cardTheme: CardTheme(
+              cardTheme: CardThemeData(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -94,6 +96,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LocalizationProvider>().initialize();
       context.read<AuthProvider>().initialize();
+      // Initialize Trefle API for plant images
+      if (AppConfig.isTrefleEnabled) {
+        context.read<PlantImageProvider>().initialize(AppConfig.trefleApiToken);
+      }
     });
   }
 

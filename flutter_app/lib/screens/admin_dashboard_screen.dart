@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
+import '../widgets/animated_stats.dart';
+import '../widgets/shimmer_loading.dart';
 import 'admin_users_screen.dart';
 import 'admin_plant_catalog_screen.dart';
 
@@ -32,7 +34,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_getAppBarTitle(localization)),
-        backgroundColor: Colors.purple[700],
+        backgroundColor: AppColors.adminPrimary,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -61,7 +63,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: Colors.purple[700],
+        selectedItemColor: AppColors.adminPrimary,
         unselectedItemColor: Colors.grey,
         items: [
           BottomNavigationBarItem(
@@ -126,8 +128,70 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 // DASHBOARD VIEW
 // =============================================================================
 
-class _DashboardView extends StatelessWidget {
+class _DashboardView extends StatefulWidget {
   const _DashboardView();
+
+  @override
+  State<_DashboardView> createState() => _DashboardViewState();
+}
+
+class _DashboardViewState extends State<_DashboardView> {
+  int _usersCount = 0;
+  int _plantsCount = 0;
+  int _devicesCount = 0;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    // Schedule the load after the first frame to ensure context is available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadStats();
+    });
+  }
+
+  Future<void> _loadStats() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final apiClient = context.read<AuthProvider>().apiClient;
+      final status = await apiClient.getSystemStatus();
+
+      if (!mounted) return;
+
+      final stats = status['stats'] as Map<String, dynamic>?;
+
+      if (stats != null) {
+        setState(() {
+          _usersCount = stats['users_total'] ?? 0;
+          _plantsCount = stats['plants_count'] ?? 0;
+          _devicesCount = stats['devices_count'] ?? 0;
+          _isLoading = false;
+        });
+      } else {
+        // Fallback: count from lists
+        final users = status['users'] as List? ?? [];
+        setState(() {
+          _usersCount = users.length;
+          _plantsCount = (status['plants'] as List? ?? []).length;
+          _devicesCount = (status['devices'] as List? ?? []).length;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,48 +209,82 @@ class _DashboardView extends StatelessWidget {
             '${localization.tr('home_hello')}, $username!',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.purple[700],
+                  color: AppColors.adminPrimary,
                 ),
           ),
           const SizedBox(height: 24),
 
           // Stats cards
-          Row(
-            children: [
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.people,
-                  title: 'Users',
-                  value: '0',
-                  color: Colors.purple,
+          if (_isLoading)
+            Row(
+              children: const [
+                Expanded(child: ShimmerStatCard()),
+                SizedBox(width: 12),
+                Expanded(child: ShimmerStatCard()),
+                SizedBox(width: 12),
+                Expanded(child: ShimmerStatCard()),
+              ],
+            )
+          else if (_error != null)
+            Card(
+              color: Colors.red[50],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(
+                            '${localization.tr('admin_error_loading_stats')}: $_error')),
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: _loadStats,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.eco,
-                  title: 'Plant Species',
-                  value: '0',
-                  color: AppColors.success,
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: AnimatedStatCard(
+                    icon: Icons.people,
+                    title: localization.tr('admin_total_users'),
+                    value: _usersCount,
+                    color: AppColors.adminPrimary,
+                    animationDuration: const Duration(milliseconds: 1200),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.devices,
-                  title: 'Devices',
-                  value: '0',
-                  color: Colors.blue,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AnimatedStatCard(
+                    icon: Icons.eco,
+                    title: localization.tr('admin_total_plants'),
+                    value: _plantsCount,
+                    color: AppColors.success,
+                    animationDuration: const Duration(milliseconds: 1500),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AnimatedStatCard(
+                    icon: Icons.devices,
+                    title: localization.tr('admin_total_devices'),
+                    value: _devicesCount,
+                    color: AppColors.info,
+                    animationDuration: const Duration(milliseconds: 1800),
+                  ),
+                ),
+              ],
+            ),
 
           const SizedBox(height: 24),
 
           // Quick actions
           Text(
-            'Quick Actions',
+            localization.tr('admin_quick_actions'),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -196,18 +294,26 @@ class _DashboardView extends StatelessWidget {
           Card(
             child: ListTile(
               leading: CircleAvatar(
-                backgroundColor: Colors.purple.withOpacity(0.1),
-                child: const Icon(Icons.people, color: Colors.purple),
+                backgroundColor: AppColors.adminPrimary.withOpacity(0.1),
+                child: Icon(Icons.people, color: AppColors.adminPrimary),
               ),
               title: Text(localization.tr('admin_users')),
               subtitle: Text(localization.tr('admin_users_desc')),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const AdminUsersScreen(),
-                  ),
-                );
+                // Navigate to users tab (index 1)
+                final state = context
+                    .findAncestorStateOfType<_AdminDashboardScreenState>();
+                if (state != null) {
+                  state.setState(() {
+                    state._selectedIndex = 1;
+                  });
+                  state._pageController.animateToPage(
+                    1,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                }
               },
             ),
           ),
@@ -224,11 +330,19 @@ class _DashboardView extends StatelessWidget {
               subtitle: Text(localization.tr('admin_plant_catalog_desc')),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const AdminPlantCatalogScreen(),
-                  ),
-                );
+                // Navigate to plant catalog tab (index 2)
+                final state = context
+                    .findAncestorStateOfType<_AdminDashboardScreenState>();
+                if (state != null) {
+                  state.setState(() {
+                    state._selectedIndex = 2;
+                  });
+                  state._pageController.animateToPage(
+                    2,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                }
               },
             ),
           ),
@@ -238,8 +352,8 @@ class _DashboardView extends StatelessWidget {
           Card(
             child: ListTile(
               leading: CircleAvatar(
-                backgroundColor: Colors.blue.withOpacity(0.1),
-                child: const Icon(Icons.monitor_heart, color: Colors.blue),
+                backgroundColor: AppColors.info.withOpacity(0.1),
+                child: Icon(Icons.monitor_heart, color: AppColors.info),
               ),
               title: Text(localization.tr('admin_system')),
               subtitle: Text(localization.tr('admin_system_desc')),
@@ -248,11 +362,16 @@ class _DashboardView extends StatelessWidget {
                 // Navigate to system tab
                 final state = context
                     .findAncestorStateOfType<_AdminDashboardScreenState>();
-                state?._pageController.animateToPage(
-                  3,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
+                if (state != null) {
+                  state.setState(() {
+                    state._selectedIndex = 3;
+                  });
+                  state._pageController.animateToPage(
+                    3,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                }
               },
             ),
           ),
@@ -260,52 +379,6 @@ class _DashboardView extends StatelessWidget {
       ),
     );
   }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String title;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Card(
-        elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              CircleAvatar(
-                backgroundColor: color.withOpacity(0.1),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
 }
 
 // =============================================================================
@@ -360,7 +433,7 @@ class _SystemView extends StatelessWidget {
                     Icon(Icons.cloud, color: Colors.green[600], size: 28),
                     const SizedBox(width: 12),
                     Text(
-                      'Server Status',
+                      localization.tr('admin_server_status'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -370,7 +443,7 @@ class _SystemView extends StatelessWidget {
               ),
               const Divider(height: 1),
               ListTile(
-                title: const Text('API Server'),
+                title: Text(localization.tr('admin_api_server')),
                 subtitle: const Text('http://localhost:8000'),
                 trailing: Container(
                   padding:
@@ -379,9 +452,9 @@ class _SystemView extends StatelessWidget {
                     color: Colors.green.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Online',
-                    style: TextStyle(
+                  child: Text(
+                    localization.tr('admin_online'),
+                    style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w500,
                     ),
@@ -389,8 +462,8 @@ class _SystemView extends StatelessWidget {
                 ),
               ),
               ListTile(
-                title: const Text('Database'),
-                subtitle: const Text('PostgreSQL'),
+                title: Text(localization.tr('admin_database')),
+                subtitle: Text(localization.tr('admin_postgresql')),
                 trailing: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -398,9 +471,9 @@ class _SystemView extends StatelessWidget {
                     color: Colors.green.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Connected',
-                    style: TextStyle(
+                  child: Text(
+                    localization.tr('admin_connected'),
+                    style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w500,
                     ),
@@ -408,8 +481,8 @@ class _SystemView extends StatelessWidget {
                 ),
               ),
               ListTile(
-                title: const Text('MQTT Broker'),
-                subtitle: const Text('Hub Gateway'),
+                title: Text(localization.tr('admin_mqtt_broker')),
+                subtitle: Text(localization.tr('admin_hub_gateway')),
                 trailing: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -417,9 +490,9 @@ class _SystemView extends StatelessWidget {
                     color: Colors.grey.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Unknown',
-                    style: TextStyle(
+                  child: Text(
+                    localization.tr('admin_unknown'),
+                    style: const TextStyle(
                       color: Colors.grey,
                       fontWeight: FontWeight.w500,
                     ),
@@ -441,10 +514,10 @@ class _SystemView extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(Icons.memory, color: Colors.blue[600], size: 28),
+                    Icon(Icons.memory, color: AppColors.info, size: 28),
                     const SizedBox(width: 12),
                     Text(
-                      'Resource Usage',
+                      localization.tr('admin_resource_usage'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -454,15 +527,15 @@ class _SystemView extends StatelessWidget {
               ),
               const Divider(height: 1),
               ListTile(
-                title: const Text('CPU'),
+                title: Text(localization.tr('admin_cpu')),
                 trailing: const Text('--'),
               ),
               ListTile(
-                title: const Text('Memory'),
+                title: Text(localization.tr('admin_memory')),
                 trailing: const Text('--'),
               ),
               ListTile(
-                title: const Text('Storage'),
+                title: Text(localization.tr('admin_storage')),
                 trailing: const Text('--'),
               ),
             ],
@@ -476,8 +549,8 @@ class _SystemView extends StatelessWidget {
           child: Column(
             children: [
               ListTile(
-                leading: const Icon(Icons.refresh, color: Colors.blue),
-                title: const Text('Check System Status'),
+                leading: Icon(Icons.refresh, color: AppColors.info),
+                title: Text(localization.tr('admin_check_status')),
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(localization.tr('common_loading'))),
@@ -487,7 +560,7 @@ class _SystemView extends StatelessWidget {
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.download, color: Colors.green),
-                title: const Text('Export Data'),
+                title: Text(localization.tr('admin_export_data')),
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(localization.tr('common_loading'))),
@@ -525,7 +598,7 @@ class _SettingsView extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: Colors.purple[700],
+                  backgroundColor: AppColors.adminPrimary,
                   radius: 28,
                   child: const Icon(Icons.admin_panel_settings,
                       color: Colors.white, size: 28),
@@ -547,14 +620,14 @@ class _SettingsView extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.purple.withOpacity(0.2),
+                          color: AppColors.adminPrimary.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           localization.tr('admin'),
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.purple[700],
+                            color: AppColors.adminPrimary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -590,7 +663,7 @@ class _SettingsView extends StatelessWidget {
                       value ? AppLanguage.hu : AppLanguage.en,
                     );
                   },
-                  activeColor: Colors.purple[700],
+                  activeColor: AppColors.adminPrimary,
                 ),
               ],
             ),

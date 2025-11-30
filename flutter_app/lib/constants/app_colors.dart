@@ -6,6 +6,12 @@ class AppColors {
   static const Color primaryLight = Color(0xFF40916C);
   static const Color primaryDark = Color(0xFF1B4332);
 
+  // Role-specific colors
+  static const Color adminPrimary = Color(0xFF7B1FA2); // Purple 700
+  static const Color adminPrimaryLight = Color(0xFF9C27B0); // Purple 500
+  static const Color manufacturerPrimary = Color(0xFF1976D2); // Blue 700
+  static const Color manufacturerPrimaryLight = Color(0xFF2196F3); // Blue 500
+
   // Semantic colors
   static const Color success = Color(0xFF40916C);
   static const Color warning = Color(0xFFFFC107);
