@@ -864,10 +864,14 @@ async def update_user_profile(
     db.commit()
     db.refresh(current_user)
 
+    # ---- keep runtime domain objects in sync ----
     if current_user.role == "consumer":
-        system_state.get_consumer(current_user)
+        consumer = system_state.get_consumer(current_user)
+        consumer.username = current_user.username
+        consumer.email = current_user.email
     elif current_user.role == "manufacturer":
-        system_state.get_manufacturer(current_user)
+        manufacturer = system_state.get_manufacturer(current_user)
+        manufacturer.username = current_user.username
 
     return {
         "id": current_user.id,
@@ -878,6 +882,7 @@ async def update_user_profile(
         "last_name": current_user.last_name,
         "phone_number": current_user.phone_number,
     }
+
 
 
 @app.post("/api/user/change-password")
@@ -1262,6 +1267,7 @@ async def update_user(
 async def delete_manufacturer(
     manufacturer_id: int,
     current_admin: User = Depends(require_roles(["admin"])),
+    db: Session = Depends(get_db),
 ):
     """
     General:
@@ -1269,9 +1275,11 @@ async def delete_manufacturer(
 
     Parameters:
         manufacturer_id:
-            Identifier of the manufacturer to delete.
+            Identifier of the manufacturer profile to delete.
         current_admin:
             Authenticated admin user performing the deletion.
+        db:
+            Database session dependency.
 
     Returns:
         A dictionary with a detail message upon successful removal.
@@ -1279,19 +1287,25 @@ async def delete_manufacturer(
     Raises:
         HTTPException: If the manufacturer cannot be found.
     """
-    db_interface = DBInterface()
-    result = db_interface.remove_manufacturer(manufacturer_id)
-
-    if not result:
+    # Find manufacturer profile to get owning user_id
+    manufacturer = db.query(ManufacturerModel).get(manufacturer_id)
+    if not manufacturer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Manufacturer not found",
         )
 
-    # Keep in-memory state in sync
-    system_state.remove_manufacturer(manufacturer_id)
+    owner_user_id = manufacturer.user_id
+
+    # Delete manufacturer profile from DB
+    db.delete(manufacturer)
+    db.commit()
+
+    # Keep in-memory state in sync: remove manufacturer domain object by user_id
+    system_state.manufacturers.pop(owner_user_id, None)
 
     return {"detail": "Manufacturer removed"}
+
 
 
 @app.get("/api/admin/devices")
