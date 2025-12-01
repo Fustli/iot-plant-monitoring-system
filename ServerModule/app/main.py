@@ -566,6 +566,7 @@ class SystemState:
             (
                 device_id,
                 user_id,
+                hub_id,
                 plant_id,
                 device_type_id,
                 unique_identifier,
