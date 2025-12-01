@@ -216,7 +216,7 @@ class PlantProvider with ChangeNotifier {
     try {
       await _apiService.sendDeviceCommand(
         deviceId,
-        metric: 'water',
+        metric: 'moisture',
         delta: 1.0,
       );
 
@@ -260,11 +260,14 @@ class PlantProvider with ChangeNotifier {
         final plant = _plants[plantIndex];
 
         switch (metric) {
-          case 'light':
+          case 'brightness':
             plant.updateLight(value.round());
             break;
           case 'temperature':
             plant.updateTemperature(value);
+            break;
+          case 'humidity':
+            plant.updateHumidity(value);
             break;
         }
 
