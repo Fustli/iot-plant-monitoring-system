@@ -1,0 +1,10 @@
+{
+  "broker": "localhost",
+  "port": 1883,
+  "publish_topic": "telemetry",
+  "command_topic": "actuators/device1/set",
+  "device_id": "device1",
+  "interval": 30,
+  "sensors": {"temperature": 25.0, "moisture": 40},
+  "actuators": ["moisture", "light"]
+}
