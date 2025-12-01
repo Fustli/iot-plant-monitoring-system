@@ -1,11 +1,13 @@
 import os
 import logging
 import psycopg2
+import datetime
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from src.db.base import Base
+from src.db.base import Base, AlertSeverityEnum, AlertStatusEnum
+from src.db.alert_models import Alert
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -611,6 +613,36 @@ class DBInterface:
             WHERE id = %s
         """
         return self.execute_update(query, (is_active, device_id))
+    
+    def put_alert(
+        self,
+        user_id: int,
+        plant_id: int,
+        severity: AlertSeverityEnum,
+        status: AlertStatusEnum,
+        message: str,
+        triggered_metric: float,
+        threshold_value: float,
+    ):
+        session = get_session()
+        alert = Alert(
+            user_id=user_id,
+            plant_id=plant_id,
+            severity=severity,
+            status=status,
+            message=message,
+            triggered_metric=triggered_metric,
+            threshold_value=threshold_value,
+            triggered_at=datetime.datetime.utcnow(),
+            acknowledged_at=None,
+            resolved_at=None,
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow(),
+        )
+
+        session.add(alert)
+        session.commit()
+        return alert
 
 
 _db_interface = None

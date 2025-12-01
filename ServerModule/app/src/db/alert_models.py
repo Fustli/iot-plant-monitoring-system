@@ -16,7 +16,7 @@ class Alert(Base):
     severity = Column(Enum(AlertSeverityEnum), nullable=False)
     status = Column(Enum(AlertStatusEnum), default=AlertStatusEnum.ACTIVE, nullable=False, index=True)
     message = Column(Text, nullable=False)
-    triggered_value = Column(Float)
+    triggered_metric = Column(Text)
     threshold_value = Column(Float)
     triggered_at = Column(DateTime(timezone=True), nullable=False, index=True)
     acknowledged_at = Column(DateTime(timezone=True))
