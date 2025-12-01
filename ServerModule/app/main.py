@@ -2717,7 +2717,7 @@ async def get_alerts(
             "severity": a.severity.value,
             "status": a.status.value,
             "message": a.message,
-            "triggered_value": a.triggered_value,
+            "triggered_metric": a.triggered_metric,
             "threshold_value": a.threshold_value,
             "triggered_at": a.triggered_at,
         }
