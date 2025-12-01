@@ -4,6 +4,7 @@ from src.db.db_utils import DBInterface
 from src.textbook import Textbook, MetricMessages
 from src.logger import Logger
 from src.alert_sender import send_alert
+from src.hub_control import invoke_direct_method
 
 
 # The metrics and operations we support
@@ -78,14 +79,38 @@ class Device(ABC):
         self.is_active = False
 
     def _send_actuator_command(self, metric: str, delta: float) -> None:
-        """
-        TODO Placeholder for the real actuator command.
-        Intentionally *does not* talk to hardware yet.
-        """
-        self.logger.info(
-            f"Pretend sending actuator command: metric={metric} delta={delta} "
-            f"to device={self.unique_identifier}"
-        )
+        # choose a topic and payload (example)
+        topic = f"actuators/{self.unique_identifier}/set"
+        payload = {"metric": metric, "delta": delta}
+
+        # lookup DB to find hub + iothub info
+        db = DBInterface()
+        device = db.get_device(self.id)
+        if not device:
+            self.logger.error("Device DB record missing for id=%s", self.id)
+            return
+
+        hub_id = device.get("hub_id")
+        if not hub_id:
+            self.logger.error("Device %s not attached to a hub", self.id)
+            return
+
+        hub = db.get_hub(hub_id)
+        if not hub:
+            self.logger.error("Hub %s not found for device %s", hub_id, self.id)
+            return
+
+        iothub_conn = hub.get("iothub_connection_string")
+        iothub_dev_id = hub.get("iothub_device_id")
+        if not iothub_conn or not iothub_dev_id:
+            self.logger.error("Hub %s lacks IoT Hub credentials/device id", hub_id)
+            return
+
+        try:
+            resp = invoke_direct_method(iothub_conn, iothub_dev_id, topic, payload)
+            self.logger.info("Actuator command sent: %s -> %s", topic, resp)
+        except Exception as exc:
+            self.logger.exception("Failed to send actuator command for device %s: %s", self.id, exc)
 
     def _read_sensor_value(self, metric: str):
         """
