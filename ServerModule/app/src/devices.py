@@ -1,10 +1,11 @@
 from abc import ABC
 from types import MappingProxyType
 from src.db.db_utils import DBInterface
+from src.db.base import AlertStatusEnum, AlertSeverityEnum
 from src.textbook import Textbook, MetricMessages
 from src.logger import Logger
-from src.alert_sender import send_alert
 from src.hub_control import invoke_direct_method
+from src.alert_sender import send_alert_email
 
 
 # The metrics and operations we support
@@ -112,17 +113,6 @@ class Device(ABC):
         except Exception as exc:
             self.logger.exception("Failed to send actuator command for device %s: %s", self.id, exc)
 
-    def _read_sensor_value(self, metric: str):
-        """
-        TODO Placeholder for the real sensor read.
-        Intentionally *does not* talk to hardware yet.
-        """
-        self.logger.info(
-            f"Pretend reading sensor: metric={metric} from device={self.unique_identifier}"
-        )
-        return None
-
-
 
 class DeviceCollection:
     """The devices associated with one Plant object."""
@@ -144,6 +134,9 @@ class DeviceCollection:
         self.logger.error(f"Unable to find device: {unique_identifier}")
 
     def send_command(self, metric: str, delta: float, msg: str):
+        db_interface = DBInterface()
+        user_id = db_interface.get_plant_user_id_by_name(self.plant_name)
+        plant_id = db_interface.get_plant_id(self.plant_name)
         capability = f"{metric}:write"
         method_name = f"change_{metric}"
         metric_msgs: MetricMessages = getattr(Textbook, metric)
@@ -152,10 +145,38 @@ class DeviceCollection:
 
         if not actuators:
             self.logger.warning(metric_msgs.no_actuator)
-            send_alert(self.plant_name, metric, delta, msg, metric_msgs.no_actuator)
+            db_interface.put_alert(
+                user_id,
+                plant_id,
+                severity=AlertSeverityEnum.WARNING,
+                status=AlertStatusEnum.ACTIVE,
+                message=msg,
+                triggered_metric=metric,
+                threshold_value=delta,
+            )
+            db_interface.put_alert(
+                user_id,
+                plant_id,
+                severity=AlertSeverityEnum.WARNING,
+                status=AlertStatusEnum.ACTIVE,
+                message=metric_msgs.no_actuator,
+                triggered_metric=metric,
+                threshold_value=delta,
+            )
+            send_alert_email(self.plant_name, metric, delta, msg, metric_msgs.no_actuator)
             return
 
-        send_alert(self.plant_name, metric, delta, msg)
+        db_interface.put_alert(
+            user_id,
+            plant_id,
+            severity="WARNING",
+            status="UNRESOLVED",
+            message=msg,
+            triggered_metric=metric,
+            threshold_value=delta,
+        )
+
+        send_alert_email(self.plant_name, metric, delta, msg)
 
         delta_fragment = delta / len(actuators)
 

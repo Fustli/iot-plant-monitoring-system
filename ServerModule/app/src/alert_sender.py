@@ -3,7 +3,7 @@ import smtplib
 from email.message import EmailMessage
 from src.db.db_utils import DBInterface
 
-def send_alert(plant_name: str, metric: str, delta: float, msg: str, actuators_msg: str = ""):
+def send_alert_email(plant_name: str, metric: str, delta: float, msg: str, actuators_msg: str = ""):
     APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
     db_interface = DBInterface()
     user_id = db_interface.get_plant_user_id_by_name(plant_name)
