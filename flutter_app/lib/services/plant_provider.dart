@@ -267,7 +267,7 @@ class PlantProvider with ChangeNotifier {
             plant.updateTemperature(value);
             break;
           case 'humidity':
-            plant.updateHumidity(value);
+            plant.updateHumidity(value.round());
             break;
         }
 
