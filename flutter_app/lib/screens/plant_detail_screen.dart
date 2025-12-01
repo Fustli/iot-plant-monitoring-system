@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/plant_model.dart';
 import '../models/plant_type_model.dart';
 import '../models/sensor_model.dart';
+import '../models/device_model.dart';
 import '../services/plant_provider.dart';
 import '../services/auth_provider.dart';
 import '../services/plant_image_provider.dart';
@@ -277,7 +278,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               end: Alignment.bottomCenter,
                               colors: [
                                 Colors.transparent,
-                                Colors.black.withOpacity(0.7),
+                                Colors.black.withValues(alpha: 0.7),
                               ],
                             ),
                           ),
@@ -470,7 +471,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 child: CircularProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   strokeWidth: 8,
-                  backgroundColor: color.withOpacity(0.2),
+                  backgroundColor: color.withValues(alpha: 0.2),
                   valueColor: AlwaysStoppedAnimation<Color>(color),
                 ),
               ),
@@ -753,29 +754,64 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   Future<void> _handleWaterPlant() async {
     final localization = context.read<LocalizationProvider>();
-    if (widget.deviceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.tr('plant_no_water_pump')),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
+    
     setState(() {
       _isWatering = true;
     });
 
     try {
+      // Get the user's devices and device types
+      final apiClient = context.read<AuthProvider>().apiClient;
+      final devices = await apiClient.getMyDevices();
+      final deviceTypes = await apiClient.listAvailableDeviceTypes();
+      
+      // Enrich devices with device type information
+      for (var device in devices) {
+        final deviceTypeData = deviceTypes.firstWhere(
+          (dt) => dt['id'] == device.deviceTypeId,
+          orElse: () => <String, dynamic>{},
+        );
+        device = Device.fromJson({
+          ...device.toJson(),
+          'device_type': deviceTypeData,
+        });
+      }
+      
+      // Find a device with moisture write capability (actuator)
+      final moistureDevice = devices.where((device) {
+        final functions = device.deviceType?['supported_functions'] as String? ?? '';
+        return functions.contains('moisture:write') || functions.contains('moisture');
+      }).firstOrNull;
+      
+      if (moistureDevice == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('plant_no_water_pump')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+      
       final success = await context
           .read<PlantProvider>()
-          .waterPlant(widget.plantId, widget.deviceId!);
+          .waterPlant(widget.plantId, moistureDevice.id);
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(localization.tr('plant_watered_success')),
             backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${localization.tr('common_error')}: $e'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -790,25 +826,50 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   Future<void> _handleToggleLight() async {
     final localization = context.read<LocalizationProvider>();
-    if (widget.deviceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.tr('plant_no_light_device')),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
+    
     setState(() {
       _isControllingLight = true;
     });
 
     try {
+      // Get the user's devices and device types
+      final apiClient = context.read<AuthProvider>().apiClient;
+      final devices = await apiClient.getMyDevices();
+      final deviceTypes = await apiClient.listAvailableDeviceTypes();
+      
+      // Enrich devices with device type information
+      for (var device in devices) {
+        final deviceTypeData = deviceTypes.firstWhere(
+          (dt) => dt['id'] == device.deviceTypeId,
+          orElse: () => <String, dynamic>{},
+        );
+        device = Device.fromJson({
+          ...device.toJson(),
+          'device_type': deviceTypeData,
+        });
+      }
+      
+      final lightDevice = devices.where((device) {
+        final functions = device.deviceType?['supported_functions'] as String? ?? '';
+        return functions.contains('brightness:write') || functions.contains('light:write');
+      }).firstOrNull;
+      
+      if (lightDevice == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('plant_no_light_device')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
       final success = await context.read<PlantProvider>().controlDevice(
             widget.plantId,
-            widget.deviceId!,
-            'light',
+            lightDevice.id,
+            'brightness',
             80.0, // Increase light to 80%
           );
 
@@ -817,6 +878,15 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
           SnackBar(
             content: Text(localization.tr('plant_light_adjusted')),
             backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${localization.tr('common_error')}: $e'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -831,24 +901,49 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   Future<void> _handleAdjustTemperature() async {
     final localization = context.read<LocalizationProvider>();
-    if (widget.deviceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.tr('plant_no_temp_device')),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
+    
     setState(() {
       _isControllingTemperature = true;
     });
 
     try {
+      // Get the user's devices and device types
+      final apiClient = context.read<AuthProvider>().apiClient;
+      final devices = await apiClient.getMyDevices();
+      final deviceTypes = await apiClient.listAvailableDeviceTypes();
+      
+      // Enrich devices with device type information
+      for (var device in devices) {
+        final deviceTypeData = deviceTypes.firstWhere(
+          (dt) => dt['id'] == device.deviceTypeId,
+          orElse: () => <String, dynamic>{},
+        );
+        device = Device.fromJson({
+          ...device.toJson(),
+          'device_type': deviceTypeData,
+        });
+      }
+      
+      final tempDevice = devices.where((device) {
+        final functions = device.deviceType?['supported_functions'] as String? ?? '';
+        return functions.contains('temperature:write');
+      }).firstOrNull;
+      
+      if (tempDevice == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('plant_no_temp_device')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
       final success = await context.read<PlantProvider>().controlDevice(
             widget.plantId,
-            widget.deviceId!,
+            tempDevice.id,
             'temperature',
             22.0, // Set temperature to 22°C
           );
@@ -858,6 +953,15 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
           SnackBar(
             content: Text(localization.tr('plant_temp_adjusted')),
             backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${localization.tr('common_error')}: $e'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -872,24 +976,49 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   Future<void> _handleAdjustHumidity() async {
     final localization = context.read<LocalizationProvider>();
-    if (widget.deviceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.tr('plant_no_humidity_device')),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
+    
     setState(() {
       _isControllingHumidity = true;
     });
 
     try {
+      // Get the user's devices and device types
+      final apiClient = context.read<AuthProvider>().apiClient;
+      final devices = await apiClient.getMyDevices();
+      final deviceTypes = await apiClient.listAvailableDeviceTypes();
+      
+      // Enrich devices with device type information
+      for (var device in devices) {
+        final deviceTypeData = deviceTypes.firstWhere(
+          (dt) => dt['id'] == device.deviceTypeId,
+          orElse: () => <String, dynamic>{},
+        );
+        device = Device.fromJson({
+          ...device.toJson(),
+          'device_type': deviceTypeData,
+        });
+      }
+      
+      final humidityDevice = devices.where((device) {
+        final functions = device.deviceType?['supported_functions'] as String? ?? '';
+        return functions.contains('humidity:write');
+      }).firstOrNull;
+      
+      if (humidityDevice == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(localization.tr('plant_no_humidity_device')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
       final success = await context.read<PlantProvider>().controlDevice(
             widget.plantId,
-            widget.deviceId!,
+            humidityDevice.id,
             'humidity',
             60.0, // Set humidity to 60%
           );
@@ -899,6 +1028,15 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
           SnackBar(
             content: Text(localization.tr('plant_humidity_adjusted')),
             backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${localization.tr('common_error')}: $e'),
+            backgroundColor: AppColors.error,
           ),
         );
       }

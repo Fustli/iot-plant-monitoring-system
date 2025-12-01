@@ -14,6 +14,7 @@ class Device {
     this.rssi,
     required this.createdAt,
     required this.updatedAt,
+    this.deviceType,
   });
 
   factory Device.fromJson(Map<String, dynamic> json) {
@@ -36,6 +37,7 @@ class Device {
       rssi: json['rssi'],
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
+      deviceType: json['device_type'],
     );
   }
   final int id;
@@ -52,6 +54,7 @@ class Device {
   final int? rssi;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Map<String, dynamic>? deviceType;
 
   bool get isOnline {
     if (lastHeartbeat == null) return false;
