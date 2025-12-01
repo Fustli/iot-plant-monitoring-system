@@ -54,6 +54,7 @@ from src.logger import Logger
 from src.plants import Plant as PlantDomain
 from src.thread_manager import PlantThreadManager
 from src.users import Consumer, Manufacturer
+from src.hub_control import invoke_direct_method
 
 load_dotenv()
 
@@ -2218,7 +2219,7 @@ async def hub_activate(payload: dict = Body(...)):
 
 @app.post("/api/hub/commands")
 async def invoke_hub_method(
-    payload: 'HubCommandCreate',
+    payload: HubCommandCreate,
     current_user: User = Depends(require_roles(["consumer", "admin"])),
 ):
     """
@@ -2253,55 +2254,14 @@ async def invoke_hub_method(
     if not iothub_conn or not device_id:
         raise HTTPException(status_code=400, detail="Hub does not have IoT Hub credentials/device id configured")
 
-    # Parse connection string
-    # Expected formats:
-    #  - Service connection string: HostName=...;SharedAccessKeyName=...;SharedAccessKey=...
-    #  - Device connection string: HostName=...;DeviceId=...;SharedAccessKey=...
-    parts = dict([p.split("=", 1) for p in iothub_conn.split(";") if "=" in p])
-    host = parts.get("HostName")
-    sk_name = parts.get("SharedAccessKeyName")
-    sk = parts.get("SharedAccessKey")
-
-    if not host or not sk:
-        raise HTTPException(status_code=400, detail="Invalid IoT Hub connection string stored for hub")
-
-    if not sk_name:
-        # Device connection string cannot be used to invoke direct methods
-        raise HTTPException(status_code=400, detail="Stored connection string appears to be a device connection string; a service connection string with SharedAccessKeyName is required to invoke methods")
-
-    # Build SAS token for the resource: {host}/devices/{device_id}
-    import time, hmac, hashlib, base64, urllib.parse, requests
-
-    expiry = int(time.time()) + 60 * 5
-    resource = f"{host}/devices/{device_id}"
-    string_to_sign = urllib.parse.quote_plus(resource) + "\n" + str(expiry)
-    key = base64.b64decode(sk)
-    signature = base64.b64encode(hmac.new(key, string_to_sign.encode('utf-8'), hashlib.sha256).digest())
-    sas = f"SharedAccessSignature sr={urllib.parse.quote_plus(resource)}&sig={urllib.parse.quote_plus(signature.decode())}&se={expiry}&skn={urllib.parse.quote_plus(sk_name)}"
-
-    # Prepare direct method payload
+    # Use centralized helper to invoke IoT Hub direct method (SAS + REST call)
     method_topic = payload.topic
     method_payload = payload.payload
-    api_version = os.getenv("IOTHUB_API_VERSION", "2020-09-30")
-    url = f"https://{host}/twins/{urllib.parse.quote(device_id)}/methods?api-version={api_version}"
-    body = {
-        "topic": method_topic,
-        "responseTimeoutInSeconds": 30,
-        "payload": method_payload,
-    }
-
-    headers = {
-        "Authorization": sas,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-
     try:
-        resp = requests.post(url, json=body, headers=headers, timeout=10)
-        if resp.status_code >= 200 and resp.status_code < 300:
-            return {"detail": "Method invoked", "status_code": resp.status_code, "response": resp.json()}
-        else:
-            raise HTTPException(status_code=502, detail=f"Invocation failed: status={resp.status_code} body={resp.text}")
+        resp = invoke_direct_method(iothub_conn, device_id, method_topic, method_payload, response_timeout_seconds=30)
+        return {"detail": "Method invoked", "status_code": 200, "response": resp}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except HTTPException:
         raise
     except Exception as exc:
@@ -2580,15 +2540,6 @@ async def receive_device_anomaly(
     # Update device timestamps
     device.last_data_received = ts
     device.last_heartbeat = ts
-
-    # Optionally update plant health_status minimally (no metric specifics)
-    plant = db.query(PlantModel).get(device.plant_id) if device.plant_id else None
-    if plant:
-        try:
-            # Keep existing health_status unchanged; only refresh plant row
-            pass
-        except Exception:
-            pass
 
     db.commit()
     db.refresh(device)

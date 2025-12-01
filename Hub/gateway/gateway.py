@@ -216,66 +216,6 @@ def _init_mqtt_client(hub_id: str, cloud_client: CloudClient | None, topics: lis
     client.on_message = on_message
     return client
 
-
-def _start_http_server(client: mqtt.Client, listen_host: str, listen_port: int):
-    # HTTP server removed: gateway no longer exposes an HTTP API. Keep a no-op
-    # function so other code paths that may call it remain safe.
-    logger.debug("HTTP server support disabled in gateway (IoT Hub only)")
-    return None
-
-
-def _process_poll_response(resp, client: mqtt.Client):
-    """Process a poll response and publish any commands found."""
-    data = resp.json() if resp and getattr(resp, "status_code", None) == 200 else None
-    if not data:
-        return
-    commands = data if isinstance(data, list) else [data]
-    for cmd in commands:
-        topic = cmd.get("topic")
-        payload = cmd.get("payload")
-        if not topic or payload is None:
-            logger.warning("Invalid command from cloud: %s", cmd)
-            continue
-        out = payload if isinstance(payload, str) else json.dumps(payload)
-        client.publish(topic, out, qos=cmd.get("qos", 0), retain=cmd.get("retain", False))
-        logger.info("Published command to %s", topic)
-
-
-def _poller_loop(cloud_client: CloudClient, poll_path: str, poll_interval: int, client: mqtt.Client):
-    """Continuously poll the cloud for commands and publish them to MQTT.
-
-    This loop calls `cloud_client.get(poll_path)` every `poll_interval` seconds
-    and delegates any returned commands to `_process_poll_response` which
-    publishes them to the provided MQTT `client`.
-
-    Parameters:
-    - cloud_client: Configured CloudClient used to request commands.
-    - poll_path: Path or endpoint on the cloud to poll for commands.
-    - poll_interval: Number of seconds to wait between polls.
-    - client: MQTT client used to publish commands received from cloud.
-    """
-    logger.info("Starting cloud->MQTT poller path=%s interval=%s", poll_path, poll_interval)
-    while True:
-        try:
-            resp = cloud_client.get(poll_path)
-            _process_poll_response(resp, client)
-        except Exception:
-            logger.exception("Error polling commands from cloud")
-        time.sleep(poll_interval)
-
-
-def _start_http_and_register(client: mqtt.Client, cloud_client: CloudClient | None, listen_host: str, listen_port: int, advertised_url: str | None):
-    """Start HTTP server and, if possible, register callback URL with cloud.
-
-    If `advertised_url` is provided it will be posted to the cloud registration endpoint.
-    If not provided the function will try to construct a URL from `listen_host` and `listen_port` but
-    will log a warning that automatic discovery may not be reachable from cloud.
-    """
-    # Removed: registration/push model not used. Keep a no-op for compatibility.
-    logger.debug("_start_http_and_register is a no-op (IoT Hub only)")
-    return None
-
-
 def _run_loop(client: mqtt.Client):
     """Run the main loop until interrupted, then stop the client loop."""
     try:
