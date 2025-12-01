@@ -342,9 +342,8 @@ def run(
             return
 
         serial = cfg.get("hub_id")
-        # Optionally include IoT Hub device id/connection string if available from secrets
         iothub_device_id = _read_secret("DEVICE_ID", "device_id") or os.getenv("IOTHUB_DEVICE_ID")
-        iothub_connection_string = _read_secret("DEVICE_CONNECTION_STRING", "device_connection_string") or os.getenv("DEVICE_CONNECTION_STRING")
+        iothub_connection_string = _read_secret("METHOD_INVOCATION_CONNECTION_STRING", "method_invocation_connection_string") or os.getenv("METHOD_INVOCATION_CONNECTION_STRING")
 
         payload = {"serial": serial}
         if iothub_device_id:

@@ -21,11 +21,13 @@ services:
       - HUB_ID=test-hub-123456
       - HUB_SILENCE_SECONDS=300
       - CLOUD_ENDPOINT=https://iot-plant-monitoring-system-backend-g6grckeeg4ggfpdh.switzerlandnorth-01.azurewebsites.net
-      - MQTT_TOPICS=home/sensors/+,telemetry
+      - MQTT_TOPICS=telemetry
       - CLOUD_API_KEY_FILE=/run/secrets/hub_api_key
     secrets:
       - device_connection_string
+      - method_invocation_connection_string
       - hub_api_key
+      - device_id
     networks:
       - iot_net
 
@@ -35,5 +37,9 @@ networks:
 secrets:
   device_connection_string:
     file: ./secrets/device_connection_string
+  method_invocation_connection_string:
+    file: ./secrets/method_invocation_connection_string
   hub_api_key:
     file: ./secrets/hub_api_key
+  device_id:
+    file: ./secrets/device_id

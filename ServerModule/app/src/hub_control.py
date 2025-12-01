@@ -15,9 +15,15 @@ import hmac
 import time
 from typing import Any, Dict, Optional
 from urllib.parse import quote_plus, parse_qsl
+import time, requests, urllib.parse
+from fastapi import HTTPException
+from typing import Any, Dict
 
 import requests
 
+from src.logger import Logger
+
+logger = Logger(name="hub_control")
 
 def _parse_connection_string(conn: str) -> Dict[str, str]:
     parts = dict(parse_qsl(conn.replace(";", "&")))
@@ -39,71 +45,70 @@ def _create_sas_token(hostname: str, key_name: Optional[str], shared_key: str, e
     return token
 
 
-def invoke_direct_method(
-    iothub_connection_string: str,
-    target_device_id: str,
-    method_name: str,
-    payload: Any,
-    response_timeout_seconds: int = 30,
-    sas_ttl_seconds: int = 3600,
-    request_timeout: int = 30,
-) -> Dict[str, Any]:
-    """Invoke a direct method on a device via the IoT Hub service REST API.
-
-    Args:
-        iothub_connection_string: Service-style connection string for the IoT Hub
-            (e.g. "HostName=...;SharedAccessKeyName=...;SharedAccessKey=...").
-        target_device_id: The device (or hub) device id to invoke the method on.
-        method_name: The method name to invoke on the device client.
-        payload: JSON-serializable payload to send as the method payload.
-        response_timeout_seconds: How long IoT Hub should wait for device response.
-        sas_ttl_seconds: TTL for the generated SAS token.
-        request_timeout: timeout in seconds for the HTTP request.
-
-    Returns:
-        Parsed JSON response from IoT Hub containing the device response.
-
-    Raises:
-        Exception on non-2xx responses or network errors.
-    """
-    parsed = _parse_connection_string(iothub_connection_string)
-    hostname = parsed.get("HostName") or parsed.get("hostName")
-    key_name = parsed.get("SharedAccessKeyName") or parsed.get("sharedAccessKeyName")
-    shared_key = parsed.get("SharedAccessKey") or parsed.get("sharedaccesskey")
-
-    if not hostname or not shared_key:
-        raise ValueError("Invalid IoT Hub connection string; missing HostName or SharedAccessKey")
-
-    sas = _create_sas_token(hostname, key_name, shared_key, expiry_seconds=sas_ttl_seconds)
-
-    url = f"https://{hostname}/twins/{target_device_id}/methods?api-version=2020-09-30"
-
-    body = {
-        "methodName": method_name,
-        "responseTimeoutInSeconds": int(response_timeout_seconds),
-        "payload": payload,
-    }
-
-    headers = {
-        "Authorization": sas,
-        "Content-Type": "application/json",
-    }
-
-    resp = requests.post(url, json=body, headers=headers, timeout=request_timeout)
-    if not resp.ok:
-        raise Exception(f"Invoke direct method failed: {resp.status_code} {resp.text}")
-
-    return resp.json()
-import base64, hmac, hashlib, urllib.parse, time, requests
-from fastapi import HTTPException
-from typing import Any, Dict
+#def invoke_direct_method(
+#    iothub_connection_string: str,
+#    target_device_id: str,
+#    method_name: str,
+#    payload: Any,
+#    response_timeout_seconds: int = 30,
+#    sas_ttl_seconds: int = 3600,
+#    request_timeout: int = 30,
+#) -> Dict[str, Any]:
+#    """Invoke a direct method on a device via the IoT Hub service REST API.
+#
+#    Args:
+#        iothub_connection_string: Service-style connection string for the IoT Hub
+#            (e.g. "HostName=...;SharedAccessKeyName=...;SharedAccessKey=...").
+#        target_device_id: The device (or hub) device id to invoke the method on.
+#        method_name: The method name to invoke on the device client.
+#        payload: JSON-serializable payload to send as the method payload.
+#        response_timeout_seconds: How long IoT Hub should wait for device response.
+#        sas_ttl_seconds: TTL for the generated SAS token.
+#        request_timeout: timeout in seconds for the HTTP request.
+#
+#    Returns:
+#        Parsed JSON response from IoT Hub containing the device response.
+#
+#    Raises:
+#        Exception on non-2xx responses or network errors.
+#    """
+#    parsed = _parse_connection_string(iothub_connection_string)
+#    hostname = parsed.get("HostName") or parsed.get("hostName")
+#    key_name = parsed.get("SharedAccessKeyName") or parsed.get("sharedAccessKeyName")
+#    shared_key = parsed.get("SharedAccessKey") or parsed.get("sharedaccesskey")
+#
+#    if not hostname or not shared_key:
+#        raise ValueError("Invalid IoT Hub connection string; missing HostName or SharedAccessKey")
+#
+#    sas = _create_sas_token(hostname, key_name, shared_key, expiry_seconds=sas_ttl_seconds)
+#
+#    url = f"https://{hostname}/twins/{target_device_id}/methods?api-version=2020-09-30"
+#
+#    body = {
+#        "methodName": method_name,
+#        "responseTimeoutInSeconds": int(response_timeout_seconds),
+#        "payload": payload,
+#    }
+#
+#    headers = {
+#        "Authorization": sas,
+#        "Content-Type": "application/json",
+#    }
+#
+#    resp = requests.post(url, json=body, headers=headers, timeout=request_timeout)
+#    if not resp.ok:
+#        raise Exception(f"Invoke direct method failed: {resp.status_code} {resp.text}")
+#
+#    return resp.json()
 
 def invoke_direct_method(iothub_conn_str: str, target_device_id: str, method_topic: str, method_payload: Any, timeout=10) -> Dict:
     # parse connection string
-    parts = dict([p.split("=", 1) for p in iothub_conn_str.split(";") if "=" in p])
+    parts = dict(kv.split("=", 1) for kv in iothub_conn_str.split(";") if kv)
     host = parts.get("HostName")
     sk_name = parts.get("SharedAccessKeyName")
     sk = parts.get("SharedAccessKey")
+    logger.info(f"Invoking direct method on device {target_device_id} via IoT Hub {host} with connection string {iothub_conn_str}")
+    logger.info(f"HostName: {host}, SharedAccessKeyName: {sk_name}, SharedAccessKey: {sk is not None}")
     if not host or not sk:
         raise HTTPException(status_code=400, detail="Invalid IoT Hub connection string")
     if not sk_name:
@@ -118,10 +123,14 @@ def invoke_direct_method(iothub_conn_str: str, target_device_id: str, method_top
 
     api_version = "2020-09-30"
     url = f"https://{host}/twins/{urllib.parse.quote(target_device_id)}/methods?api-version={api_version}"
-    body = {
+    payload = {
         "topic": method_topic,
-        "responseTimeoutInSeconds": 30,
         "payload": method_payload,
+    }
+    body = {
+        "methodName": "execute",
+        "responseTimeoutInSeconds": int(timeout),
+        "payload": payload,
     }
     headers = {"Authorization": sas, "Content-Type": "application/json", "Accept": "application/json"}
     resp = requests.post(url, json=body, headers=headers, timeout=timeout)

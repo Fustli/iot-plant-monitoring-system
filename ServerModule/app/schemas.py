@@ -141,7 +141,7 @@ class ResetPasswordRequest(BaseModel):
 
 class DeviceData(BaseModel):
     unique_id: str
-    data_type: str
+    data_type: str #moisture, temperature, brightness, humidity
     data: float
     data_unit: str
     

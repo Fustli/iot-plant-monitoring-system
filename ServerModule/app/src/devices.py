@@ -88,30 +88,31 @@ class Device(ABC):
         db = DBInterface()
         device = db.get_device_by_id(self.id)
         if not device:
-            self.logger.error("Device DB record missing for id=%s", self.id)
+            self.logger.error(f"Device DB record missing for id={self.id}")
             return
 
         hub_id = device.get("hub_id")
         if not hub_id:
-            self.logger.error("Device %s not attached to a hub", self.id)
+            self.logger.error(f"Device {self.id} not attached to a hub")
             return
 
         hub = db.get_hub(hub_id)
         if not hub:
-            self.logger.error("Hub %s not found for device %s", hub_id, self.id)
+            self.logger.error(f"Hub {hub_id} not found for device {self.id}")
             return
 
         iothub_conn = hub.get("iothub_connection_string")
         iothub_dev_id = hub.get("iothub_device_id")
         if not iothub_conn or not iothub_dev_id:
-            self.logger.error("Hub %s lacks IoT Hub credentials/device id", hub_id)
+            self.logger.info(f"iothub_conn: {iothub_conn}, iothub_dev_id: {iothub_dev_id}")
+            self.logger.error(f"Hub {hub_id} lacks IoT Hub credentials/device id")
             return
 
         try:
             resp = invoke_direct_method(iothub_conn, iothub_dev_id, topic, payload)
-            self.logger.info("Actuator command sent: %s -> %s", topic, resp)
+            self.logger.info(f"Actuator command sent: {topic} -> {resp}")
         except Exception as exc:
-            self.logger.exception("Failed to send actuator command for device %s: %s", self.id, exc)
+            self.logger.error(f"Failed to send actuator command for device {self.id}: {exc}")
 
 
 class DeviceCollection:
