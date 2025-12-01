@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/app_colors.dart';
@@ -1367,10 +1369,85 @@ class _SystemViewState extends State<_SystemView> {
               manufacturers,
               (manufacturer) => _buildManufacturerDebugCard(manufacturer),
             ),
+            const SizedBox(height: 24),
+
+            // Raw JSON Data Section
+            Card(
+              color: Colors.grey[900],
+              child: ExpansionTile(
+                leading: const Icon(Icons.code, color: Colors.white),
+                title: const Text(
+                  'Raw API Response (JSON)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                iconColor: Colors.white,
+                collapsedIconColor: Colors.white,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    color: Colors.black,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SelectableText(
+                        _formatJson(_systemStatus!),
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          color: Colors.greenAccent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final jsonString = _formatJson(_systemStatus!);
+                            await Clipboard.setData(ClipboardData(text: jsonString));
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('JSON copied to clipboard!'),
+                                  backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.copy),
+                          label: const Text('Copy JSON'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
+  }
+
+  String _formatJson(Map<String, dynamic> json) {
+    try {
+      const encoder = JsonEncoder.withIndent('  ');
+      return encoder.convert(json);
+    } catch (e) {
+      return json.toString();
+    }
   }
 
   Widget _buildDebugSection(
