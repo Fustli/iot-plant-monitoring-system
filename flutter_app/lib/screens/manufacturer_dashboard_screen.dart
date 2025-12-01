@@ -6,6 +6,7 @@ import '../services/auth_provider.dart';
 import '../services/localization_service.dart';
 import '../services/api_client.dart';
 import '../services/api_exceptions.dart';
+import '../widgets/empty_state.dart';
 
 /// Manufacturer dashboard for device type management
 class ManufacturerDashboardScreen extends StatefulWidget {
@@ -342,28 +343,17 @@ class _DeviceTypesViewState extends State<_DeviceTypesView> {
     }
 
     if (_deviceTypes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.category, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(localization.tr('manufacturer_no_device_types')),
-            const SizedBox(height: 8),
-            Text(
-              localization.tr('manufacturer_add_first'),
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => _showAddDeviceTypeDialog(context, localization),
-              icon: const Icon(Icons.add),
-              label: Text(localization.tr('common_add')),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.manufacturerPrimary,
-              ),
-            ),
-          ],
+      return EmptyStateWidget(
+        type: EmptyStateType.noData,
+        title: localization.tr('manufacturer_no_device_types'),
+        subtitle: localization.tr('manufacturer_add_first'),
+        action: ElevatedButton.icon(
+          onPressed: () => _showAddDeviceTypeDialog(context, localization),
+          icon: const Icon(Icons.add),
+          label: Text(localization.tr('common_add')),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.manufacturerPrimary,
+          ),
         ),
       );
     }

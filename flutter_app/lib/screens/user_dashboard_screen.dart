@@ -1000,43 +1000,85 @@ class _DevicesViewState extends State<_DevicesView> {
     final nameController = TextEditingController(text: device.deviceName);
     final locationController =
         TextEditingController(text: device.locationDescription ?? '');
+    Hub? selectedHub = _hubs.cast<Hub?>().firstWhere(
+      (hub) => hub?.id == device.hubId,
+      orElse: () => null,
+    );
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(localization.tr('devices_edit')),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText: localization.tr('devices_name'),
-                  border: const OutlineInputBorder(),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(localization.tr('devices_edit')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('devices_name'),
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: locationController,
-                decoration: InputDecoration(
-                  labelText: localization.tr('devices_location'),
-                  border: const OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: locationController,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('devices_location'),
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                DropdownButtonFormField<Hub?>(
+                  value: selectedHub,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('devices_select_hub'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  isExpanded: true,
+                  items: [
+                    DropdownMenuItem<Hub?>(
+                      value: null,
+                      child: Text(localization.tr('devices_no_hub')),
+                    ),
+                    ..._hubs.map((hub) {
+                      return DropdownMenuItem<Hub?>(
+                        value: hub,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.router,
+                              size: 16,
+                              color: hub.isOnline ? Colors.green : Colors.grey,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(hub.displayName)),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedHub = value;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(localization.tr('common_cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(localization.tr('common_save')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(localization.tr('common_cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(localization.tr('common_save')),
-          ),
-        ],
       ),
     );
 
@@ -1049,6 +1091,7 @@ class _DevicesViewState extends State<_DevicesView> {
           'location_description': locationController.text.isNotEmpty
               ? locationController.text
               : null,
+          'hub_id': selectedHub?.id,
         });
 
         if (mounted) {
@@ -1104,7 +1147,7 @@ class _DevicesViewState extends State<_DevicesView> {
 
     if (_devices.isEmpty) {
       return EmptyStateWidget(
-        type: EmptyStateType.emptyBox,
+        type: EmptyStateType.noData,
         title: localization.tr('devices_empty'),
         subtitle: localization.tr('devices_add_first'),
         action: ElevatedButton.icon(
@@ -1144,7 +1187,12 @@ class _DevicesViewState extends State<_DevicesView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                          '${localization.tr('user_hub_id')}: ${device.uniqueIdentifier}'),
+                          '${localization.tr('devices_id')}: ${device.uniqueIdentifier}'),
+                      if (device.hubId != null)
+                        Text(
+                            '${localization.tr('devices_hub')}: ${_hubs.firstWhere((h) => h.id == device.hubId, orElse: () => Hub(id: 0, serial: 'Unknown', userId: null, isActive: false, createdAt: DateTime.now(), updatedAt: DateTime.now())).serial}')
+                      else
+                        Text('${localization.tr('devices_hub')}: ${localization.tr('devices_no_hub')}'),
                       const SizedBox(height: 4),
                       Row(
                         children: [
@@ -1222,21 +1270,291 @@ class _DevicesViewState extends State<_DevicesView> {
 }
 
 // =============================================================================
-// ALERTS VIEW (Placeholder - Feature coming soon)
+// ALERTS VIEW
 // =============================================================================
 
-class _AlertsView extends StatelessWidget {
+class _AlertsView extends StatefulWidget {
   const _AlertsView();
+
+  @override
+  State<_AlertsView> createState() => _AlertsViewState();
+}
+
+class _AlertsViewState extends State<_AlertsView> {
+  List<Map<String, dynamic>> _alerts = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAlerts();
+  }
+
+  Future<void> _loadAlerts() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // TODO: Implement alerts API endpoint
+      // For now, use dummy data
+      await Future.delayed(const Duration(milliseconds: 500));
+      setState(() {
+        _alerts = _generateDummyAlerts();
+      });
+    } catch (e) {
+      setState(() {
+        _alerts = _generateDummyAlerts();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> _generateDummyAlerts() {
+    final now = DateTime.now();
+    return [
+      {
+        'id': '1',
+        'title': 'Low Moisture Alert',
+        'message': 'Your Monstera needs watering soon',
+        'severity': 'warning',
+        'status': 'active',
+        'triggered_at': now.subtract(const Duration(hours: 2)).toIso8601String(),
+        'plant_id': '1',
+      },
+      {
+        'id': '2',
+        'title': 'Critical Temperature',
+        'message': 'Orchid experiencing high temperature',
+        'severity': 'critical',
+        'status': 'active',
+        'triggered_at': now.subtract(const Duration(minutes: 30)).toIso8601String(),
+        'plant_id': '2',
+      },
+      {
+        'id': '3',
+        'title': 'Light Level Normal',
+        'message': 'Succulent light levels returned to normal',
+        'severity': 'info',
+        'status': 'resolved',
+        'triggered_at': now.subtract(const Duration(days: 1)).toIso8601String(),
+        'resolved_at': now.subtract(const Duration(hours: 12)).toIso8601String(),
+        'plant_id': '3',
+      },
+    ];
+  }
+
+  Color _getSeverityColor(String severity) {
+    switch (severity.toLowerCase()) {
+      case 'critical':
+        return AppColors.error;
+      case 'warning':
+        return AppColors.warning;
+      case 'info':
+      default:
+        return AppColors.info;
+    }
+  }
+
+  IconData _getSeverityIcon(String severity) {
+    switch (severity.toLowerCase()) {
+      case 'critical':
+        return Icons.error;
+      case 'warning':
+        return Icons.warning_amber;
+      case 'info':
+      default:
+        return Icons.info;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
-    return EmptyStateWidget(
-      type: EmptyStateType.success,
-      title: localization.tr('alerts_none'),
-      subtitle: localization.tr('home_no_alerts'),
-      repeat: false,
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadAlerts,
+              child: Text(localization.tr('common_retry')),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final activeAlerts = _alerts.where((a) => a['status'] != 'resolved').toList();
+    final resolvedAlerts = _alerts.where((a) => a['status'] == 'resolved').toList();
+
+    if (_alerts.isEmpty) {
+      return EmptyStateWidget(
+        type: EmptyStateType.success,
+        title: localization.tr('alerts_none'),
+        subtitle: localization.tr('home_no_alerts'),
+        repeat: false,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadAlerts,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (activeAlerts.isNotEmpty) ...[
+            Text(
+              localization.tr('alerts_active'),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            ...activeAlerts.map((alert) => _buildAlertCard(alert, context)),
+          ],
+          if (resolvedAlerts.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Text(
+              localization.tr('alerts_resolved'),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            ...resolvedAlerts.map((alert) => _buildAlertCard(alert, context)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlertCard(Map<String, dynamic> alert, BuildContext context) {
+    final severity = alert['severity'] as String? ?? 'info';
+    final status = alert['status'] as String? ?? 'active';
+    final color = _getSeverityColor(severity);
+    final icon = _getSeverityIcon(severity);
+    final isResolved = status == 'resolved';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: isResolved ? 1 : 3,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withOpacity(0.2),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(
+          alert['title'] as String? ?? 'Alert',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            decoration: isResolved ? TextDecoration.lineThrough : null,
+            color: isResolved ? Colors.grey : null,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(alert['message'] as String? ?? ''),
+            const SizedBox(height: 4),
+            Text(
+              _formatTimestamp(alert['triggered_at'] as String?),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        trailing: isResolved
+            ? const Icon(Icons.check_circle, color: Colors.green)
+            : PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'acknowledge') {
+                    _acknowledgeAlert(alert['id'] as String);
+                  } else if (value == 'resolve') {
+                    _resolveAlert(alert['id'] as String);
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'acknowledge',
+                    child: Row(
+                      children: [
+                        Icon(Icons.check, size: 20),
+                        SizedBox(width: 8),
+                        Text('Acknowledge'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'resolve',
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, size: 20),
+                        SizedBox(width: 8),
+                        Text('Resolve'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+        isThreeLine: true,
+      ),
+    );
+  }
+
+  String _formatTimestamp(String? timestamp) {
+    if (timestamp == null) return 'Unknown time';
+    try {
+      final dt = DateTime.parse(timestamp);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+
+      if (diff.inMinutes < 60) {
+        return '${diff.inMinutes}m ago';
+      } else if (diff.inHours < 24) {
+        return '${diff.inHours}h ago';
+      } else {
+        return '${diff.inDays}d ago';
+      }
+    } catch (e) {
+      return 'Unknown time';
+    }
+  }
+
+  Future<void> _acknowledgeAlert(String alertId) async {
+    // TODO: Implement acknowledge via API
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Alert acknowledged')),
+    );
+  }
+
+  Future<void> _resolveAlert(String alertId) async {
+    // TODO: Implement resolve via API
+    setState(() {
+      final index = _alerts.indexWhere((a) => a['id'] == alertId);
+      if (index != -1) {
+        _alerts[index]['status'] = 'resolved';
+        _alerts[index]['resolved_at'] = DateTime.now().toIso8601String();
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Alert resolved')),
     );
   }
 }

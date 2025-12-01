@@ -1,6 +1,6 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
-export "FLUTTER_ROOT=/opt/flutter"
+export "FLUTTER_ROOT=/home/fustli/flutter"
 export "FLUTTER_APPLICATION_PATH=/home/fustli/Documents/Uni/iot-plant-monitoring-system/flutter_app"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_TARGET=lib/main.dart"

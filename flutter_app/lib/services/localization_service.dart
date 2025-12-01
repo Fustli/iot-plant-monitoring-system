@@ -233,6 +233,7 @@ class LocalizationProvider with ChangeNotifier {
 
     // Alerts
     'alerts_title': 'My Alerts',
+    'alerts_active': 'Active Alerts',
     'alerts_acknowledged': 'Acknowledged',
     'alerts_resolved': 'Resolved',
     'alerts_none': 'No alerts',
@@ -722,6 +723,7 @@ class LocalizationProvider with ChangeNotifier {
 
     // Alerts
     'alerts_title': 'Riasztásaim',
+    'alerts_active': 'Aktív Riasztások',
     'alerts_acknowledged': 'Tudomásul Véve',
     'alerts_resolved': 'Megoldva',
     'alerts_none': 'Nincsenek riasztások',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -425,11 +426,27 @@ class _SystemViewState extends State<_SystemView> {
   final ApiService _apiService = ApiService();
   List<Hub> _hubs = [];
   bool _isLoadingHubs = false;
+  Map<String, dynamic>? _systemStatus;
+  bool _isLoadingStatus = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadHubs();
+    _loadSystemStatus();
+    // Auto-refresh system status every 10 seconds
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) {
+        _loadSystemStatus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadHubs() async {
@@ -441,6 +458,24 @@ class _SystemViewState extends State<_SystemView> {
       // Silently handle - admin may not have hubs
     } finally {
       setState(() => _isLoadingHubs = false);
+    }
+  }
+
+  Future<void> _loadSystemStatus() async {
+    if (!mounted) return;
+    setState(() => _isLoadingStatus = true);
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final status = await authProvider.apiClient.getSystemStatus();
+      if (mounted) {
+        setState(() => _systemStatus = status);
+      }
+    } catch (e) {
+      // Handle error silently
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingStatus = false);
+      }
     }
   }
 
@@ -606,94 +641,304 @@ class _SystemViewState extends State<_SystemView> {
     }
   }
 
+  Widget _buildSystemHealthCard(BuildContext context, LocalizationProvider localization) {
+    final appStatus = _systemStatus?['application'] as String? ?? 'unknown';
+    final dbStatus = _systemStatus?['database'] as String? ?? 'unknown';
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.favorite, color: Colors.red[400], size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  'System Health',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildHealthIndicator(
+                    context,
+                    'Application',
+                    appStatus,
+                    Icons.cloud,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildHealthIndicator(
+                    context,
+                    'Database',
+                    dbStatus,
+                    Icons.storage,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthIndicator(BuildContext context, String label, String status, IconData icon) {
+    final isHealthy = status == 'ok' || status == 'running' || status == 'connected' || status == 'healthy';
+    final color = isHealthy ? Colors.green : (status == 'error' ? Colors.red : Colors.grey);
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 32),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            status.toUpperCase(),
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatisticsCard(BuildContext context, LocalizationProvider localization) {
+    final stats = _systemStatus?['stats'] as Map<String, dynamic>?;
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.analytics, color: AppColors.info, size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  'System Statistics',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildStatChip(
+                  context,
+                  'Users',
+                  stats?['users_total']?.toString() ?? '0',
+                  Icons.people,
+                  Colors.blue,
+                ),
+                _buildStatChip(
+                  context,
+                  'Consumers',
+                  stats?['consumers_count']?.toString() ?? '0',
+                  Icons.person,
+                  Colors.green,
+                ),
+                _buildStatChip(
+                  context,
+                  'Manufacturers',
+                  stats?['manufacturers_count']?.toString() ?? '0',
+                  Icons.factory,
+                  Colors.orange,
+                ),
+                _buildStatChip(
+                  context,
+                  'Admins',
+                  stats?['admins_count']?.toString() ?? '0',
+                  Icons.admin_panel_settings,
+                  Colors.red,
+                ),
+                _buildStatChip(
+                  context,
+                  'Plants',
+                  stats?['plants_count']?.toString() ?? '0',
+                  Icons.eco,
+                  Colors.lightGreen,
+                ),
+                _buildStatChip(
+                  context,
+                  'Devices',
+                  stats?['devices_count']?.toString() ?? '0',
+                  Icons.devices,
+                  Colors.purple,
+                ),
+                _buildStatChip(
+                  context,
+                  'Device Types',
+                  stats?['device_types_count']?.toString() ?? '0',
+                  Icons.category,
+                  Colors.teal,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatChip(BuildContext context, String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status, LocalizationProvider localization) {
+    Color color;
+    String text;
+    
+    switch (status.toLowerCase()) {
+      case 'ok':
+      case 'running':
+      case 'connected':
+      case 'healthy':
+        color = Colors.green;
+        text = localization.tr('admin_online');
+        break;
+      case 'error':
+      case 'failed':
+        color = Colors.red;
+        text = 'Error';
+        break;
+      default:
+        color = Colors.grey;
+        text = localization.tr('admin_unknown');
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w500,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Server Status
-        Card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(Icons.cloud, color: Colors.green[600], size: 28),
-                    const SizedBox(width: 12),
-                    Text(
-                      localization.tr('admin_server_status'),
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                title: Text(localization.tr('admin_api_server')),
-                subtitle: const Text('http://localhost:8000'),
-                trailing: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    localization.tr('admin_online'),
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w500,
-                    ),
+    return RefreshIndicator(
+      onRefresh: _loadSystemStatus,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // System Health Overview
+          if (_systemStatus != null) ...[
+            _buildSystemHealthCard(context, localization),
+            const SizedBox(height: 16),
+            _buildStatisticsCard(context, localization),
+            const SizedBox(height: 16),
+          ],
+
+          // Server Status
+          Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(Icons.cloud, color: Colors.green[600], size: 28),
+                      const SizedBox(width: 12),
+                      Text(
+                        localization.tr('admin_server_status'),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              ListTile(
-                title: Text(localization.tr('admin_database')),
-                subtitle: Text(localization.tr('admin_postgresql')),
-                trailing: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    localization.tr('admin_connected'),
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w500,
-                    ),
+                const Divider(height: 1),
+                ListTile(
+                  title: Text(localization.tr('admin_api_server')),
+                  subtitle: const Text('http://localhost:8000'),
+                  trailing: _buildStatusBadge(
+                    _systemStatus != null ? (_systemStatus!['application'] as String? ?? 'unknown') : 'unknown',
+                    localization,
                   ),
                 ),
-              ),
-              ListTile(
-                title: Text(localization.tr('admin_mqtt_broker')),
-                subtitle: Text(localization.tr('admin_hub_gateway')),
-                trailing: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    localization.tr('admin_unknown'),
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
+                const Divider(height: 1),
+                ListTile(
+                  title: Text(localization.tr('admin_database')),
+                  subtitle: Text(localization.tr('admin_postgresql')),
+                  trailing: _buildStatusBadge(
+                    _systemStatus != null ? (_systemStatus!['database'] as String? ?? 'unknown') : 'unknown',
+                    localization,
                   ),
                 ),
-              ),
-            ],
+                const Divider(height: 1),
+                ListTile(
+                  title: Text(localization.tr('admin_mqtt_broker')),
+                  subtitle: Text(localization.tr('admin_hub_gateway')),
+                  trailing: _buildStatusBadge('unknown', localization),
+                ),
+              ],
+            ),
           ),
-        ),
 
         const SizedBox(height: 16),
 
@@ -886,6 +1131,7 @@ class _SystemViewState extends State<_SystemView> {
           ),
         ),
       ],
+      ),
     );
   }
 }

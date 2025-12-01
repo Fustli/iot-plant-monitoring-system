@@ -457,7 +457,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           children: [
                             Icon(_getRoleIcon(role), size: 20),
                             const SizedBox(width: 8),
-                            Text(role.displayNameHu),
+                            Text(role.displayName),
                           ],
                         ),
                       );
