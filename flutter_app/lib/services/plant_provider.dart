@@ -214,36 +214,29 @@ class PlantProvider with ChangeNotifier {
   /// Water a plant (send command to actuator)
   Future<bool> waterPlant(String plantId, int deviceId) async {
     try {
+      debugPrint('[WATER_DEBUG] Starting waterPlant: plantId=$plantId, deviceId=$deviceId');
+      
       await _apiService.sendDeviceCommand(
         deviceId,
         metric: 'moisture',
         delta: 1.0,
       );
 
-      // Optimistically update moisture
-      final plantIndex = _plants.indexWhere((p) => p.id == plantId);
-      if (plantIndex != -1) {
-        final plant = _plants[plantIndex];
-        final newMoisture = (plant.currentMoisture + 20).clamp(0, 100);
-        plant.updateMoisture(newMoisture);
-
-        if (_selectedPlant?.id == plantId) {
-          _selectedPlant = plant;
-        }
-        notifyListeners();
-      }
-
+      debugPrint('[WATER_DEBUG] Command sent successfully');
+      // Note: Moisture value will be updated when sensor data arrives via MQTT
       return true;
     } on ApiException catch (e) {
+      debugPrint('[WATER_DEBUG] ApiException: ${e.messageHu}');
       _error = e.messageHu;
       notifyListeners();
       return false;
     } catch (e) {
-      debugPrint('Failed to water plant: $e');
+      debugPrint('[WATER_DEBUG] Failed to water plant: $e');
       return false;
     }
   }
 
+  /// Control device (light, fan, etc.)
   /// Control device (light, fan, etc.)
   Future<bool> controlDevice(
       String plantId, int deviceId, String metric, double value) async {
@@ -254,29 +247,8 @@ class PlantProvider with ChangeNotifier {
         delta: value,
       );
 
-      // Update plant data based on action
-      final plantIndex = _plants.indexWhere((p) => p.id == plantId);
-      if (plantIndex != -1) {
-        final plant = _plants[plantIndex];
-
-        switch (metric) {
-          case 'brightness':
-            plant.updateLight(value.round());
-            break;
-          case 'temperature':
-            plant.updateTemperature(value);
-            break;
-          case 'humidity':
-            plant.updateHumidity(value.round());
-            break;
-        }
-
-        if (_selectedPlant?.id == plantId) {
-          _selectedPlant = plant;
-        }
-
-        notifyListeners();
-      }
+      // Note: Values will be updated when sensor data arrives via MQTT
+      debugPrint('[CONTROL_DEBUG] Command sent: metric=$metric, delta=$value');
       return true;
     } on ApiException catch (e) {
       _error = e.messageHu;

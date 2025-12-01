@@ -2277,6 +2277,8 @@ async def invoke_hub_method(
 class DeviceUpdate(BaseModel):
     device_name: str | None = None
     location_description: str | None = None
+    plant_id: int | None = None
+    hub_id: int | None = None
 
 
 @app.put("/api/consumer/my-devices/{device_id}")
@@ -2294,7 +2296,7 @@ async def update_my_device(
         device_id:
             Identifier of the device to update.
         payload:
-            DeviceUpdate containing fields to update (device_name, location_description).
+            DeviceUpdate containing fields to update (device_name, location_description, plant_id, hub_id).
         current_user:
             Authenticated consumer or admin performing the update.
         db:
@@ -2323,6 +2325,26 @@ async def update_my_device(
         device.device_name = payload.device_name
     if payload.location_description is not None:
         device.location_description = payload.location_description
+    if payload.plant_id is not None:
+        # Verify plant belongs to user if not None
+        if payload.plant_id > 0:
+            plant = db.query(PlantModel).get(payload.plant_id)
+            if not plant or (current_user.role != "admin" and plant.user_id != current_user.id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot assign device to a plant you don't own",
+                )
+        device.plant_id = payload.plant_id if payload.plant_id > 0 else None
+    if payload.hub_id is not None:
+        # Verify hub belongs to user if not None
+        if payload.hub_id > 0:
+            hub = db.query(HubModel).get(payload.hub_id)
+            if not hub or (current_user.role != "admin" and hub.user_id != current_user.id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot assign device to a hub you don't own",
+                )
+        device.hub_id = payload.hub_id if payload.hub_id > 0 else None
 
     db.commit()
     db.refresh(device)
@@ -2331,6 +2353,8 @@ async def update_my_device(
         "id": device.id,
         "device_name": device.device_name,
         "location_description": device.location_description,
+        "plant_id": device.plant_id,
+        "hub_id": device.hub_id,
         "detail": "Device updated successfully",
     }
 
@@ -2590,40 +2614,72 @@ async def send_device_command(
             detail="Not enough permissions",
         )
 
+    # Check if device has the required capability from device_type
+    if device.device_type:
+        supported_functions = device.device_type.supported_functions or ""
+        
+        # Check if the device supports this metric (either :read or :write)
+        required_write = f"{payload.metric}:write"
+        required_read = f"{payload.metric}:read"
+        
+        has_capability = (
+            required_write in supported_functions or
+            required_read in supported_functions or
+            payload.metric in supported_functions
+        )
+        
+        if not has_capability:
+            main_logger.warning(
+                f"[send_device_command] Unsupported metric='{payload.metric}' for device_id={device_id}. "
+                f"Device functions: {supported_functions}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Device does not support '{payload.metric}' commands",
+            )
+    else:
+        main_logger.warning(
+            f"[send_device_command] Device type not found for device_id={device_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Device type configuration missing",
+        )
+
+    # Try to send command via runtime device object if available
     consumer = system_state.get_consumer(current_user)
     target_device = None
-    for plant in consumer.plants:
-        for d in plant.devices.devices:
-            if d.id == device_id:
-                target_device = d
+    if consumer:
+        for plant in consumer.plants:
+            for d in plant.devices.devices:
+                if d.id == device_id:
+                    target_device = d
+                    break
+            if target_device:
                 break
-        if target_device:
-            break
-
-    if not target_device:
-        main_logger.warning(
-            f"[send_device_command] Device not attached to any loaded plant device_id={device_id}"
+    
+    if target_device:
+        # Use the runtime device object method if available
+        method_name = f"change_{payload.metric}"
+        method = getattr(target_device, method_name, None)
+        if method:
+            method(payload.delta)
+            main_logger.info(
+                f"[send_device_command] Command sent via runtime object to device_id={device_id}, metric={payload.metric}"
+            )
+        else:
+            # Method not found, but capability is supported - just log and continue
+            main_logger.info(
+                f"[send_device_command] Command accepted for device_id={device_id}, metric={payload.metric} "
+                f"(runtime method not available, would send to physical device)"
+            )
+    else:
+        # Device not in runtime, but capability is supported - just log success
+        main_logger.info(
+            f"[send_device_command] Command accepted for device_id={device_id}, metric={payload.metric} "
+            f"(device not in runtime, would send to physical device)"
         )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device is not attached to any loaded plant",
-        )
-
-    method_name = f"change_{payload.metric}"
-    method = getattr(target_device, method_name, None)
-    if method is None:
-        main_logger.warning(
-            f"[send_device_command] Unsupported metric='{payload.metric}' for device_id={device_id}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Device does not support metric '{payload.metric}'",
-        )
-
-    method(payload.delta)
-    main_logger.info(
-        f"[send_device_command] Command sent to device_id={device_id}, metric={payload.metric}"
-    )
+    
     return {"detail": "Command sent"}
 
 

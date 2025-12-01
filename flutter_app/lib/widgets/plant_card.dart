@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/plant_model.dart';
 import '../services/plant_provider.dart';
 import '../services/plant_image_provider.dart';
+import '../services/auth_provider.dart';
 import '../constants/app_colors.dart';
 
 class PlantCard extends StatefulWidget {
@@ -353,21 +354,6 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
   Future<void> _handleWaterPlant() async {
     if (_isWatering) return;
 
-    // Need a device ID to water plant
-    if (widget.deviceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('No water pump device assigned to this plant'),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      );
-      return;
-    }
-
     setState(() {
       _isWatering = true;
     });
@@ -376,9 +362,30 @@ class _PlantCardState extends State<PlantCard> with TickerProviderStateMixin {
     _pulseController.repeat(reverse: true);
 
     try {
+      // If deviceId provided, use it; otherwise find an actuator device for THIS plant
+      int? actuatorDeviceId = widget.deviceId;
+      
+      if (actuatorDeviceId == null) {
+        // TODO: Fetch plant's assigned devices from backend
+        // For now, show error - user must assign device through plant details screen
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('No water pump assigned to this plant. Please assign a device in plant details.'),
+              backgroundColor: AppColors.warning,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
       final plantProvider = context.read<PlantProvider>();
       final success =
-          await plantProvider.waterPlant(widget.plant.id, widget.deviceId!);
+          await plantProvider.waterPlant(widget.plant.id, actuatorDeviceId);
 
       if (success) {
         // Show success feedback

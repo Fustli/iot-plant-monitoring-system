@@ -86,7 +86,7 @@ class Device(ABC):
 
         # lookup DB to find hub + iothub info
         db = DBInterface()
-        device = db.get_device(self.id)
+        device = db.get_device_by_id(self.id)
         if not device:
             self.logger.error("Device DB record missing for id=%s", self.id)
             return
