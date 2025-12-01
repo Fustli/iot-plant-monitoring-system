@@ -39,6 +39,7 @@ from schemas import (
     DeviceData,
     DeviceAnomaly,
     PlantHealthUpdate,
+    DeviceUpdate,
 )
 from security import hash_password, verify_password
 from src.db.alert_models import Alert as AlertModel
@@ -2268,17 +2269,6 @@ async def invoke_hub_method(
         raise HTTPException(status_code=500, detail=f"Failed to invoke hub method: {exc}")
 
 
-
-
-
-# Note: legacy `/api/hub/anomaly` removed — gateways should POST to
-# `/api/device/anomaly` with a minimal payload `{device_id, last_seen, is_anomaly}`.
-
-class DeviceUpdate(BaseModel):
-    device_name: str | None = None
-    location_description: str | None = None
-
-
 @app.put("/api/consumer/my-devices/{device_id}")
 async def update_my_device(
     device_id: int,
@@ -2543,8 +2533,6 @@ async def receive_device_anomaly(
 
     db.commit()
     db.refresh(device)
-    if plant:
-        db.refresh(plant)
 
     return {
         "detail": "Device anomaly recorded",

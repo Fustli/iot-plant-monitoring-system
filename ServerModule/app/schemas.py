@@ -183,3 +183,8 @@ class HubDeviceAssign(BaseModel):
     """Schema for assigning a device to a hub."""
     device_id: int
     hub_id: int
+
+class DeviceUpdate(BaseModel):
+    """Schema for updating device."""
+    device_name: str | None = None
+    location_description: str | None = None
