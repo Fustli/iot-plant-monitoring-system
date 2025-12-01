@@ -12,7 +12,7 @@ from db.user_models import User
 from db.device_models import Manufacturer, DeviceType, Device
 from db.plant_models import PlantType, Plant, PlantDeviceAssignment
 from db.sensor_models import SensorData
-from db.alert_models import AlertRule, Alert
+from db.alert_models import Alert
 from db.db_utils import DBInterface, get_session, init_db, drop_all_tables
 
 
@@ -241,35 +241,9 @@ def seed_demo_data(session):
             ))
         session.flush()
         
-        rule1 = AlertRule(
-            user_id=user.id,
-            plant_id=plant1.id,
-            rule_name='Low Soil Moisture',
-            rule_type='threshold',
-            parameter_name='soil_moisture',
-            condition_operator='<',
-            threshold_value=25,
-            severity=AlertSeverityEnum.WARNING,
-            is_active=True
-        )
-        rule2 = AlertRule(
-            user_id=user.id,
-            plant_id=plant1.id,
-            rule_name='Temperature Too Low',
-            rule_type='threshold',
-            parameter_name='temperature',
-            condition_operator='<',
-            threshold_value=15,
-            severity=AlertSeverityEnum.CRITICAL,
-            is_active=True
-        )
-        session.add_all([rule1, rule2])
-        session.flush()
-        
         alert = Alert(
             user_id=user.id,
             plant_id=plant1.id,
-            rule_id=rule1.id,
             severity=AlertSeverityEnum.WARNING,
             status=AlertStatusEnum.ACTIVE,
             message='Soil moisture is critically low at 18%',
@@ -297,7 +271,6 @@ def print_database_info(session):
     print(f"  Plant Types: {session.query(PlantType).count()}")
     print(f"  Plants: {session.query(Plant).count()}")
     print(f"  Sensor Data Points: {session.query(SensorData).count()}")
-    print(f"  Alert Rules: {session.query(AlertRule).count()}")
     print(f"  Alerts: {session.query(Alert).count()}")
 
 

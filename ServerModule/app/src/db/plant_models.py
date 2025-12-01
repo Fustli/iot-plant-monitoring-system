@@ -49,7 +49,6 @@ class Plant(Base):
     owner = relationship('User', back_populates='plants')
     plant_type = relationship('PlantType', back_populates='plants')
     device_assignments = relationship('PlantDeviceAssignment', back_populates='plant', cascade='all, delete-orphan')
-    alert_rules = relationship('AlertRule', back_populates='plant', cascade='all, delete-orphan')
     alerts = relationship('Alert', back_populates='plant', cascade='all, delete-orphan')
 
     __table_args__ = (

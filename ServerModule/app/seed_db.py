@@ -44,7 +44,7 @@ from src.db.plant_models import PlantType, Plant, PlantDeviceAssignment
 from src.db.device_models import Device, DeviceType, Manufacturer
 from src.db.hub_models import Hub, HubMetrics
 from src.db.sensor_models import SensorData
-from src.db.alert_models import AlertRule, Alert
+from src.db.alert_models import Alert
 from security import hash_password
 
 # Import the scraper
@@ -781,49 +781,9 @@ def seed_alert_rules(session: Session, users: list, plants: list) -> list:
         if plant.user_id not in user_plants:
             user_plants[plant.user_id] = []
         user_plants[plant.user_id].append(plant)
-    
-    for user in users:
-        if user.id not in user_plants:
-            continue
-        
-        for plant in user_plants[user.id]:
-            # Each plant gets 1-3 random alert rules
-            num_rules = random.randint(1, 3)
-            selected_templates = random.sample(rule_templates, min(num_rules, len(rule_templates)))
-            
-            for template in selected_templates:
-                rule_name = f"{plant.plant_name} - {template['rule_name']}"
-                
-                existing = session.query(AlertRule).filter(
-                    AlertRule.user_id == user.id,
-                    AlertRule.plant_id == plant.id,
-                    AlertRule.rule_name == rule_name
-                ).first()
-                
-                if existing:
-                    all_rules.append(existing)
-                    continue
-                
-                rule = AlertRule(
-                    user_id=user.id,
-                    plant_id=plant.id,
-                    rule_name=rule_name,
-                    rule_type=template["rule_type"],
-                    parameter_name=template["parameter_name"],
-                    condition_operator=template["condition_operator"],
-                    threshold_value=template["threshold_value"],
-                    severity=template["severity"],
-                    is_active=random.choice([True, True, True, False]),  # 75% active
-                )
-                session.add(rule)
-                all_rules.append(rule)
-    
-    session.commit()
-    print(f"[SUCCESS] Created {len(all_rules)} alert rules")
-    return all_rules
 
 
-def seed_alerts(session: Session, alert_rules: list) -> list:
+def seed_alerts(session: Session) -> list:
     """Create sample alerts from alert rules."""
     all_alerts = []
     
@@ -855,7 +815,6 @@ def seed_alerts(session: Session, alert_rules: list) -> list:
             alert = Alert(
                 user_id=rule.user_id,
                 plant_id=rule.plant_id,
-                rule_id=rule.id,
                 severity=rule.severity,
                 status=status_choice,
                 message=f"Alert: {rule.rule_name} triggered. Value: {triggered_value:.2f} (threshold: {rule.threshold_value})",
@@ -999,13 +958,9 @@ def main():
         print("\n[STEP 8/10] Creating sensor data...")
         seed_sensor_data(session, devices)
         
-        # Seed alert rules
-        print("\n[STEP 9/10] Creating alert rules...")
-        alert_rules = seed_alert_rules(session, consumers, plants)
-        
         # Seed alerts
-        print("\n[STEP 10/10] Creating alerts...")
-        seed_alerts(session, alert_rules)
+        # print("\n[STEP 10/10] Creating alerts...")
+        # seed_alerts(session)
         
         # Create plant-device assignments
         print("\n[BONUS] Creating plant-device assignments...")
@@ -1025,7 +980,6 @@ def main():
         print(f"   - {len(plants)} plants")
         print(f"   - {len(device_types)} device types")
         print(f"   - {len(devices)} devices")
-        print(f"   - {len(alert_rules)} alert rules")
         print()
         
     except Exception as e:

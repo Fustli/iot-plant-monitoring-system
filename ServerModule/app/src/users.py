@@ -156,7 +156,7 @@ class Consumer(User):
     ):
         db_interface = DBInterface()
         device_type_id = db_interface.get_device_type_id(device_type_name)
-        # 1) Persist device into DB (correct argument order)
+        # 1) Persist device into DB
         device_id = db_interface.register_new_device(
             user_id=self.id,
             plant_id=plant_id,

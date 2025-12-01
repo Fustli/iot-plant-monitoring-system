@@ -44,8 +44,7 @@ def test_imports():
         print("  - SensorData model loaded")
         
         print("\n✓ Importing alert models...")
-        from db.alert_models import AlertRule, Alert
-        print("  - AlertRule model loaded")
+        from db.alert_models import Alert
         print("  - Alert model loaded")
         
         print("\n✓ Importing database utilities...")
@@ -57,7 +56,7 @@ def test_imports():
         from db import (
             User, Manufacturer, DeviceType, Device,
             PlantType, Plant, PlantDeviceAssignment,
-            SensorData, AlertRule, Alert,
+            SensorData, Alert,
             get_session, get_db_interface
         )
         print("  - All models accessible from db package")

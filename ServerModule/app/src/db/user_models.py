@@ -24,7 +24,6 @@ class User(Base):
 
     devices = relationship('Device', back_populates='owner', cascade='all, delete-orphan')
     plants = relationship('Plant', back_populates='owner', cascade='all, delete-orphan')
-    alert_rules = relationship('AlertRule', back_populates='user', cascade='all, delete-orphan')
     alerts = relationship('Alert', back_populates='user', cascade='all, delete-orphan')
     manufacturer_profile = relationship('Manufacturer', back_populates='user', uselist=False, cascade='all, delete-orphan')
     hubs = relationship('Hub', back_populates='owner', cascade='all, delete-orphan')
