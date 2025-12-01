@@ -140,13 +140,13 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 class DeviceData(BaseModel):
-    device_id: int
+    unique_id: str
     data_type: str
     data: float
     data_unit: str
     
 class DeviceAnomaly(BaseModel):
-    device_id: int
+    unique_id: str
     last_seen: int | float | str | None = None
     is_anomaly: bool = True
 

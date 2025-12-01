@@ -99,11 +99,12 @@ def _make_callbacks(hub_id: str, cloud_client: CloudClient | None, mqtt_topics: 
                 device_id = msg.topic.split("/")[-1]
             except Exception:
                 device_id = msg.topic
+        payload["unique_id"] = device_id
 
         # check for change: assume payload contains a 'value' or send whole payload
         new_val = None
-        if isinstance(payload, dict) and "value" in payload:
-            new_val = payload.get("value")
+        if isinstance(payload, dict) and "data" in payload:
+            new_val = payload.get("data")
         else:
             # use JSON string as comparison key
             try:
@@ -115,12 +116,11 @@ def _make_callbacks(hub_id: str, cloud_client: CloudClient | None, mqtt_topics: 
         now_ts = time.time()
         changed = True
         if prev is not None:
-            if prev.get("value") == new_val:
+            if prev.get("data") == new_val:
                 changed = False
 
         # update last seen and value
-        sensor_state[device_id] = {"value": new_val, "last_seen": now_ts, "anomaly_reported": prev.get("anomaly_reported") if prev else False}
-
+        sensor_state[device_id] = {"data": new_val, "last_seen": now_ts, "anomaly_reported": prev.get("anomaly_reported") if prev else False}
         if not changed:
             logger.debug("No change for sensor %s; skipping cloud upload", device_id)
             return
@@ -159,7 +159,7 @@ def _make_callbacks(hub_id: str, cloud_client: CloudClient | None, mqtt_topics: 
                         except Exception:
                             dev_id = key
 
-                        anomaly = {"device_id": dev_id, "last_seen": last, "is_anomaly": True}
+                        anomaly = {"unique_id": dev_id, "last_seen": last, "is_anomaly": True}
                         try:
                             if cloud_client and getattr(cloud_client, "endpoint", None):
                                 cloud_client.post("/api/device/anomaly", anomaly)
@@ -421,7 +421,7 @@ def run(
             # Try a few times in case cloud is not yet reachable
             for attempt in range(1, 4):
                 try:
-                    resp = cloud_client.post("/api/hub/activate", json=payload, headers=cloud_client.default_headers, timeout=5)
+                    resp = cloud_client.post("/api/hub/activate", payload=payload, headers=cloud_client.default_headers, timeout=5)
                     logger.info("Activation response status=%s", getattr(resp, "status_code", "?"))
                     if resp is not None and resp.status_code in (200, 201, 202):
                         logger.info("Hub activation succeeded")

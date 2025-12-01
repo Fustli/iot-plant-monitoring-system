@@ -2446,13 +2446,13 @@ async def receive_device_data(
         and health_status (moisture now stored as a percentage).
     """
     main_logger.info(
-        f"[receive_device_data] device_id={payload.device_id}, "
+        f"[receive_device_data] device_id={payload.unique_id}, "
         f"data_type={payload.data_type}, data={payload.data}, unit={payload.data_unit}"
     )
-    device = db.query(DeviceModel).get(payload.device_id)
+    device = db.query(DeviceModel).filter(DeviceModel.unique_identifier == payload.unique_id).first()
     if not device:
         main_logger.warning(
-            f"[receive_device_data] Device not found device_id={payload.device_id}"
+            f"[receive_device_data] Device not found device_id={payload.unique_id}"
         )
         raise HTTPException(
             status_code=404,
@@ -2522,7 +2522,7 @@ async def receive_device_data(
         db.refresh(plant)
 
     main_logger.info(
-        f"[receive_device_data] Stored data for device_id={device.id}, "
+        f"[receive_device_data] Stored data for device_id={device.id}, unique_id={device.unique_identifier}, "
         f"plant_id={plant.id if plant else None}, metric={metric_name}"
     )
     return {
@@ -2550,8 +2550,7 @@ async def receive_device_anomaly(
     """
     now = datetime.utcnow()
 
-    device_id = int(payload.device_id)
-    device = db.query(DeviceModel).get(device_id)
+    device = db.query(DeviceModel).filter(DeviceModel.unique_identifier == payload.unique_id).first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -2574,7 +2573,7 @@ async def receive_device_anomaly(
         measurement_unit="",
         timestamp=ts,
         is_anomaly=bool(payload.is_anomaly),
-        raw_data=json.dumps({"device_id": device.id, "last_seen": payload.last_seen, "is_anomaly": payload.is_anomaly}),
+        raw_data=json.dumps({"device_id": device.id, "unique_id": device.unique_identifier, "last_seen": payload.last_seen, "is_anomaly": payload.is_anomaly}),
     )
     db.add(sensor_record)
 
