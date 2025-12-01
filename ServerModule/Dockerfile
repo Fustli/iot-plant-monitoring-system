@@ -30,5 +30,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-# Run with uvicorn (production settings)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+
+# 1) optionally run seeder if RUN_SEED_ON_START=true
+# 2) start uvicorn
+CMD ["sh", "-c", "if [ \"${RUN_SEED_ON_START}\" = \"true\" ]; then echo '[startup] RUN_SEED_ON_START=true -> running seed_db.py'; if [ \"${SEED_RESET}\" = \"true\" ]; then python /app/seed_db.py --reset; else python /app/seed_db.py; fi; fi; exec uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4"]
