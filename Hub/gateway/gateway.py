@@ -101,28 +101,51 @@ def _make_callbacks(hub_id: str, cloud_client: CloudClient | None, mqtt_topics: 
                 device_id = msg.topic
         payload["unique_id"] = device_id
 
-        # check for change: assume payload contains a 'value' or send whole payload
-        new_val = None
+        # determine data type for this packet so we compare values per-type
+        data_type = None
+        if isinstance(payload, dict):
+            if "data_type" in payload:
+                data_type = str(payload["data_type"])
+        if not data_type:
+            data_type = "default"
+        
+        # extract the value to compare for this data_type
+        raw_value = None
         if isinstance(payload, dict) and "data" in payload:
-            new_val = payload.get("data")
+            raw_value = payload.get("data")
         else:
-            # use JSON string as comparison key
             try:
-                new_val = json.dumps(payload, sort_keys=True)
+                raw_value = json.loads(payload_str) if isinstance(payload_str, str) else payload_str
             except Exception:
-                new_val = str(payload)
+                raw_value = payload_str
+
+        # normalize value to a string for stable comparison
+        try:
+            new_val_key = json.dumps(raw_value, sort_keys=True)
+        except Exception:
+            new_val_key = str(raw_value)
 
         prev = sensor_state.get(device_id)
         now_ts = time.time()
-        changed = True
-        if prev is not None:
-            if prev.get("data") == new_val:
-                changed = False
 
-        # update last seen and value
-        sensor_state[device_id] = {"data": new_val, "last_seen": now_ts, "anomaly_reported": prev.get("anomaly_reported") if prev else False}
+        # previous value for this specific data_type
+        prev_values = {}
+        prev_anomaly = False
+        if prev is not None:
+            prev_values = prev.get("values", {}) or {}
+            prev_anomaly = prev.get("anomaly_reported", False)
+
+        prev_val_for_type = prev_values.get(data_type)
+        changed = True
+        if prev_val_for_type is not None and prev_val_for_type == new_val_key:
+            changed = False
+
+        # update last seen and stored value for this data_type
+        new_values = dict(prev_values)
+        new_values[data_type] = new_val_key
+        sensor_state[device_id] = {"values": new_values, "last_seen": now_ts, "anomaly_reported": prev_anomaly}
         if not changed:
-            logger.debug("No change for sensor %s; skipping cloud upload", device_id)
+            logger.debug("No change for sensor %s (type=%s); skipping cloud upload", device_id, data_type)
             return
 
         if cloud_client and getattr(cloud_client, "endpoint", None):
