@@ -8,6 +8,8 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
+#include <DHT.h>
+
 
 // ============================================================================
 // CONFIGURATION
@@ -17,13 +19,19 @@
 static const char *PREF_NAMESPACE = "plantdev";
 
 // Pin definitions
-static const int RESET_SWITCH_PIN = 32;  // GPIO32 for reset switch (with internal pull-down)
-static const int LED_BUILTIN_PIN = 2;    // Built-in LED (GPIO2 on most ESP32 boards)
+static const int RESET_SWITCH_PIN = 32;  // with internal pull-down
+static const int LED_BUILTIN_PIN = 2;     // LED indicates pump status (ON = pumping)
+static const int MOISTURE_SENSOR_PIN = 33;  // ADC1_CH5 - safe to use with WiFi
+static const int DHT_PIN = 19;  // DHT22 data pin
+
+// DHT22 sensor
+#define DHTTYPE DHT22
+DHT dht(DHT_PIN, DHTTYPE);
 
 // Hard-coded Hub configuration (known before first startup)
 static const uint16_t MQTT_PORT = 1883;
-static const char* MQTT_TOPIC_TELEMETRY = "home/sensors/telemetry";
-static const char* MQTT_TOPIC_COMMANDS = "home/sensors/commands";
+static const char* MQTT_TOPIC_TELEMETRY = "telemetry";
+// Command topic will be constructed dynamically: actuators/{deviceId}/set
 
 // Device globals
 Preferences preferences;
@@ -54,9 +62,12 @@ PubSubClient mqttClient(espClient);
 unsigned long lastPublish = 0;
 const unsigned long PUBLISH_INTERVAL = 10UL * 1000UL; // 10s
 
-// LED blink timing
-unsigned long lastLedToggle = 0;
-bool ledState = false;
+// Pump control state
+bool isPumping = false;
+float targetMoistureIncrease = 0.0;  // Target moisture increase (delta)
+int baseMoisture = 0;                 // Moisture reading when pumping started
+unsigned long pumpStartTime = 0;      // When pumping started
+static const unsigned long MAX_PUMP_DURATION = 30000;  // Safety: max 30 seconds pumping
 
 // ============================================================================
 // FUNCTION DECLARATIONS
@@ -73,7 +84,15 @@ void sendMqttData(const String &topic, const String &payload);
 void receiveMqttData(char* topic, byte* payload, unsigned int length);
 void startBLEConfigPortal();
 void checkResetSwitch();
-void blinkLed(unsigned long interval);
+void updatePumpStatus();
+void startPumping(float moistureDelta);
+void stopPumping();
+int getSoilMoisture();
+float getTemperature();
+float getHumidity();
+void sendMoistureData(int moisture);
+void sendTemperatureData(float temperature);
+void sendHumidityData(float humidity);
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -123,7 +142,7 @@ void clearConfig() {
 
 void checkResetSwitch() {
     if (digitalRead(RESET_SWITCH_PIN) == HIGH) {
-        Serial.println("⚠ Reset switch activated! Clearing configuration...");
+        Serial.println("Reset switch activated! Clearing configuration...");
         clearConfig();
         Serial.println("Rebooting...");
         digitalWrite(LED_BUILTIN_PIN, LOW);
@@ -132,13 +151,93 @@ void checkResetSwitch() {
     }
 }
 
-void blinkLed(unsigned long interval) {
-    unsigned long now = millis();
-    if (now - lastLedToggle >= interval) {
-        lastLedToggle = now;
-        ledState = !ledState;
-        digitalWrite(LED_BUILTIN_PIN, ledState ? HIGH : LOW);
+void startPumping(float moistureDelta) {
+    if (isPumping) {
+        Serial.println("Already pumping, ignoring new command");
+        return;
     }
+    
+    baseMoisture = getSoilMoisture();
+    targetMoistureIncrease = moistureDelta;
+    pumpStartTime = millis();
+    isPumping = true;
+    
+    // Turn on LED to indicate pumping
+    digitalWrite(LED_BUILTIN_PIN, HIGH);
+    
+    Serial.printf("PUMP STARTED: Base moisture=%d%%, Target increase=%.1f%%\n", 
+                  baseMoisture, targetMoistureIncrease);
+}
+
+void stopPumping() {
+    if (!isPumping) return;
+    
+    isPumping = false;
+    targetMoistureIncrease = 0.0;
+    
+    // Turn off LED
+    digitalWrite(LED_BUILTIN_PIN, LOW);
+    
+    int currentMoisture = getSoilMoisture();
+    Serial.printf("PUMP STOPPED: Final moisture=%d%% (started at %d%%)\n", 
+                  currentMoisture, baseMoisture);
+}
+
+void updatePumpStatus() {
+    if (!isPumping) return;
+    
+    int currentMoisture = getSoilMoisture();
+    float moistureIncrease = (float)(currentMoisture - baseMoisture);
+    unsigned long pumpDuration = millis() - pumpStartTime;
+    
+    // Check if target moisture increase reached
+    if (moistureIncrease >= targetMoistureIncrease) {
+        Serial.printf("Target moisture reached! Increase: %.1f%% (target: %.1f%%)\n", 
+                      moistureIncrease, targetMoistureIncrease);
+        stopPumping();
+        return;
+    }
+    
+    // Safety timeout - prevent pumping forever
+    if (pumpDuration >= MAX_PUMP_DURATION) {
+        Serial.println("SAFETY: Max pump duration reached, stopping pump");
+        stopPumping();
+        return;
+    }
+    
+    // Log progress every 2 seconds
+    static unsigned long lastLog = 0;
+    if (millis() - lastLog >= 2000) {
+        lastLog = millis();
+        Serial.printf("Pumping... Current moisture=%d%%, Increase=%.1f%% (target: %.1f%%), Duration=%lus\n",
+                      currentMoisture, moistureIncrease, targetMoistureIncrease, pumpDuration / 1000);
+    }
+}
+
+int getSoilMoisture() {
+    int moisture,sensor_analog;
+    
+    sensor_analog = analogRead(MOISTURE_SENSOR_PIN);
+    moisture = ( 100 - ( (sensor_analog/4095.00) * 100 ) );
+    return moisture;
+}
+
+float getTemperature() {
+    float temp = dht.readTemperature();
+    if (isnan(temp)) {
+        Serial.println("Failed to read temperature from DHT22");
+        return -999.0;
+    }
+    return temp;
+}
+
+float getHumidity() {
+    float hum = dht.readHumidity();
+    if (isnan(hum)) {
+        Serial.println("Failed to read humidity from DHT22");
+        return -999.0;
+    }
+    return hum;
 }
 
 // ============================================================================
@@ -250,9 +349,9 @@ void connectToWifi(const String &ssid, const String &pass, uint32_t timeout_ms) 
     Serial.println();
     
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.printf("✓ WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
+        Serial.printf("WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
     } else {
-        Serial.println("✗ WiFi connection failed or timed out");
+        Serial.println("WiFi connection failed or timed out");
     }
 }
 
@@ -275,11 +374,14 @@ bool connectToHub() {
     unsigned long start = millis();
     while (!mqttClient.connected() && (millis() - start) < 10000) {
         if (mqttClient.connect(chipId.c_str())) {  // Use chipId as MQTT client ID (unique per hardware)
-            Serial.println("✓ MQTT connected to Hub!");
+            Serial.println("MQTT connected to Hub!");
             
-            // Subscribe to command topic
-            if (mqttClient.subscribe(MQTT_TOPIC_COMMANDS)) {
-                Serial.printf("✓ Subscribed to: %s\n", MQTT_TOPIC_COMMANDS);
+            // Subscribe to command topic using actual device ID
+            String commandTopic = "actuators/" + deviceId + "/set";
+            if (mqttClient.subscribe(commandTopic.c_str())) {
+                Serial.printf("Subscribed to: %s\n", commandTopic.c_str());
+            } else {
+                Serial.printf("Failed to subscribe to: %s\n", commandTopic.c_str());
             }
             
             return true;
@@ -289,7 +391,7 @@ bool connectToHub() {
     }
     
     Serial.println();
-    Serial.println("✗ MQTT connection to Hub failed");
+    Serial.println("MQTT connection to Hub failed");
     return false;
 }
 
@@ -305,9 +407,9 @@ void sendMqttData(const String &topic, const String &payload) {
     
     bool success = mqttClient.publish(topic.c_str(), payload.c_str());
     if (success) {
-        Serial.printf("✓ Published to '%s': %s\n", topic.c_str(), payload.c_str());
+        Serial.printf("Published to '%s': %s\n", topic.c_str(), payload.c_str());
     } else {
-        Serial.printf("✗ Failed to publish to '%s'\n", topic.c_str());
+        Serial.printf("Failed to publish to '%s'\n", topic.c_str());
     }
 }
 
@@ -323,14 +425,30 @@ void receiveMqttData(char* topic, byte* payload, unsigned int length) {
     Serial.print("Payload: ");
     Serial.println(message);
     
-    // Parse and handle command (example)
+    // Parse actuator command JSON: {"metric":"moisture", "delta":1.0}
     StaticJsonDocument<256> doc;
     DeserializationError err = deserializeJson(doc, message);
     
-    if (!err) {
-        const char* command = doc["command"] | "unknown";
-        Serial.printf("Command received: %s\n", command);
-        // Handle specific commands here
+    if (err) {
+        Serial.print("JSON parse error: ");
+        Serial.println(err.c_str());
+        return;
+    }
+    
+    const char* metric = doc["metric"] | "";
+    float delta = doc["delta"] | 0.0;
+    
+    Serial.printf("Command: metric=%s, delta=%.1f\n", metric, delta);
+    
+    // Handle moisture pump command
+    if (strcmp(metric, "moisture") == 0 && delta > 0) {
+        Serial.printf("Starting pump to increase moisture by %.1f%%\n", delta);
+        startPumping(delta);
+    } else if (strcmp(metric, "moisture") == 0 && delta <= 0) {
+        Serial.println("Stopping pump (delta <= 0)");
+        stopPumping();
+    } else {
+        Serial.printf("Unknown metric or invalid delta: %s\n", metric);
     }
 }
 
@@ -344,8 +462,12 @@ void setup() {
     
     // Initialize pins
     pinMode(RESET_SWITCH_PIN, INPUT_PULLDOWN);  // Use internal pull-down resistor
-    pinMode(LED_BUILTIN_PIN, OUTPUT);
+    pinMode(LED_BUILTIN_PIN, OUTPUT);           // LED indicates pump status
+    pinMode(MOISTURE_SENSOR_PIN, INPUT);        // ADC input for soil moisture sensor
     digitalWrite(LED_BUILTIN_PIN, LOW);
+    
+    // Initialize DHT22 sensor
+    dht.begin();
     
     Serial.println("\n\n====================================");
     Serial.println("  Plant IoT Device - Local Hub");
@@ -355,10 +477,10 @@ void setup() {
     Serial.printf("Chip ID: %s\n\n", chipId.c_str());
     
     if (!isConfigured()) {
-        Serial.println("⚠ Device not configured");
+        Serial.println("Device not configured");
         startBLEConfigPortal();
     } else {
-        Serial.println("✓ Device is configured");
+        Serial.println("Device is configured");
         
         // Read stored configuration
         preferences.begin(PREF_NAMESPACE, true);
@@ -379,12 +501,12 @@ void setup() {
         if (WiFi.status() == WL_CONNECTED) {
             // Connect to MQTT Hub
             if (connectToHub()) {
-                Serial.println("\n✓ System ready and connected!\n");
+                Serial.println("\nSystem ready and connected!\n");
             } else {
-                Serial.println("\n✗ MQTT connection failed\n");
+                Serial.println("\nMQTT connection failed\n");
             }
         } else {
-            Serial.println("\n✗ WiFi connection failed\n");
+            Serial.println("\nWiFi connection failed\n");
         }
     }
 }
@@ -392,16 +514,15 @@ void setup() {
 void loop() {
     checkResetSwitch();
     
-    // If device is not configured, handle BLE configuration and blink LED (500ms)
+    // If device is not configured, handle BLE configuration
     if (!isConfigured()) {
-        blinkLed(500);
         receiveConfigFromBLE();
         delay(100);
         return;
     }
     
-    // When configured, blink LED slowly (2 sec)
-    blinkLed(2000);
+    // Update pump status (check if target moisture reached)
+    updatePumpStatus();
     
     // Ensure MQTT stays connected
     if (!mqttClient.connected()) {
@@ -427,25 +548,59 @@ void loop() {
     if (now - lastPublish >= PUBLISH_INTERVAL) {
         lastPublish = now;
         
-        // Create dummy sensor data (replace with real sensor readings)
-        int soilMoisture = random(200, 800);  // Simulated analog value
-        float temperature = 20.0 + random(0, 100) / 10.0;  // 20-30°C
-        float humidity = 40.0 + random(0, 300) / 10.0;     // 40-70%
+        // Read soil moisture sensor
+        int soilMoisturePercent = getSoilMoisture();
         
-        // Build JSON payload
-        StaticJsonDocument<256> doc;
-        doc["device_id"] = deviceId;
-        doc["timestamp"] = now;
-        doc["soil_moisture"] = soilMoisture;
-        doc["temperature"] = temperature;
-        doc["humidity"] = humidity;
+        // Read DHT22 sensor
+        float temperature = getTemperature();
+        float humidity = getHumidity();
         
-        String payload;
-        serializeJson(doc, payload);
+        Serial.printf("Soil Moisture: %d%%, Temperature: %.1f°C, Humidity: %.1f%%\n", 
+                      soilMoisturePercent, temperature, humidity);
         
-        // Send to Hub
-        sendMqttData(MQTT_TOPIC_TELEMETRY, payload);
+        sendMoistureData(soilMoisturePercent);
+        sendTemperatureData(temperature);
+        sendHumidityData(humidity);
     }
     
     delay(100);
+}
+
+void sendMoistureData(int moisture) {
+    StaticJsonDocument<256> doc;
+    doc["device_id"] = deviceId;
+    doc["data_type"] = "moisture";
+    doc["data"] = moisture;
+    doc["data_unit"] = "%";
+    
+    String payload;
+    serializeJson(doc, payload);
+    
+    sendMqttData(MQTT_TOPIC_TELEMETRY, payload);
+}
+
+void sendTemperatureData(float temperature) {
+    StaticJsonDocument<256> doc;
+    doc["device_id"] = deviceId;
+    doc["data_type"] = "temperature";
+    doc["data"] = temperature;
+    doc["data_unit"] = "C";
+    
+    String payload;
+    serializeJson(doc, payload);
+    
+    sendMqttData(MQTT_TOPIC_TELEMETRY, payload);
+}
+
+void sendHumidityData(float humidity) {
+    StaticJsonDocument<256> doc;
+    doc["device_id"] = deviceId;
+    doc["data_type"] = "humidity";
+    doc["data"] = humidity;
+    doc["data_unit"] = "%";
+    
+    String payload;
+    serializeJson(doc, payload);
+    
+    sendMqttData(MQTT_TOPIC_TELEMETRY, payload);
 }
