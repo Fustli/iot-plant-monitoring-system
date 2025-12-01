@@ -53,6 +53,7 @@ from src.db.user_models import User
 from src.devices import Device, create_device_from_type
 from src.logger import Logger
 from src.plants import Plant as PlantDomain
+import threading
 from src.thread_manager import PlantThreadManager
 from src.users import Consumer, Manufacturer
 from src.hub_control import invoke_direct_method
@@ -491,6 +492,8 @@ class SystemState:
         self.manufacturers: Dict[int, Manufacturer] = {}
         self.logger = Logger(name="SystemState")
         self.initialized = False
+        # Reentrant lock to protect concurrent access/modification of runtime maps
+        self._lock = threading.RLock()
 
     def load_from_db(self):
         """
@@ -513,93 +516,98 @@ class SystemState:
 
         # --- Consumers ---
         consumers_rows = db.list_consumers() or []
-        for row in consumers_rows:
-            user_id = row[0]
-            email = row[1]
-            username = row[2]
-            consumer = Consumer(user_id, username, email, self.thread_manager)
-            self.consumers[user_id] = consumer
+        with self._lock:
+            for row in consumers_rows:
+                user_id = row[0]
+                email = row[1]
+                username = row[2]
+                consumer = Consumer(user_id, username, email, self.thread_manager)
+                self.consumers[user_id] = consumer
 
         # --- Plants ---
         plants_rows = db.list_plants() or []
-        for row in plants_rows:
-            (
-                plant_id,
-                user_id,
-                plant_type_id,
-                plant_name,
-                location,
-                planting_date,
-                is_healthy,
-                health_status,
-                notes,
-                *_,
-            ) = row
+        # Plants attach to existing consumers; protect consumer access while mutating
+        with self._lock:
+            for row in plants_rows:
+                (
+                    plant_id,
+                    user_id,
+                    plant_type_id,
+                    plant_name,
+                    location,
+                    planting_date,
+                    is_healthy,
+                    health_status,
+                    notes,
+                    *_,
+                ) = row
 
-            consumer = self.consumers.get(user_id)
-            if not consumer:
-                # Non-consumer owners (e.g. admin) are ignored for in-memory care
-                continue
+                consumer = self.consumers.get(user_id)
+                if not consumer:
+                    # Non-consumer owners (e.g. admin) are ignored for in-memory care
+                    continue
 
-            reqs = db.get_plant_type_requirements(plant_type_id)
-            if not reqs:
-                continue
+                reqs = db.get_plant_type_requirements(plant_type_id)
+                if not reqs:
+                    continue
 
-            optimal_temperature, optimal_humidity, optimal_light, optimal_moisture = reqs
+                optimal_temperature, optimal_humidity, optimal_light, optimal_moisture = reqs
 
-            plant = PlantDomain(
-                plant_id,
-                plant_name,
-                user_id,
-                req_brightness=optimal_light,
-                req_humidity=optimal_humidity,
-                req_temperature=optimal_temperature,
-                req_moisture=optimal_moisture,
-                health_status=health_status,
-            )
-            consumer.plants.append(plant)
-            self.thread_manager.add_plant(plant)
+                plant = PlantDomain(
+                    plant_id,
+                    plant_name,
+                    user_id,
+                    req_brightness=optimal_light,
+                    req_humidity=optimal_humidity,
+                    req_temperature=optimal_temperature,
+                    req_moisture=optimal_moisture,
+                    health_status=health_status,
+                )
+                consumer.plants.append(plant)
+                self.thread_manager.add_plant(plant)
 
         # --- Devices ---
         devices_rows = db.list_devices() or []
-        for row in devices_rows:
-            (
-                device_id,
-                user_id,
-                hub_id,
-                plant_id,
-                device_type_id,
-                unique_identifier,
-                device_name,
-                is_active,
-                last_data_received,
-                last_heartbeat,
-                location_description,
-                battery_level,
-                rssi,
-                *_,
-            ) = row
+        with self._lock:
+            for row in devices_rows:
+                (
+                    device_id,
+                    user_id,
+                    hub_id,
+                    plant_id,
+                    device_type_id,
+                    unique_identifier,
+                    device_name,
+                    is_active,
+                    last_data_received,
+                    last_heartbeat,
+                    location_description,
+                    battery_level,
+                    rssi,
+                    *_,
+                ) = row
 
-            consumer = self.consumers.get(user_id)
-            if not consumer:
-                continue
+                consumer = self.consumers.get(user_id)
+                if not consumer:
+                    continue
 
-            device = create_device_from_type(
-                device_id=device_id,
-                user_id=user_id,
-                device_type_id=device_type_id,
-                unique_identifier=unique_identifier,
-                device_name=device_name,
-                is_active=is_active,
-            )
+                device = create_device_from_type(
+                    device_id=device_id,
+                    user_id=user_id,
+                    device_type_id=device_type_id,
+                    unique_identifier=unique_identifier,
+                    device_name=device_name,
+                    is_active=is_active,
+                )
 
-            for plant in consumer.plants:
-                if plant.id == plant_id:
-                    plant.register_device(device)
-                    break
+                for plant in consumer.plants:
+                    if plant.id == plant_id:
+                        plant.register_device(device)
+                        break
 
         self.thread_manager.start()
-        self.initialized = True
+        with self._lock:
+            self.initialized = True
         self.logger.info("SystemState initialized")
 
     def get_consumer(self, user: User) -> Consumer:
@@ -614,12 +622,13 @@ class SystemState:
         Returns:
             Consumer domain object associated with the user.
         """
-        consumer = self.consumers.get(user.id)
-        if consumer is None:
-            consumer = Consumer(user.id, user.username, user.email, self.thread_manager)
-            self.consumers[user.id] = consumer
-            self.logger.info(f"Created runtime Consumer for user_id={user.id}")
-        return consumer
+        with self._lock:
+            consumer = self.consumers.get(user.id)
+            if consumer is None:
+                consumer = Consumer(user.id, user.username, user.email, self.thread_manager)
+                self.consumers[user.id] = consumer
+                self.logger.info(f"Created runtime Consumer for user_id={user.id}")
+            return consumer
 
     def get_manufacturer(self, user: User) -> Manufacturer:
         """
@@ -633,12 +642,13 @@ class SystemState:
         Returns:
             Manufacturer domain object associated with the user.
         """
-        manufacturer = self.manufacturers.get(user.id)
-        if manufacturer is None:
-            manufacturer = Manufacturer(user.id, user.username)
-            self.manufacturers[user.id] = manufacturer
-            self.logger.info(f"Created runtime Manufacturer for user_id={user.id}")
-        return manufacturer
+        with self._lock:
+            manufacturer = self.manufacturers.get(user.id)
+            if manufacturer is None:
+                manufacturer = Manufacturer(user.id, user.username)
+                self.manufacturers[user.id] = manufacturer
+                self.logger.info(f"Created runtime Manufacturer for user_id={user.id}")
+            return manufacturer
     
     def remove_user(self, user_id: int):
         """
@@ -654,14 +664,17 @@ class SystemState:
             plants are detached from the thread manager.
         """
         # Remove consumer and its plants from the manager
-        consumer = self.consumers.pop(user_id, None)
+        with self._lock:
+            consumer = self.consumers.pop(user_id, None)
         if consumer:
             for plant in list(consumer.plants):
                 self.thread_manager.remove_plant(plant)
             self.logger.info(f"Removed runtime Consumer and plants for user_id={user_id}")
 
         # Remove manufacturer, if present
-        if self.manufacturers.pop(user_id, None) is not None:
+        with self._lock:
+            removed = self.manufacturers.pop(user_id, None)
+        if removed is not None:
             self.logger.info(f"Removed runtime Manufacturer for user_id={user_id}")
 
     def remove_manufacturer(self, manufacturer_id: int):
@@ -676,8 +689,48 @@ class SystemState:
         Returns:
             None. Any matching manufacturer is removed from the cache.
         """
-        if self.manufacturers.pop(manufacturer_id, None) is not None:
-            self.logger.info(f"Removed runtime Manufacturer for user_id={manufacturer_id}")
+        with self._lock:
+            if self.manufacturers.pop(manufacturer_id, None) is not None:
+                self.logger.info(f"Removed runtime Manufacturer for user_id={manufacturer_id}")
+
+    # Thread-safe accessors
+    def get_consumers_snapshot(self) -> list:
+        """Return a snapshot list of consumer domain objects."""
+        with self._lock:
+            return list(self.consumers.values())
+
+    def get_manufacturers_snapshot(self) -> list:
+        """Return a snapshot list of manufacturer domain objects."""
+        with self._lock:
+            return list(self.manufacturers.values())
+
+    def find_consumer(self, user_id: int):
+        """Return consumer by user_id without creating a new one (or None)."""
+        with self._lock:
+            return self.consumers.get(user_id)
+
+    def find_device_by_id(self, device_id: int):
+        """
+        Search all runtime consumers for a device with the given id.
+
+        Returns a tuple (device_obj, consumer_obj, plant_obj) or (None, None, None).
+        The search is performed under the lock and returns references to runtime
+        objects (no copies).
+        """
+        with self._lock:
+            for consumer in self.consumers.values():
+                for plant in getattr(consumer, "plants", []):
+                    device_collection = getattr(plant, "devices", None)
+                    if device_collection is None:
+                        continue
+                    for dev in getattr(device_collection, "devices", []):
+                        try:
+                            did = getattr(dev, "id", None)
+                        except Exception:
+                            did = None
+                        if did == device_id:
+                            return dev, consumer, plant
+        return None, None, None
 
 
 system_state = SystemState()
@@ -1036,18 +1089,18 @@ async def get_system_status(
     # --- Runtime Consumers & Manufacturers from SystemState ---
     consumers_runtime = [
         serialize_runtime_consumer(c)
-        for c in system_state.consumers.values()
+        for c in system_state.get_consumers_snapshot()
     ]
     manufacturers_runtime = [
         serialize_runtime_manufacturer(m)
-        for m in system_state.manufacturers.values()
+        for m in system_state.get_manufacturers_snapshot()
     ]
 
     # --- Flatten runtime Plants & Devices from all Consumers ---
     runtime_plants: list[dict] = []
     runtime_devices: list[dict] = []
 
-    for consumer in system_state.consumers.values():
+    for consumer in system_state.get_consumers_snapshot():
         for plant in getattr(consumer, "plants", []):
             plant_dict = serialize_runtime_plant(plant)
             runtime_plants.append(plant_dict)
@@ -1235,7 +1288,7 @@ async def delete_manufacturer(
     db.delete(manufacturer)
     db.commit()
 
-    system_state.manufacturers.pop(owner_user_id, None)
+    system_state.remove_manufacturer(owner_user_id)
     main_logger.info(
         f"[admin_delete_manufacturer] Manufacturer removed id={manufacturer_id}, user_id={owner_user_id}"
     )
@@ -2508,7 +2561,7 @@ async def receive_device_data(
         new_health_status = ",".join(str(v) for v in parts)
         plant.health_status = new_health_status
 
-        consumer = system_state.consumers.get(device.user_id)
+        consumer = system_state.find_consumer(device.user_id)
         if consumer:
             for runtime_plant in consumer.plants:
                 if runtime_plant.id == plant.id:
@@ -2667,38 +2720,39 @@ async def send_device_command(
             detail="Device type configuration missing",
         )
 
-    # Try to send command via runtime device object if available
-    consumer = system_state.get_consumer(current_user)
+    # Try to send command via runtime device object if available.
+    # Use a centralized finder that returns the runtime device, its owner consumer and plant.
     target_device = None
-    if consumer:
-        for plant in consumer.plants:
-            for d in plant.devices.devices:
-                if d.id == device_id:
-                    target_device = d
-                    break
-            if target_device:
-                break
-    
+    owner_consumer = None
+    owner_plant = None
+
+    dev, owner_consumer, owner_plant = system_state.find_device_by_id(device_id)
+    if dev:
+        # Ensure non-admins only act on their own runtime devices (permission checked above)
+        if current_user.role == "admin" or (owner_consumer and getattr(owner_consumer, "id", None) == current_user.id):
+            target_device = dev
+
     if target_device:
-        # Use the runtime device object method if available
         method_name = f"change_{payload.metric}"
         method = getattr(target_device, method_name, None)
+        owner_id = getattr(owner_consumer, "id", None)
+        plant_id = getattr(owner_plant, "id", None)
+        plant_name = getattr(owner_plant, "name", None)
         if method:
             method(payload.delta)
             main_logger.info(
-                f"[send_device_command] Command sent via runtime object to device_id={device_id}, metric={payload.metric}"
+                f"[send_device_command] Command sent via runtime object to device_id={device_id}, metric={payload.metric}, owner_user_id={owner_id}, plant_id={plant_id}, plant_name={plant_name}"
             )
         else:
-            # Method not found, but capability is supported - just log and continue
             main_logger.info(
                 f"[send_device_command] Command accepted for device_id={device_id}, metric={payload.metric} "
-                f"(runtime method not available, would send to physical device)"
+                f"(runtime method not available, would send to physical device) owner_user_id={owner_id}, plant_id={plant_id}, plant_name={plant_name}"
             )
     else:
-        # Device not in runtime, but capability is supported - just log success
+        # Not in runtime — log owner from DB for easier debugging
         main_logger.info(
             f"[send_device_command] Command accepted for device_id={device_id}, metric={payload.metric} "
-            f"(device not in runtime, would send to physical device)"
+            f"(device not in runtime, would send to physical device) owner_user_id={device.user_id}"
         )
     
     return {"detail": "Command sent"}
