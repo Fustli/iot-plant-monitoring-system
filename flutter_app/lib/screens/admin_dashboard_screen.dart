@@ -124,7 +124,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    // TODO: Refresh admin data
+    // Trigger refresh on the current page
+    switch (_selectedIndex) {
+      case 0:
+        // Dashboard view
+        final dashboardState = context.findAncestorStateOfType<_DashboardViewState>();
+        if (dashboardState != null) {
+          await dashboardState._loadStats();
+        }
+        break;
+      case 3:
+        // System view
+        final systemState = context.findAncestorStateOfType<_SystemViewState>();
+        if (systemState != null) {
+          await systemState._handleRefresh();
+        }
+        break;
+      default:
+        // Other views handle their own refresh via RefreshIndicator
+        break;
+    }
   }
 }
 
@@ -429,6 +448,8 @@ class _SystemViewState extends State<_SystemView> {
   Map<String, dynamic>? _systemStatus;
   bool _isLoadingStatus = false;
   Timer? _refreshTimer;
+  int _debugTapCount = 0;
+  bool _showDebugView = false;
 
   @override
   void initState() {
@@ -477,6 +498,31 @@ class _SystemViewState extends State<_SystemView> {
         setState(() => _isLoadingStatus = false);
       }
     }
+  }
+
+  void _handleDebugTap() {
+    setState(() {
+      _debugTapCount++;
+      if (_debugTapCount >= 5) {
+        _showDebugView = true;
+        _debugTapCount = 0;
+      }
+    });
+    // Reset counter after 2 seconds
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && _debugTapCount < 5) {
+        setState(() {
+          _debugTapCount = 0;
+        });
+      }
+    });
+  }
+
+  Future<void> _handleRefresh() async {
+    await Future.wait([
+      _loadHubs(),
+      _loadSystemStatus(),
+    ]);
   }
 
   Future<void> _showPreProvisionHubDialog(BuildContext context) async {
@@ -651,17 +697,31 @@ class _SystemViewState extends State<_SystemView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.favorite, color: Colors.red[400], size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  'System Health',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+            GestureDetector(
+              onTap: _handleDebugTap,
+              child: Row(
+                children: [
+                  Icon(Icons.favorite, color: Colors.red[400], size: 24),
+                  const SizedBox(width: 12),
+                  Text(
+                    'System Health',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  if (_debugTapCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text(
+                        '($_debugTapCount/5)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[600],
+                        ),
                       ),
-                ),
-              ],
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -879,8 +939,12 @@ class _SystemViewState extends State<_SystemView> {
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationProvider>();
 
+    if (_showDebugView) {
+      return _buildDebugView(context, localization);
+    }
+
     return RefreshIndicator(
-      onRefresh: _loadSystemStatus,
+      onRefresh: _handleRefresh,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -1131,6 +1195,786 @@ class _SystemViewState extends State<_SystemView> {
           ),
         ),
       ],
+      ),
+    );
+  }
+
+  Widget _buildDebugView(BuildContext context, LocalizationProvider localization) {
+    if (_systemStatus == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(localization.tr('common_loading')),
+          ],
+        ),
+      );
+    }
+
+    final users = _systemStatus!['users'] as List? ?? [];
+    final plants = _systemStatus!['plants'] as List? ?? [];
+    final devices = _systemStatus!['devices'] as List? ?? [];
+    final deviceTypes = _systemStatus!['device_types'] as List? ?? [];
+    final consumers = _systemStatus!['consumers'] as List? ?? [];
+    final manufacturers = _systemStatus!['manufacturers'] as List? ?? [];
+    final stats = _systemStatus!['stats'] as Map<String, dynamic>? ?? {};
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Debug View - System Data'),
+        backgroundColor: Colors.deepOrange,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () {
+            setState(() {
+              _showDebugView = false;
+            });
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadSystemStatus,
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadSystemStatus,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Warning banner
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange, width: 2),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Backend Developer Debug Mode - Full System State',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[900],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // System Status
+            _buildDebugSection(
+              context,
+              'System Status',
+              Icons.monitor_heart,
+              Colors.red,
+              [
+                {'Application': _systemStatus!['application']},
+                {'Database': _systemStatus!['database']},
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Statistics
+            _buildDebugSection(
+              context,
+              'Statistics Overview',
+              Icons.analytics,
+              Colors.blue,
+              [
+                {'Total Users': stats['users_total']},
+                {'Consumers': stats['consumers_count']},
+                {'Manufacturers': stats['manufacturers_count']},
+                {'Admins': stats['admins_count']},
+                {'Plants': stats['plants_count']},
+                {'Devices': stats['devices_count']},
+                {'Device Types': stats['device_types_count']},
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Users
+            _buildDebugListSection(
+              context,
+              'Users (${users.length})',
+              Icons.people,
+              Colors.purple,
+              users,
+              (user) => _buildUserDebugCard(user),
+            ),
+            const SizedBox(height: 16),
+
+            // Plants
+            _buildDebugListSection(
+              context,
+              'Plants (${plants.length})',
+              Icons.eco,
+              Colors.green,
+              plants,
+              (plant) => _buildPlantDebugCard(plant),
+            ),
+            const SizedBox(height: 16),
+
+            // Devices
+            _buildDebugListSection(
+              context,
+              'Devices (${devices.length})',
+              Icons.devices,
+              Colors.teal,
+              devices,
+              (device) => _buildDeviceDebugCard(device),
+            ),
+            const SizedBox(height: 16),
+
+            // Device Types
+            _buildDebugListSection(
+              context,
+              'Device Types (${deviceTypes.length})',
+              Icons.category,
+              Colors.orange,
+              deviceTypes,
+              (deviceType) => _buildDeviceTypeDebugCard(deviceType),
+            ),
+            const SizedBox(height: 16),
+
+            // Runtime Consumers
+            _buildDebugListSection(
+              context,
+              'Runtime Consumers (${consumers.length})',
+              Icons.person,
+              Colors.indigo,
+              consumers,
+              (consumer) => _buildConsumerDebugCard(consumer),
+            ),
+            const SizedBox(height: 16),
+
+            // Runtime Manufacturers
+            _buildDebugListSection(
+              context,
+              'Runtime Manufacturers (${manufacturers.length})',
+              Icons.factory,
+              Colors.deepOrange,
+              manufacturers,
+              (manufacturer) => _buildManufacturerDebugCard(manufacturer),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebugSection(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    List<Map<String, dynamic>> items,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            ...items.map((item) {
+              final key = item.keys.first;
+              final value = item[key];
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$key:',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    Text(
+                      value?.toString() ?? 'null',
+                      style: TextStyle(color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebugListSection(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    List items,
+    Widget Function(dynamic) itemBuilder,
+  ) {
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(icon, color: color),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        children: items.isEmpty
+            ? [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No data available'),
+                )
+              ]
+            : items.map((item) => itemBuilder(item)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildUserDebugCard(dynamic user) {
+    final plants = _systemStatus!['plants'] as List? ?? [];
+    final userPlants = plants.where((p) => p['user_id'] == user['id']).toList();
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: Colors.purple[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  user['role'] == 'admin' 
+                    ? Icons.admin_panel_settings
+                    : user['role'] == 'manufacturer'
+                      ? Icons.factory
+                      : Icons.person,
+                  size: 20,
+                  color: Colors.purple[700],
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${user['username']} (ID: ${user['id']})',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildDebugRow('Email', user['email']),
+            _buildDebugRow('Role', user['role']),
+            _buildDebugRow('Active', user['is_active']?.toString() ?? 'null'),
+            _buildDebugRow('Created', user['created_at'] ?? 'null'),
+            
+            // Show user's plants and their devices
+            if (userPlants.isNotEmpty) ...[
+              const Divider(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.eco, size: 16, color: Colors.green[800]),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Plants owned (${userPlants.length}):',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[800],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...userPlants.map((plant) {
+                final plantDevices = (plant['devices'] as List? ?? [])
+                    .where((d) => d != null)
+                    .toList();
+                
+                return Container(
+                  margin: const EdgeInsets.only(left: 12, top: 6, bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.local_florist, size: 14, color: Colors.green[700]),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${plant['name']} (Plant ID: ${plant['id']})',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (plant['scientific_name'] != null) ... [
+                        const SizedBox(height: 3),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20),
+                          child: Text(
+                            'Scientific: ${plant['scientific_name']}',
+                            style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                          ),
+                        ),
+                      ],
+                      if (plantDevices.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20),
+                          child: Row(
+                            children: [
+                              Icon(Icons.sensors, size: 12, color: Colors.teal[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Connected Devices (${plantDevices.length}):',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.teal[800],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ...plantDevices.map((device) => Padding(
+                          padding: const EdgeInsets.only(left: 36, top: 3),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 4,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.teal[600],
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${device['name']} (ID: ${device['id']}, Type: ${device['device_type'] ?? 'N/A'})',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                      ] else ...[
+                        const SizedBox(height: 6),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20),
+                          child: Text(
+                            'No devices connected',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontStyle: FontStyle.italic,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+            ] else if (user['role'] == 'consumer') ...[
+              const Divider(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 6),
+                  Text(
+                    'No plants registered yet',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlantDebugCard(dynamic plant) {
+    final devices = plant['devices'] as List? ?? [];
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: Colors.green[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${plant['name']} (ID: ${plant['id']})',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            _buildDebugRow('Scientific Name', plant['scientific_name']),
+            _buildDebugRow('Owner User ID', plant['user_id']?.toString()),
+            _buildDebugRow('Light Preference', plant['light_preference']),
+            _buildDebugRow('Water Needs', plant['water_needs']),
+            _buildDebugRow('Devices Count', devices.length.toString()),
+            if (devices.isNotEmpty) ...[
+              const Divider(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.sensors, size: 16, color: Colors.teal[800]),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Connected Devices (${devices.length}):',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.teal[800],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...devices.map((d) => Container(
+                    margin: const EdgeInsets.only(left: 12, top: 6, bottom: 6),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.teal[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.device_hub, size: 14, color: Colors.teal[700]),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '${d['name']} (Device ID: ${d['id']})',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.teal[900],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Type: ${d['device_type'] ?? 'N/A'}',
+                                style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                              ),
+                              if (d['manufacturer_id'] != null)
+                                Text(
+                                  'Manufacturer ID: ${d['manufacturer_id']}',
+                                  style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                                ),
+                              Text(
+                                'Active: ${d['is_active']?.toString() ?? 'unknown'}',
+                                style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+            ] else ...[
+              const Divider(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 6),
+                  Text(
+                    'No devices connected yet',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceDebugCard(dynamic device) {
+    final plants = _systemStatus!['plants'] as List? ?? [];
+    final connectedPlant = device['plant_id'] != null
+        ? plants.firstWhere(
+            (p) => p['id'] == device['plant_id'],
+            orElse: () => null,
+          )
+        : null;
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: Colors.teal[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.device_hub, size: 20, color: Colors.teal[700]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${device['name']} (ID: ${device['id']})',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildDebugRow('Type', device['device_type']),
+            _buildDebugRow('Manufacturer ID', device['manufacturer_id']?.toString()),
+            _buildDebugRow('Active', device['is_active']?.toString() ?? 'null'),
+            _buildDebugRow('Last Seen', device['last_seen'] ?? 'never'),
+            
+            if (connectedPlant != null) ...[
+              const Divider(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.eco, size: 16, color: Colors.green[800]),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Connected to Plant:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[800],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                margin: const EdgeInsets.only(left: 12),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.local_florist, size: 14, color: Colors.green[700]),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${connectedPlant['name']} (Plant ID: ${connectedPlant['id']})',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (connectedPlant['scientific_name'] != null)
+                            Text(
+                              'Scientific: ${connectedPlant['scientific_name']}',
+                              style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                            ),
+                          Text(
+                            'Owner User ID: ${connectedPlant['user_id']}',
+                            style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              const Divider(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Not connected to any plant',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceTypeDebugCard(dynamic deviceType) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: Colors.orange[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${deviceType['name']} (ID: ${deviceType['id']})',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            _buildDebugRow('Type', deviceType['device_type']),
+            _buildDebugRow('Manufacturer ID', deviceType['manufacturer_id']?.toString()),
+            _buildDebugRow(
+              'Supported Functions',
+              deviceType['supported_functions_formatted'] ?? deviceType['supported_functions'] ?? 'none',
+            ),
+            if (deviceType['description'] != null)
+              _buildDebugRow('Description', deviceType['description']),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConsumerDebugCard(dynamic consumer) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: Colors.indigo[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${consumer['username']} (ID: ${consumer['id']})',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            _buildDebugRow('Runtime State', 'Active in SystemState'),
+            _buildDebugRow(
+              'Plants Count',
+              (consumer['plants'] as List?)?.length.toString() ?? '0',
+            ),
+            if (consumer['email'] != null)
+              _buildDebugRow('Email', consumer['email']),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManufacturerDebugCard(dynamic manufacturer) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: Colors.deepOrange[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${manufacturer['username']} (ID: ${manufacturer['id']})',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            _buildDebugRow('Runtime State', 'Active in SystemState'),
+            if (manufacturer['email'] != null)
+              _buildDebugRow('Email', manufacturer['email']),
+            if (manufacturer['company_name'] != null)
+              _buildDebugRow('Company', manufacturer['company_name']),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebugRow(String label, String? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value ?? 'null',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

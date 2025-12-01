@@ -107,7 +107,25 @@ class _ManufacturerDashboardScreenState
   }
 
   Future<void> _handleRefresh() async {
-    // TODO: Refresh manufacturer data
+    // Trigger refresh on the current page
+    switch (_selectedIndex) {
+      case 0:
+        // Dashboard view
+        final dashboardState = context.findAncestorStateOfType<_DashboardViewState>();
+        if (dashboardState != null) {
+          await dashboardState._loadStats();
+        }
+        break;
+      case 1:
+        // Device Types view
+        final deviceTypesState = context.findAncestorStateOfType<_DeviceTypesViewState>();
+        if (deviceTypesState != null) {
+          await deviceTypesState._loadDeviceTypes();
+        }
+        break;
+      default:
+        break;
+    }
   }
 }
 
