@@ -55,11 +55,43 @@ from src.plants import Plant as PlantDomain
 from src.thread_manager import PlantThreadManager
 from src.users import Consumer, Manufacturer
 from src.hub_control import invoke_direct_method
+from fastapi import Header
 
 load_dotenv()
 
 app = FastAPI()
 main_logger = Logger("main")
+
+
+def _load_expected_api_key() -> str | None:
+    """Load expected API key from env or docker secret file.
+
+    Order: `HUB_API_KEY` env var, then file path from `HUB_API_KEY_FILE`, then
+    default docker secrets path `/run/secrets/hub_api_key`.
+    """
+    key = os.getenv("HUB_API_KEY")
+    if key:
+        return key
+    key_file = os.getenv("HUB_API_KEY_FILE") or "/run/secrets/hub_api_key"
+    try:
+        with open(key_file, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        return None
+
+
+async def require_api_key(x_api_key: str | None = Header(None)) -> bool:
+    """FastAPI dependency that enforces the X-API-Key header matches the configured key."""
+    expected = _load_expected_api_key()
+    if not expected:
+        main_logger.error("API key not configured on server (HUB_API_KEY or HUB_API_KEY_FILE)")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Server API key is not configured")
+
+    if not x_api_key or x_api_key != expected:
+        main_logger.warning("Invalid or missing API key for request")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing API key")
+
+    return True
 
 # =============================================================================
 # SERIALIZATION HELPERS
@@ -2174,7 +2206,7 @@ async def admin_delete_hub_by_serial(
 
 
 @app.post("/api/hub/activate")
-async def hub_activate(payload: dict = Body(...)):
+async def hub_activate(payload: dict = Body(...), _api_key: bool = Depends(require_api_key)):
     """
     Activation endpoint for the physical hub to call when it first boots up.
 
@@ -2398,6 +2430,7 @@ async def get_device_history(
 async def receive_device_data(
     payload: DeviceData,
     db: Session = Depends(get_db),
+    _api_key: bool = Depends(require_api_key),
 ):
     """
     General:
@@ -2501,6 +2534,7 @@ async def receive_device_data(
 async def receive_device_anomaly(
     payload: DeviceAnomaly,
     db: Session = Depends(get_db),
+    _api_key: bool = Depends(require_api_key),
 ):
     """
     Minimal anomaly receiver. Accepts a small JSON payload with `device_id`,

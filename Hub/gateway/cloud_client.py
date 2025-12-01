@@ -31,7 +31,17 @@ class CloudClient:
             self.endpoint = None
 
         self.default_headers = {"Content-Type": "application/json"}
+        # Support API key provided directly via env `CLOUD_API_KEY` or via
+        # a docker secret file path provided in `CLOUD_API_KEY_FILE`.
         api_key = os.getenv("CLOUD_API_KEY")
+        if not api_key:
+            key_file = os.getenv("CLOUD_API_KEY_FILE") or "/run/secrets/hub_api_key"
+            try:
+                with open(key_file, "r", encoding="utf-8") as f:
+                    api_key = f.read().strip()
+            except Exception:
+                api_key = None
+
         if api_key:
             header_name = os.getenv("CLOUD_API_KEY_HEADER", "x-api-key")
             self.default_headers[header_name] = api_key

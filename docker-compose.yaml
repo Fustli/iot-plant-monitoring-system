@@ -60,19 +60,23 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-change-in-production}
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - CORS_ORIGINS=localhost,http://localhost
+      - HUB_API_KEY_FILE=/run/secrets/hub_api_key
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/admin/system/status", "||", "exit", "1"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health", "||", "exit", "1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
       - iot-network
+    secrets:
+      - hub_api_key
 
   # ============================================================================
   # Tier 1: Frontend (Flutter Web + Nginx)
@@ -87,6 +91,8 @@ services:
       - "80:80"
     depends_on:
       - backend
+    environment:
+      - BACKEND_HOST=localhost
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
       interval: 30s
@@ -107,4 +113,8 @@ networks:
 # ==============================================================================
 volumes:
   postgres-data:
+
+secrets:
+  hub_api_key:
+    file: ./Hub/secrets/hub_api_key
 
