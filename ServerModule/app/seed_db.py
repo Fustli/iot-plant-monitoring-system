@@ -493,6 +493,36 @@ def seed_device_types(session: Session, manufacturer: Manufacturer) -> list:
             "min_value": 0.0,
             "max_value": 100.0,
         },
+        {
+            "name": "pH Sensor Pro",
+            "device_type": "sensor",
+            "description": "Accurate pH sensor for soil and water monitoring",
+            "communication_interface": "MQTT",
+            "supported_functions": "moisture:read",
+            "data_unit": "%",
+            "min_value": 0.0,
+            "max_value": 100.0,
+        },
+        {
+            "name": "Temperature Controller",
+            "device_type": "actuator",
+            "description": "Smart temperature controller with heating/cooling capabilities",
+            "communication_interface": "MQTT",
+            "supported_functions": "temperature:write",
+            "data_unit": "°C",
+            "min_value": 10.0,
+            "max_value": 40.0,
+        },
+        {
+            "name": "Humidity Controller",
+            "device_type": "actuator",
+            "description": "Humidifier/dehumidifier for optimal humidity control",
+            "communication_interface": "MQTT",
+            "supported_functions": "humidity:write",
+            "data_unit": "%",
+            "min_value": 0.0,
+            "max_value": 100.0,
+        },
     ]
     
     device_types = []
@@ -615,14 +645,76 @@ def seed_devices(session: Session, users: list, hubs: list, plants: list, device
             user_plants[plant.user_id] = []
         user_plants[plant.user_id].append(plant)
     
+    # Create device type mapping by capability
+    device_types_by_capability = {}
+    for dt in device_types:
+        funcs = dt.supported_functions or ""
+        device_types_by_capability[funcs] = dt
+    
     for user in users:
-        # Allow device creation even if the user has no hubs (manual hub addition later)
-        # If the user has hubs, we'll prefer to assign devices to a hub; otherwise hub will be None
+        # Get user's hub (prefer first hub if available)
+        hub = user_hubs.get(user.id, [None])[0] if user.id in user_hubs else None
         
-        # Each user gets 2-6 devices
-        num_devices = random.randint(2, 6)
+        # Get user's plants for assignment (distribute devices across first 2 plants)
+        user_plant_list = user_plants.get(user.id, [])
+        plant_1 = user_plant_list[0] if len(user_plant_list) > 0 else None
+        plant_2 = user_plant_list[1] if len(user_plant_list) > 1 else None
         
-        for i in range(num_devices):
+        # Create one device of each type for the user (all active)
+        # Plant 1 gets: moisture:read, moisture:write, temperature:write, brightness:write, humidity:read
+        # Plant 2 gets: temperature:read, humidity:write, brightness:read
+        device_assignments = [
+            ("moisture:read", plant_1),
+            ("moisture:write", plant_1), 
+            ("temperature:read", plant_2),
+            ("temperature:write", plant_1),
+            ("humidity:read", plant_1),
+            ("humidity:write", plant_2),
+            ("brightness:read", plant_2),
+            ("brightness:write", plant_1)
+        ]
+        
+        device_counter = 1
+        for capability, assigned_plant in device_assignments:
+            # Find device type with this capability
+            device_type = None
+            for dt in device_types:
+                if capability in (dt.supported_functions or ""):
+                    device_type = dt
+                    break
+            
+            if not device_type:
+                continue
+            
+            device_uuid = str(uuid.uuid4())[:12].upper()
+            unique_id = f"DEV-{user.id}-{capability.replace(':', '-').upper()}-{device_uuid[:4]}"
+            
+            existing = session.query(Device).filter(Device.unique_identifier == unique_id).first()
+            if existing:
+                devices.append(existing)
+                continue
+            
+            device = Device(
+                user_id=user.id,
+                hub_id=hub.id if hub else None,
+                plant_id=assigned_plant.id if assigned_plant else None,
+                device_type_id=device_type.id,
+                unique_identifier=unique_id,
+                device_name=f"{device_type.name} ({capability})",
+                is_active=True,  # All devices active
+                last_data_received=datetime.now() - timedelta(minutes=random.randint(0, 30)),
+                last_heartbeat=datetime.now() - timedelta(seconds=random.randint(0, 60)),
+                location_description=f"Near {assigned_plant.plant_name}" if assigned_plant else f"User {user.username} device",
+                battery_level=random.uniform(70.0, 100.0),
+                rssi=random.randint(-70, -30),
+            )
+            session.add(device)
+            devices.append(device)
+            device_counter += 1
+        
+        # Also create 2-4 additional random devices for variety
+        num_random_devices = random.randint(2, 4)
+        for i in range(num_random_devices):
             device_uuid = str(uuid.uuid4())[:12].upper()
             unique_id = f"DEV-{device_uuid}"
             
@@ -632,34 +724,29 @@ def seed_devices(session: Session, users: list, hubs: list, plants: list, device
                 continue
             
             device_type = random.choice(device_types)
-            hub = None
-            
-            # 70% chance to assign to a plant
-            plant = None
-            if user.id in user_plants and user_plants[user.id] and random.random() < 0.7:
-                plant = random.choice(user_plants[user.id])
-            
-            is_active = random.choice([True, True, True, False])
+            random_plant = random.choice(user_plants[user.id]) if user.id in user_plants and user_plants[user.id] else None
+            is_active = random.choice([True, True, False])
             
             device = Device(
                 user_id=user.id,
                 hub_id=hub.id if hub else None,
-                plant_id=plant.id if plant else None,
+                plant_id=random_plant.id if random_plant else None,
                 device_type_id=device_type.id,
                 unique_identifier=unique_id,
-                device_name=f"{device_type.name} #{i + 1}",
+                device_name=f"{device_type.name} #{device_counter}",
                 is_active=is_active,
                 last_data_received=datetime.now() - timedelta(minutes=random.randint(0, 120)) if is_active else None,
                 last_heartbeat=datetime.now() - timedelta(seconds=random.randint(0, 300)) if is_active else None,
-                location_description=f"Near {plant.plant_name}" if plant else None,
+                location_description=f"Near {random_plant.plant_name}" if random_plant else None,
                 battery_level=random.uniform(20.0, 100.0) if random.random() > 0.3 else None,
                 rssi=random.randint(-90, -30) if is_active else None,
             )
             session.add(device)
             devices.append(device)
+            device_counter += 1
     
     session.commit()
-    print(f"[SUCCESS] Created {len(devices)} devices")
+    print(f"[SUCCESS] Created {len(devices)} devices (including comprehensive capability devices)")
     return devices
 
 
@@ -881,9 +968,17 @@ def seed_plant_device_assignments(session: Session, plants: list, devices: list)
 
 def reset_database():
     """Drop all tables and recreate them."""
+    from sqlalchemy import text
+    
     engine = create_engine_instance()
-    print("[WARNING] Resetting database - dropping all tables...")
-    Base.metadata.drop_all(bind=engine)
+    print("[WARNING] Resetting database - dropping all tables with CASCADE...")
+    
+    # Use CASCADE to force drop all dependent objects
+    with engine.connect() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+        conn.commit()
+    
     print("[SUCCESS] Tables dropped")
     
     print("[INFO] Creating tables...")
@@ -947,24 +1042,52 @@ def main():
         print("\n[STEP 4/10] Creating device types...")
         device_types = seed_device_types(session, manufacturer_profile)
         
-        # Skip automatic hub creation: hubs will be added manually by the operator
-        hubs = []
+        # Create test hub for development
+        print("\n[STEP 5/10] Creating test hub...")
+        from src.db.hub_models import Hub
+        test_hub = session.query(Hub).filter(Hub.serial == "testhub123").first()
+        if not test_hub:
+            test_hub = Hub(
+                user_id=None,  # Unclaimed, ready to be claimed by users
+                serial="testhub123",
+                name="testhub123",
+                status="online",  # Automatically set to online for testing
+                is_active=True,  # Automatically activated for development
+                last_seen=datetime.now(),  # Set current timestamp
+            )
+            session.add(test_hub)
+            session.commit()
+            print(f"[SUCCESS] Created test hub (serial: testhub123) - AUTOMATICALLY ACTIVATED")
+            print(f"[INFO] Hub status: online, is_active: True, last_seen: {test_hub.last_seen}")
+        else:
+            # Update existing hub to be activated if it's not already
+            if not test_hub.is_active:
+                test_hub.is_active = True
+                test_hub.status = "online"
+                test_hub.last_seen = datetime.now()
+                session.commit()
+                print(f"[SUCCESS] Test hub already exists - AUTOMATICALLY ACTIVATED")
+                print(f"[INFO] Hub status: online, is_active: True, last_seen: {test_hub.last_seen}")
+            else:
+                print(f"[INFO] Test hub already exists and is already active")
+        
+        hubs = [test_hub]
 
         # Seed devices (will be created without hub assignment if no hubs exist)
-        print("\n[STEP 5/10] Creating devices...")
+        print("\n[STEP 6/10] Creating devices...")
         devices = seed_devices(session, consumers, hubs, plants, device_types)
         
         # Seed sensor data
-        print("\n[STEP 8/10] Creating sensor data...")
+        print("\n[STEP 7/10] Creating sensor data...")
         seed_sensor_data(session, devices)
         
         # Seed alerts
-        # print("\n[STEP 10/10] Creating alerts...")
+        # print("\n[STEP 8/10] Creating alerts...")
         # seed_alerts(session)
         
-        # Create plant-device assignments
-        print("\n[BONUS] Creating plant-device assignments...")
-        seed_plant_device_assignments(session, plants, devices)
+        # Skip plant-device assignments - users will assign devices manually
+        # print("\n[STEP 8/10] Creating plant-device assignments...")
+        # seed_plant_device_assignments(session, plants, devices)
         
         print("\n" + "=" * 60)
         print("[SUCCESS] Database seeding complete!")
@@ -980,6 +1103,15 @@ def main():
         print(f"   - {len(plants)} plants")
         print(f"   - {len(device_types)} device types")
         print(f"   - {len(devices)} devices")
+        print(f"   - 1 test hub (serial: testhub123) [ACTIVATED]")
+        print()
+        print("[NOTE] Test hub is automatically activated and ready to use!")
+        print("   - Serial: testhub123")
+        print("   - Status: online")
+        print("   - Is Active: True")
+        print()
+        print("[NEXT STEPS] Claim the hub from the Flutter app or API:")
+        print("   Use serial 'testhub123' to claim this pre-activated hub")
         print()
         
     except Exception as e:

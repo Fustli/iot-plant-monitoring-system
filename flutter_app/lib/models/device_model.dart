@@ -7,6 +7,7 @@ class Device {
     required this.deviceName,
     required this.isActive,
     this.hubId,
+    this.plantId,
     this.lastDataReceived,
     this.lastHeartbeat,
     this.locationDescription,
@@ -26,6 +27,7 @@ class Device {
       deviceName: json['device_name'],
       isActive: json['is_active'] ?? true,
       hubId: json['hub_id'],
+      plantId: json['plant_id'],
       lastDataReceived: json['last_data_received'] != null
           ? DateTime.parse(json['last_data_received'])
           : null,
@@ -47,6 +49,7 @@ class Device {
   final String deviceName;
   final bool isActive;
   final int? hubId;
+  final int? plantId;
   final DateTime? lastDataReceived;
   final DateTime? lastHeartbeat;
   final String? locationDescription;
@@ -72,6 +75,7 @@ class Device {
         'device_name': deviceName,
         'is_active': isActive,
         'hub_id': hubId,
+        'plant_id': plantId,
         'last_data_received': lastDataReceived?.toIso8601String(),
         'last_heartbeat': lastHeartbeat?.toIso8601String(),
         'location_description': locationDescription,

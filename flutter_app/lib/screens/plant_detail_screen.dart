@@ -765,23 +765,34 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       final devices = await apiClient.getMyDevices();
       final deviceTypes = await apiClient.listAvailableDeviceTypes();
       
+      debugPrint('[WATER_DEBUG] Total devices: ${devices.length}');
+      debugPrint('[WATER_DEBUG] Total device types: ${deviceTypes.length}');
+      
       // Enrich devices with device type information
+      final enrichedDevices = <Device>[];
       for (var device in devices) {
         final deviceTypeData = deviceTypes.firstWhere(
           (dt) => dt['id'] == device.deviceTypeId,
           orElse: () => <String, dynamic>{},
         );
-        device = Device.fromJson({
+        final enrichedDevice = Device.fromJson({
           ...device.toJson(),
           'device_type': deviceTypeData,
         });
+        enrichedDevices.add(enrichedDevice);
+        debugPrint('[WATER_DEBUG] Device ${device.id}: ${device.deviceName}, Functions: ${deviceTypeData['supported_functions']}');
       }
       
-      // Find a device with moisture write capability (actuator)
-      final moistureDevice = devices.where((device) {
+      // Find a device with moisture write capability (actuator) assigned to this plant
+      final moistureDevice = enrichedDevices.where((device) {
         final functions = device.deviceType?['supported_functions'] as String? ?? '';
-        return functions.contains('moisture:write') || functions.contains('moisture');
+        final hasMoisture = functions.contains('moisture:write') || functions.contains('moisture');
+        final isForThisPlant = device.plantId?.toString() == widget.plantId;
+        debugPrint('[WATER_DEBUG] Checking device ${device.id}: hasMoisture=$hasMoisture, plantId=${device.plantId}, match=$isForThisPlant');
+        return hasMoisture && isForThisPlant;
       }).firstOrNull;
+      
+      debugPrint('[WATER_DEBUG] Found moisture device: ${moistureDevice?.id}');
       
       if (moistureDevice == null) {
         if (mounted) {
@@ -837,22 +848,33 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       final devices = await apiClient.getMyDevices();
       final deviceTypes = await apiClient.listAvailableDeviceTypes();
       
+      debugPrint('[BRIGHTNESS_DEBUG] Total devices: ${devices.length}');
+      debugPrint('[BRIGHTNESS_DEBUG] Total device types: ${deviceTypes.length}');
+      
       // Enrich devices with device type information
+      final enrichedDevices = <Device>[];
       for (var device in devices) {
         final deviceTypeData = deviceTypes.firstWhere(
           (dt) => dt['id'] == device.deviceTypeId,
           orElse: () => <String, dynamic>{},
         );
-        device = Device.fromJson({
+        final enrichedDevice = Device.fromJson({
           ...device.toJson(),
           'device_type': deviceTypeData,
         });
+        enrichedDevices.add(enrichedDevice);
+        debugPrint('[BRIGHTNESS_DEBUG] Device ${device.id}: ${device.deviceName}, Functions: ${deviceTypeData['supported_functions']}, PlantId: ${device.plantId}');
       }
       
-      final lightDevice = devices.where((device) {
+      final lightDevice = enrichedDevices.where((device) {
         final functions = device.deviceType?['supported_functions'] as String? ?? '';
-        return functions.contains('brightness:write') || functions.contains('light:write');
+        final hasCapability = functions.contains('brightness:write') || functions.contains('light:write');
+        final isForThisPlant = device.plantId?.toString() == widget.plantId;
+        debugPrint('[BRIGHTNESS_DEBUG] Device ${device.id}: hasCapability=$hasCapability, plantId=${device.plantId}, match=$isForThisPlant');
+        return hasCapability && isForThisPlant;
       }).firstOrNull;
+      
+      debugPrint('[BRIGHTNESS_DEBUG] Found light device: ${lightDevice?.id}');
       
       if (lightDevice == null) {
         if (mounted) {
@@ -870,7 +892,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
             widget.plantId,
             lightDevice.id,
             'brightness',
-            80.0, // Increase light to 80%
+            10.0, // Increase brightness by 10%
           );
 
       if (success && mounted) {
@@ -912,22 +934,33 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       final devices = await apiClient.getMyDevices();
       final deviceTypes = await apiClient.listAvailableDeviceTypes();
       
+      debugPrint('[TEMP_DEBUG] Total devices: ${devices.length}');
+      debugPrint('[TEMP_DEBUG] Total device types: ${deviceTypes.length}');
+      
       // Enrich devices with device type information
+      final enrichedDevices = <Device>[];
       for (var device in devices) {
         final deviceTypeData = deviceTypes.firstWhere(
           (dt) => dt['id'] == device.deviceTypeId,
           orElse: () => <String, dynamic>{},
         );
-        device = Device.fromJson({
+        final enrichedDevice = Device.fromJson({
           ...device.toJson(),
           'device_type': deviceTypeData,
         });
+        enrichedDevices.add(enrichedDevice);
+        debugPrint('[TEMP_DEBUG] Device ${device.id}: ${device.deviceName}, Functions: ${deviceTypeData['supported_functions']}, PlantId: ${device.plantId}');
       }
       
-      final tempDevice = devices.where((device) {
+      final tempDevice = enrichedDevices.where((device) {
         final functions = device.deviceType?['supported_functions'] as String? ?? '';
-        return functions.contains('temperature:write');
+        final hasCapability = functions.contains('temperature:write');
+        final isForThisPlant = device.plantId?.toString() == widget.plantId;
+        debugPrint('[TEMP_DEBUG] Device ${device.id}: hasCapability=$hasCapability, plantId=${device.plantId}, match=$isForThisPlant');
+        return hasCapability && isForThisPlant;
       }).firstOrNull;
+      
+      debugPrint('[TEMP_DEBUG] Found temp device: ${tempDevice?.id}');
       
       if (tempDevice == null) {
         if (mounted) {
@@ -945,7 +978,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
             widget.plantId,
             tempDevice.id,
             'temperature',
-            22.0, // Set temperature to 22°C
+            2.0, // Increase temperature by 2°C
           );
 
       if (success && mounted) {
@@ -987,22 +1020,33 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       final devices = await apiClient.getMyDevices();
       final deviceTypes = await apiClient.listAvailableDeviceTypes();
       
+      debugPrint('[HUMIDITY_DEBUG] Total devices: ${devices.length}');
+      debugPrint('[HUMIDITY_DEBUG] Total device types: ${deviceTypes.length}');
+      
       // Enrich devices with device type information
+      final enrichedDevices = <Device>[];
       for (var device in devices) {
         final deviceTypeData = deviceTypes.firstWhere(
           (dt) => dt['id'] == device.deviceTypeId,
           orElse: () => <String, dynamic>{},
         );
-        device = Device.fromJson({
+        final enrichedDevice = Device.fromJson({
           ...device.toJson(),
           'device_type': deviceTypeData,
         });
+        enrichedDevices.add(enrichedDevice);
+        debugPrint('[HUMIDITY_DEBUG] Device ${device.id}: ${device.deviceName}, Functions: ${deviceTypeData['supported_functions']}, PlantId: ${device.plantId}');
       }
       
-      final humidityDevice = devices.where((device) {
+      final humidityDevice = enrichedDevices.where((device) {
         final functions = device.deviceType?['supported_functions'] as String? ?? '';
-        return functions.contains('humidity:write');
+        final hasCapability = functions.contains('humidity:write');
+        final isForThisPlant = device.plantId?.toString() == widget.plantId;
+        debugPrint('[HUMIDITY_DEBUG] Device ${device.id}: hasCapability=$hasCapability, plantId=${device.plantId}, match=$isForThisPlant');
+        return hasCapability && isForThisPlant;
       }).firstOrNull;
+      
+      debugPrint('[HUMIDITY_DEBUG] Found humidity device: ${humidityDevice?.id}');
       
       if (humidityDevice == null) {
         if (mounted) {
@@ -1020,7 +1064,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
             widget.plantId,
             humidityDevice.id,
             'humidity',
-            60.0, // Set humidity to 60%
+            5.0, // Increase humidity by 5%
           );
 
       if (success && mounted) {

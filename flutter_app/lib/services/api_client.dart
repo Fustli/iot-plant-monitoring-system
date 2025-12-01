@@ -648,10 +648,16 @@ class ApiService {
   /// Send command to actuator (water, light, etc.)
   Future<void> sendDeviceCommand(int deviceId,
       {required String metric, required double delta}) async {
-    await _post('/consumer/devices/$deviceId/command', body: {
+    print('[API_DEBUG] Sending device command: deviceId=$deviceId, metric=$metric, delta=$delta');
+    print('[API_DEBUG] URL: $_baseUrl/consumer/devices/$deviceId/command');
+    print('[API_DEBUG] Token exists: ${_accessToken != null}');
+    
+    final result = await _post('/consumer/devices/$deviceId/command', body: {
       'metric': metric,
       'delta': delta,
     });
+    
+    print('[API_DEBUG] Device command response: $result');
   }
 
   /// Get user alerts

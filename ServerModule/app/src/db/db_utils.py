@@ -147,9 +147,36 @@ class DBInterface:
         return result[0] if result else None
     
     def get_device_by_id(self, device_id: int):
-        query = "SELECT * FROM devices WHERE id = %s"
+        """
+        Return a device record as a dict with explicit columns.
+        """
+        query = """
+            SELECT id, user_id, hub_id, plant_id, device_type_id, unique_identifier, 
+                   device_name, is_active, last_data_received, last_heartbeat, 
+                   location_description, battery_level, rssi, created_at, updated_at
+            FROM devices WHERE id = %s
+        """
         results = self.execute_query(query, (device_id,))
-        return results[0] if results else None
+        if not results:
+            return None
+        r = results[0]
+        return {
+            "id": r[0],
+            "user_id": r[1],
+            "hub_id": r[2],
+            "plant_id": r[3],
+            "device_type_id": r[4],
+            "unique_identifier": r[5],
+            "device_name": r[6],
+            "is_active": r[7],
+            "last_data_received": r[8],
+            "last_heartbeat": r[9],
+            "location_description": r[10],
+            "battery_level": r[11],
+            "rssi": r[12],
+            "created_at": r[13],
+            "updated_at": r[14],
+        }
     
     def get_device_by_name(self, device_name: str):
         query = "SELECT manufacturer_id, name, device_type, description, communication_interface, supported_functions, data_unit, min_value, max_value, is_active FROM device_types WHERE name = %s"

@@ -623,6 +623,8 @@ class _DevicesViewState extends State<_DevicesView> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
       _error = null;
@@ -632,20 +634,24 @@ class _DevicesViewState extends State<_DevicesView> {
       final devices = await _apiService.getMyDevices();
       final deviceTypes = await _apiService.listAvailableDeviceTypes();
       final hubs = await _apiService.getMyHubs();
+      if (!mounted) return;
       setState(() {
         _devices = devices;
         _deviceTypes = deviceTypes;
         _hubs = hubs;
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.messageHu;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Failed to load devices';
       });
     } finally {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -996,12 +1002,17 @@ class _DevicesViewState extends State<_DevicesView> {
   Future<void> _showEditDeviceDialog(
       BuildContext context, Device device) async {
     final localization = context.read<LocalizationProvider>();
-
+    final plantProvider = context.read<PlantProvider>();
+    
     final nameController = TextEditingController(text: device.deviceName);
     final locationController =
         TextEditingController(text: device.locationDescription ?? '');
     Hub? selectedHub = _hubs.cast<Hub?>().firstWhere(
       (hub) => hub?.id == device.hubId,
+      orElse: () => null,
+    );
+    Plant? selectedPlant = plantProvider.plants.cast<Plant?>().firstWhere(
+      (plant) => plant?.id == device.plantId?.toString(),
       orElse: () => null,
     );
 
@@ -1028,6 +1039,42 @@ class _DevicesViewState extends State<_DevicesView> {
                     labelText: localization.tr('devices_location'),
                     border: const OutlineInputBorder(),
                   ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<Plant?>(
+                  value: selectedPlant,
+                  decoration: InputDecoration(
+                    labelText: localization.tr('devices_select_plant'),
+                    border: const OutlineInputBorder(),
+                  ),
+                  isExpanded: true,
+                  items: [
+                    DropdownMenuItem<Plant?>(
+                      value: null,
+                      child: Text(localization.tr('devices_no_plant')),
+                    ),
+                    ...plantProvider.plants.map((plant) {
+                      return DropdownMenuItem<Plant?>(
+                        value: plant,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.eco,
+                              size: 16,
+                              color: plant.isHealthy ? Colors.green : Colors.orange,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(plant.name)),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedPlant = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<Hub?>(
@@ -1091,6 +1138,7 @@ class _DevicesViewState extends State<_DevicesView> {
           'location_description': locationController.text.isNotEmpty
               ? locationController.text
               : null,
+          'plant_id': selectedPlant?.id != null ? int.parse(selectedPlant!.id) : null,
           'hub_id': selectedHub?.id,
         });
 
@@ -1292,6 +1340,8 @@ class _AlertsViewState extends State<_AlertsView> {
   }
 
   Future<void> _loadAlerts() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
       _error = null;
@@ -1301,14 +1351,20 @@ class _AlertsViewState extends State<_AlertsView> {
       // TODO: Implement alerts API endpoint
       // For now, use dummy data
       await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      
       setState(() {
         _alerts = _generateDummyAlerts();
       });
     } catch (e) {
+      if (!mounted) return;
+      
       setState(() {
         _alerts = _generateDummyAlerts();
       });
     } finally {
+      if (!mounted) return;
+      
       setState(() {
         _isLoading = false;
       });

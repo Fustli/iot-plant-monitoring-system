@@ -188,3 +188,5 @@ class DeviceUpdate(BaseModel):
     """Schema for updating device."""
     device_name: str | None = None
     location_description: str | None = None
+    plant_id: int | None = None
+    hub_id: int | None = None
