@@ -1,0 +1,38 @@
+version: '3.8'
+services:
+  servermodule:
+    image: ${ACR_LOGIN_SERVER:-plantmonitoringsystem-a2ewa7abd5d8fngv.azurecr.io}/iot-servermodule:latest
+    restart: always
+    environment:
+      # Support the env names used by ServerModule `DBInterface`
+      - POSTGRES_DB_HOST=${POSTGRES_DB_HOST:-${POSTGRES_HOST}}
+      - POSTGRES_DB_PORT=${POSTGRES_DB_PORT:-${POSTGRES_PORT:-5432}}
+      - POSTGRES_DB_NAME=${POSTGRES_DB_NAME:-${POSTGRES_DB}}
+      - POSTGRES_DB_USER=${POSTGRES_DB_USER:-${POSTGRES_USER}}
+      - POSTGRES_DB_PASSWORD=${POSTGRES_DB_PASSWORD:-${POSTGRES_PASSWORD}}
+      # Optional: provide a full DATABASE_URL instead of individual vars
+      - DATABASE_URL=${DATABASE_URL}
+      - IOTHUB_CONNECTION_STRING=${IOTHUB_CONNECTION_STRING}
+      - DEVICE_CONNECTION_STRING=${DEVICE_CONNECTION_STRING}
+      # CORS for production frontend - set to comma-separated origins or '*' (not recommended)
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      # App Service needs this if your app listens on non-default port (uvicorn uses 8000)
+      - WEBSITES_PORT=8000
+    ports:
+      - "8000:8000"
+
+  flutter_frontend:
+    image: ${ACR_LOGIN_SERVER:-plantmonitoringsystem-a2ewa7abd5d8fngv.azurecr.io}/iot-flutter:latest
+    restart: always
+    environment:
+      # Hostname (or IP without scheme) of the backend App Service (set in Azure App Settings)
+      - BACKEND_HOST=${BACKEND_HOST:-backend}
+    ports:
+      - "80:80"
+
+# Notes:
+# - Set `ACR_LOGIN_SERVER` in your App Service or deployment process to your registry (e.g. myregistry.azurecr.io)
+# - Do NOT include build: entries — App Service / Container Apps expect pre-built images.
+# - Set the environment variables in the Azure Portal (App Service Configuration or Container Apps settings).
+# - This compose file purposely omits a Postgres service; use Azure Database for PostgreSQL and set POSTGRES_* vars or `DATABASE_URL`.
+# - Set `CORS_ORIGINS` to your frontend URL(s) (comma-separated) so the backend will allow requests from your deployed frontend.

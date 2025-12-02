@@ -3,7 +3,7 @@
 Lightweight MQTT device simulator.
 
 Usage examples:
-  python device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"publish_topic":"telemetry","command_topic":"actuators/device1/sed","device_id":"device1","interval":5,"sensors":{"temp":25.0,"moisture":40},"actuators":["moisture","light"]}'
+  python device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"publish_topic":"telemetry","command_topic":"actuators/device1/sed","device_id":"device1","interval":5,"sensors":{"temperature": [25.0, "C"], "moisture": [40, "%"]}},"actuators":["moisture","light"]}'
 
   python device_simulator/mqtt_device_simulator.py --config-file ./device_config.json
 
@@ -15,16 +15,18 @@ While running you can type commands on stdin:
   quit / exit             # stop simulator
 
 The simulator also subscribes to the `command_topic` (if provided) and accepts JSON messages
-of the form: {"set": {"temp": 30}} to update sensors remotely.
+of the form: {"metric": "temperature|humidity|moisture|light", "delta": float} to update sensors remotely.
 """
 from __future__ import annotations
 
 import argparse
+from email import parser
 import json
+import logging
 import threading
 import time
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 try:
     import paho.mqtt.client as mqtt
@@ -45,7 +47,7 @@ class MQTTDeviceSimulator:
 
         sensors = config.get("sensors", {})
         # Ensure numeric types where possible
-        self.sensors: Dict[str, Any] = dict(sensors)
+        self.sensors: Dict[str, Dict[str, Any]] = dict(sensors)
         self.sensors_lock = threading.Lock()
 
         actuators = config.get("actuators", [])
@@ -56,22 +58,24 @@ class MQTTDeviceSimulator:
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
 
+        self.logger: Optional[logging.Logger] = None
+
         self._running = threading.Event()
         self._running.set()
 
     def on_connect(self, client, userdata, flags, rc):
-        print(f"Connected to MQTT broker {self.broker}:{self.port} (rc={rc})")
+        self.log(f"Connected to MQTT broker {self.broker}:{self.port} (rc={rc})")
         if self.command_topic:
             client.subscribe(self.command_topic)
-            print(f"Subscribed to command topic: {self.command_topic}")
+            self.log(f"Subscribed to command topic: {self.command_topic}")
 
     def on_message(self, client, userdata, message):
         payload = message.payload.decode("utf-8", errors="ignore")
-        print(f"Received command message on {message.topic}: {payload}")
+        self.log(f"Received command message on {message.topic}: {payload}")
         try:
             data = json.loads(payload)
         except Exception as e:
-            print("Invalid JSON command payload:", e)
+            self.log(f"Invalid JSON command payload: {e}")
             return
 
         # support {"metric": "temperature|humidity|moisture|light", "delta": float}
@@ -81,27 +85,27 @@ class MQTTDeviceSimulator:
             and "delta" in data
             and data["metric"] in self.actuators
         ):
-            print("Actuator command received:", data)
+            self.log(f"Actuator command received: {data}")
             metric = data["metric"]
             delta = data["delta"]
             with self.sensors_lock:
                 if metric in self.sensors:
                     try:
-                        cur = float(self.sensors[metric])
+                        cur = float(self.sensors[metric]["value"])
                         cur += float(delta)
                         # keep int if original was int
-                        if isinstance(self.sensors[metric], int):
+                        if isinstance(self.sensors[metric]["value"], int):
                             cur = int(cur)
-                        self.sensors[metric] = cur
-                        print(f"Updated sensor '{metric}' to {cur} via actuator command")
+                        self.sensors[metric]["value"] = cur
+                        self.log(f"Updated sensor '{metric}' to {cur} via actuator command")
                     except Exception as e:
-                        print("Error updating sensor value:", e)
+                        self.log(f"Error updating sensor value: {e}")
                 else:
-                    print(f"Sensor '{metric}' not found to update via actuator command")
+                    self.log(f"Sensor '{metric}' not found to update via actuator command")
         
 
     def start(self):
-        print("Starting simulator... connecting to broker")
+        self.log("Starting simulator... connecting to broker")
         self.client.connect(self.broker, self.port)
         # Use network loop in background thread
         self.client.loop_start()
@@ -110,7 +114,7 @@ class MQTTDeviceSimulator:
         self._pub_thread.start()
 
     def stop(self):
-        print("Stopping simulator...")
+        self.log("Stopping simulator...")
         self._running.clear()
         try:
             self.client.loop_stop()
@@ -121,16 +125,19 @@ class MQTTDeviceSimulator:
     def _publisher_loop(self):
         while self._running.is_set():
             with self.sensors_lock:
-                payload = {
-                    "device_id": self.device_id,
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
-                    "sensors": self.sensors,
-                }
-            try:
-                self.client.publish(self.publish_topic, json.dumps(payload))
-                print(f"Published to {self.publish_topic}: {payload}")
-            except Exception as e:
-                print("Publish error:", e)
+                for sensor in self.sensors.keys():
+                    payload = {
+                        "device_id": self.device_id,
+                        "data_type": sensor,
+                        "data": self.sensors[sensor].get("value"),
+                        "data_unit": self.sensors[sensor].get("unit"),
+                        }
+                
+                    try:
+                        self.client.publish(self.publish_topic, json.dumps(payload))
+                        self.log(f"Published to {self.publish_topic}: {payload}")
+                    except Exception as e:
+                        self.log(f"Publish error: {e}")
             time.sleep(self.interval)
 
     # helper methods for CLI
@@ -138,27 +145,54 @@ class MQTTDeviceSimulator:
         with self.sensors_lock:
             # attempt numeric conversion
             try:
-                if isinstance(self.sensors.get(name), int):
+                if isinstance(self.sensors[name]["value"], int):
                     value = int(value)
-                elif isinstance(self.sensors.get(name), float):
+                elif isinstance(self.sensors[name]["value"], float):
                     value = float(value)
-            except Exception:
-                pass
-            self.sensors[name] = value
+            except Exception as e:
+                self.log(f"Exception converting sensor value: {e}")
+            self.sensors[name]["value"] = value
 
     def inc_sensor(self, name: str, delta: float):
         with self.sensors_lock:
-            cur = self.sensors.get(name, 0)
+            cur = self.sensors[name]["value"]
             try:
                 cur = float(cur)
                 cur += delta
                 # keep int if original was int
-                if isinstance(self.sensors.get(name), int):
+                if isinstance(self.sensors[name]["value"], int):
                     cur = int(cur)
-            except Exception:
-                print("Cannot increment non-numeric sensor")
+            except Exception as e:
+                self.log(f"Exception incrementing sensor value: {e}")
                 return
-            self.sensors[name] = cur
+            self.sensors[name]["value"] = cur
+
+    def log(self, msg: str):
+        if self.logger:
+                self.logger.info(msg)
+        else:
+            print(msg)
+
+# MQTT-based log handler (publishes log messages to a topic)
+class MQTTLogHandler(logging.Handler):
+    def __init__(self, client: Optional[mqtt.Client], topic: Optional[str]):
+        super().__init__()
+        self.client = client
+        self.topic = topic
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            if self.client and self.topic:
+                # publish without blocking
+                try:
+                    self.client.publish(self.topic, msg)
+                except Exception:
+                    # fall back to stdout if publish fails
+                    pass
+        except Exception:
+            pass        
+
 
 
 def parse_config_from_arg(arg: str) -> Dict[str, Any]:
@@ -222,13 +256,49 @@ def repl(sim: MQTTDeviceSimulator):
 
 
 def main():
+    """
+    - `--log-file <path>` — write logs to a file
+    - `--log-topic <mqtt_topic>` — publish log lines to an MQTT topic (you can `mosquitto_sub` to view them in another terminal)
+    - `--no-stdout` — disable printing logs to stdout (useful when viewing logs in another terminal)
+    """
     parser = argparse.ArgumentParser(description="MQTT device simulator")
     parser.add_argument("config", help="JSON string or path to JSON config file")
+    parser.add_argument("--log-file", help="Path to write logs to (optional)")
+    parser.add_argument("--log-topic", help="MQTT topic to publish logs to (optional)")
+    parser.add_argument("--no-stdout", action="store_true", help="Disable printing logs to stdout")
     args = parser.parse_args()
 
     config = parse_config_from_arg(args.config)
 
+    # setup simulator
     sim = MQTTDeviceSimulator(config)
+
+    # configure logging
+    logger = logging.getLogger("mqtt_sim")
+    logger.setLevel(logging.INFO)
+    # remove default handlers
+    for h in list(logger.handlers):
+        logger.removeHandler(h)
+
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+
+    if not args.no_stdout:
+        sh = logging.StreamHandler()
+        sh.setFormatter(formatter)
+        logger.addHandler(sh)
+
+    if args.log_file:
+        fh = logging.FileHandler(args.log_file)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+    
+    if args.log_topic:
+        mhandler = MQTTLogHandler(sim.client, args.log_topic)
+        mhandler.setFormatter(formatter)
+        logger.addHandler(mhandler)
+
+    sim.logger = logger
+
     sim.start()
 
     # run REPL in main thread; supports keyboard input
