@@ -17,7 +17,7 @@ Quick start examples:
 1) Run with inline JSON config:
 
 ```bash
-device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"publish_topic":"telemetry","command_topic":"actuators/device1/sed","device_id":"device1","interval":5,"sensors":{"temp":25.0,"moisture":40},"actuators":["moisture","light"]}'
+device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"publish_topic":"telemetry","command_topic":"actuators/device1/sed","device_id":"device1","interval":30,""sensors": {"temperature": {"value": 25.0, "unit": "C"}, "moisture": {"value": 40,"unit": "%"}},"actuators": ["moisture", "light"]}'
 ```
 
 2) Run with config file `device_config.json`:
@@ -29,9 +29,18 @@ device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"pu
   "publish_topic": "telemetry",
   "command_topic": "actuators/device1/set",
   "device_id": "device1",
-  "interval": 5,
-  "sensors": {"temperature": 25.0, "moisture": 40},
-  "actuators": ["moisture", "light"]
+  "interval": 30,
+  "sensors": {
+    "temperature": {
+      "value": 25.0, 
+      "unit": "C"
+      }, 
+      "moisture": {
+        "value": 40,
+        "unit": "%"
+      }
+  },
+  "actuators": ["moisture", "light"] 
 }
 ```
 
@@ -61,7 +70,7 @@ Example: publish logs to `home/logs/device1` and view them in another terminal:
 
 ```bash
 # run simulator and publish logs to MQTT
-python device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"publish_topic":"home/sensors/device1","command_topic":"home/commands/device1","device_id":"device1","interval":5,"sensors":{"temp":25.0,"moisture":40}}' --log-topic home/logs/device1 --no-stdout
+python device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"publish_topic":"home/sensors/device1","command_topic":"home/commands/device1","device_id":"device1","interval":30,"sensors": {"temperature": {"value": 25.0, "unit": "C"}, "moisture": {"value": 40,"unit": "%"}},"actuators": ["moisture", "light"]}' --log-topic home/logs/device1 --no-stdout
 
 # in another terminal, subscribe to the log topic
 mosquitto_sub -h localhost -t home/logs/device1 -v
@@ -70,7 +79,7 @@ mosquitto_sub -h localhost -t home/logs/device1 -v
 Example: write logs to a file and tail in another terminal:
 
 ```bash
-python device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"publish_topic":"home/sensors/device1","command_topic":"home/commands/device1","device_id":"device1","interval":5,"sensors":{"temp":25.0,"moisture":40}}' --log-file ./device1.log --no-stdout
+python device_simulator/mqtt_device_simulator.py '{"broker":"localhost","port":1883,"publish_topic":"home/sensors/device1","command_topic":"home/commands/device1","device_id":"device1","interval":30,"sensors": {"temperature": {"value": 25.0, "unit": "C"}, "moisture": {"value": 40,"unit": "%"}},"actuators": ["moisture", "light"]}'  --log-file ./device1.log --no-stdout
 
 tail -f ./device1.log
 ```
